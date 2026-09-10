@@ -3,6 +3,8 @@
 - **Language**: TypeScript
 - **Package Manager**: aube
 - **Add-ons**: tailwindcss, ai-tools
+- **Lint/Format**: Biome (`aube run lint`, `aube run lint:fix`) including `.svelte` files via `html.experimentalFullSupportEnabled`; `src/convex/_generated` is excluded (Convex codegen output). Keep using `svelte-check` too — Biome lints Svelte, svelte-check type-checks it.
+- **Verify**: `aube run check` (biome + svelte-check) and `aube run build`
 
 ---
 

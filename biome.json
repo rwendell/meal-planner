@@ -6,7 +6,8 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"includes": ["**", "!src/convex/_generated"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -22,6 +23,14 @@
 		"formatter": {
 			"quoteStyle": "double"
 		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"html": {
+		"experimentalFullSupportEnabled": true
 	},
 	"assist": {
 		"enabled": true,
