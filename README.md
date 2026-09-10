@@ -1,42 +1,13 @@
-# sv
+## 1. Meal Database
+* **Centralized Storage:** Stores a comprehensive list of all your available meals.
+* **Categorization:** Organizes meals by type (e.g., Breakfast, Lunch, Dinner, Snack) to make meal selection easier.
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+## 2. Weekly Planner
+* **Meal Selection:** Allows you to select and plan your meals for the upcoming week.
+* **Tracking:** Keeps track of the selected meals and their corresponding meal types.
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
-
-```sh
-# recreate this project
-aube dlx sv@0.17.0 create --template minimal --types ts --add tailwindcss="plugins:typography" ai-tools="ide:opencode,gemini,other+tools:mcp,svelte-code-writer,svelte-core-bestpractices,svelte-file-editor+mcpSetup:remote" --install aube meal-planner
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## 3. Dynamic Shopping List
+* **Automated Syncing:** Automatically pulls the meals you've selected in the Weekly Planner and sets them as column headers.
+* **Smart Filtering:** Automatically excludes specific meals that don't require groceries, such as "Carryout".
+* **Horizontal Layout:** Displays meals horizontally across the top row (frozen for easy scrolling) to maximize vertical space for ingredients.
+* **Interactive Checklists:** Includes built-in checkboxes beneath each meal, allowing you to easily type in ingredients and check them off as you shop.
