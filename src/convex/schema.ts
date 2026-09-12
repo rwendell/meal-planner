@@ -27,7 +27,17 @@ export const ingredient = v.object({
 });
 
 export default defineSchema({
-	// Step 1 of the workflow: the meal database.
+	// Households group members who share one meal database, per-member
+	// plans, and a unified shopping list. Joined via invite code.
+	households: defineTable({
+		name: v.string(),
+		inviteCode: v.string(),
+	}).index("by_inviteCode", ["inviteCode"]),
+	householdMembers: defineTable({
+		householdId: v.id("households"),
+		name: v.string(),
+	}).index("by_household", ["householdId"]),
+	// Step 1 of the workflow: the meal database, shared household-wide.
 	meals: defineTable({
 		name: v.string(),
 		category: mealCategory,
@@ -39,17 +49,38 @@ export default defineSchema({
 		// created before this field existed still validate; clients
 		// fall back to deriving it from `category`.
 		mealTimes: v.optional(v.array(mealSlot)),
-	}).index("by_category", ["category"]),
-	// Step 2 of the workflow: one row per calendar date (ISO YYYY-MM-DD),
-	// each slot points at a meal. Every week — past and future — persists.
+		householdId: v.id("households"),
+	}).index("by_household", ["householdId"]),
+	// Step 2 of the workflow: one row per member per calendar date
+	// (ISO YYYY-MM-DD). Every week — past and future — persists.
 	weekDays: defineTable({
 		date: v.string(),
+		householdId: v.id("households"),
+		memberId: v.id("householdMembers"),
 		breakfast: v.union(v.id("meals"), v.null()),
 		lunch: v.union(v.id("meals"), v.null()),
 		dinner: v.union(v.id("meals"), v.null()),
-	}).index("by_date", ["date"]),
-	// Step 3 of the workflow: materialized by "Generate shopping list".
-	// Auto items mirror the current plan; custom items are user-added extras.
+	})
+		.index("by_member_date", ["memberId", "date"])
+		.index("by_household_and_date", ["householdId", "date"])
+		.index("by_household", ["householdId"])
+		.index("by_member", ["memberId"]),
+	// Community cookbook: snapshots published from a household's database.
+	// Snapshots are frozen at publish time so later edits or deletes never
+	// change (or remove) what others already adopted.
+	publishedRecipes: defineTable({
+		sourceHouseholdId: v.id("households"),
+		sourceMealId: v.id("meals"),
+		householdName: v.string(),
+		name: v.string(),
+		category: mealCategory,
+		note: v.string(),
+		time: v.string(),
+		color: v.string(),
+		ingredients: v.array(ingredient),
+		mealTimes: v.array(mealSlot),
+	}).index("by_household", ["sourceHouseholdId"]),
+	// Checked states for the derived shopping list, keyed by ingredient.
 	shoppingItems: defineTable({
 		key: v.string(),
 		name: v.string(),
@@ -57,5 +88,8 @@ export default defineSchema({
 		group: groceryGroup,
 		checked: v.boolean(),
 		custom: v.boolean(),
-	}).index("by_key", ["key"]),
+		householdId: v.id("households"),
+	})
+		.index("by_household", ["householdId"])
+		.index("by_household_key", ["householdId", "key"]),
 });

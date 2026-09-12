@@ -11,6 +11,7 @@
 		weekdayLabel,
 		weekLabel,
 	} from "$lib/dates.js";
+	import { session } from "$lib/session.svelte.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
 
@@ -61,6 +62,15 @@
 
 	const today = todayISO();
 
+	const memberColors = [
+		"#e47d5f",
+		"#507b62",
+		"#686c87",
+		"#887647",
+		"#b86b51",
+		"#4f7d8c",
+	];
+
 	let view = $state<View>("week");
 	let anchorDate = $state(today);
 	let search = $state("");
@@ -77,10 +87,39 @@
 	);
 	let currentWeek = $derived(weekDates(anchorDate));
 
-	const mealsQuery = useQuery(api.meals.list, () => ({}));
-	const daysQuery = useQuery(api.plan.getDays, () => ({
-		dates: visibleDates,
-	}));
+	let householdId = $derived(session.session?.householdId ?? null);
+	let selfMemberId = $derived(session.session?.memberId ?? null);
+
+	const householdQuery = useQuery(api.households.get, () =>
+		householdId
+			? { householdId: householdId as Id<"households"> }
+			: "skip",
+	);
+	let members = $derived(householdQuery.data?.members ?? []);
+	let viewingMemberId = $state<string | null>(null);
+	let viewingMember = $derived(
+		members.find((m) => m._id === (viewingMemberId ?? selfMemberId)) ?? null,
+	);
+
+	function memberColor(id: string): string {
+		const index = members.findIndex((m) => m._id === id);
+		return memberColors[(index < 0 ? 0 : index) % memberColors.length] ?? "#e47d5f";
+	}
+
+	const mealsQuery = useQuery(api.meals.list, () =>
+		householdId
+			? { householdId: householdId as Id<"households"> }
+			: "skip",
+	);
+	const daysQuery = useQuery(api.plan.getDays, () =>
+		householdId && viewingMember
+			? {
+					householdId: householdId as Id<"households">,
+					memberId: viewingMember._id,
+					dates: visibleDates,
+				}
+			: "skip",
+	);
 
 	const setSlot = useMutation(api.plan.setSlot);
 	const clearDayMutation = useMutation(api.plan.clearDay);
@@ -119,7 +158,9 @@
 		view === "day" ? formatLong(anchorDate) : weekLabel(currentWeek),
 	);
 
-	let dataError = $derived(mealsQuery.error ?? daysQuery.error);
+	let dataError = $derived(
+		mealsQuery.error ?? daysQuery.error ?? householdQuery.error,
+	);
 
 	let pickerMeals = $derived.by(() => {
 		const query = search.trim().toLowerCase();
@@ -170,20 +211,27 @@
 		pickerTarget = null;
 	}
 
+	function ownerSuffix(): string {
+		if (!viewingMember || viewingMember._id === selfMemberId) return "";
+		return ` for ${viewingMember.name}`;
+	}
+
 	async function assignToSlot(mealId: string): Promise<void> {
-		if (!pickerTarget) return;
+		if (!pickerTarget || !householdId || !viewingMember) return;
 		await setSlot({
+			householdId: householdId as Id<"households">,
+			memberId: viewingMember._id,
 			date: pickerTarget.date,
 			slot: pickerTarget.slot,
 			mealId: mealId as Id<"meals">,
 		});
 		const meal = meals.find((item) => item.id === mealId);
-		toast = `${meal?.name ?? "Meal"} added to ${pickerTarget.dayLabel}`;
+		toast = `${meal?.name ?? "Meal"} added to ${pickerTarget.dayLabel}${ownerSuffix()}`;
 		closePicker();
 	}
 
 	async function addSearchedMeal(): Promise<void> {
-		if (!pickerTarget) return;
+		if (!pickerTarget || !householdId || !viewingMember) return;
 		const name = search.trim();
 		if (!name) return;
 		const category =
@@ -193,32 +241,47 @@
 					? "Lunch"
 					: "Dinner";
 		const id = await createMeal({
+			householdId: householdId as Id<"households">,
 			name,
 			category,
 			ingredients: [],
 			mealTimes: [pickerTarget.slot],
 		});
 		await setSlot({
+			householdId: householdId as Id<"households">,
+			memberId: viewingMember._id,
 			date: pickerTarget.date,
 			slot: pickerTarget.slot,
 			mealId: id,
 		});
-		toast = `${name} added to ${pickerTarget.dayLabel}`;
+		toast = `${name} added to ${pickerTarget.dayLabel}${ownerSuffix()}`;
 		search = "";
 		closePicker();
 	}
 
 	async function removeMeal(date: string, slot: MealType): Promise<void> {
+		if (!householdId || !viewingMember) return;
 		const meal = slotMeal(date, slot);
 		if (!meal) return;
-		await setSlot({ date, slot, mealId: null });
-		toast = `${meal.name} removed from ${dayLabel(date)}`;
+		await setSlot({
+			householdId: householdId as Id<"households">,
+			memberId: viewingMember._id,
+			date,
+			slot,
+			mealId: null,
+		});
+		toast = `${meal.name} removed from ${dayLabel(date)}${ownerSuffix()}`;
 	}
 
 	async function clearDay(date: string): Promise<void> {
+		if (!householdId || !viewingMember) return;
 		if (dayMealCount(date) === 0) return;
-		await clearDayMutation({ date });
-		toast = `${dayLabel(date)} cleared`;
+		await clearDayMutation({
+			householdId: householdId as Id<"households">,
+			memberId: viewingMember._id,
+			date,
+		});
+		toast = `${dayLabel(date)} cleared${ownerSuffix()}`;
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -340,6 +403,24 @@
 			{/if}
 
 			<section class="panel" aria-label={viewLabel}>
+				{#if members.length > 1}
+					<fieldset class="member-tabs">
+						<legend class="sr-only">Whose plan</legend>
+						{#each members as member, i (member._id)}
+							<button
+								type="button"
+								class:active={viewingMember?._id === member._id}
+								aria-pressed={viewingMember?._id === member._id}
+								onclick={() => (viewingMemberId = member._id)}
+							>
+								<span
+									class="member-dot"
+									style={`background: ${memberColor(member._id)}`}
+								></span>{member.name}</button
+							>
+						{/each}
+					</fieldset>
+				{/if}
 				{#if view === "day"}
 					<div class="day-detail">
 						{#each mealTypes as type (type.id)}
@@ -1009,6 +1090,38 @@
 	.hint a {
 		color: #bf6c51;
 		font-weight: 700;
+	}
+	.member-tabs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin: 0 0 16px;
+		padding: 0;
+		border: 0;
+	}
+	.member-tabs button {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		border: 1px solid #cfd4cc;
+		border-radius: 999px;
+		padding: 7px 13px;
+		background: rgba(255, 255, 255, 0.55);
+		color: #35453d;
+		font-size: 12px;
+		font-weight: 800;
+		cursor: pointer;
+	}
+	.member-tabs button.active {
+		border-color: #17221f;
+		background: #17221f;
+		color: #f7f5ef;
+	}
+	.member-dot {
+		flex: 0 0 auto;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
 	}
 
 	@media (min-width: 560px) {

@@ -4,14 +4,21 @@ import { mutation } from "./_generated/server";
 import { ingredientKey } from "./shopping";
 
 /**
- * One-time starter content so a fresh deployment matches the demo week.
- * No-op once any meal exists. New deployments start empty otherwise —
- * the workflow is: add meals, plan the week, generate the shopping list.
+ * One-time starter content for a household: demo meals, the creating
+ * member's week plan, and initial check states. No-op once the household
+ * has any meals.
  */
 export const ensureSeed = mutation({
-	args: {},
-	handler: async (ctx) => {
-		const existing = await ctx.db.query("meals").take(1);
+	args: { householdId: v.id("households"), memberId: v.id("householdMembers") },
+	handler: async (ctx, args) => {
+		const member = await ctx.db.get("householdMembers", args.memberId);
+		if (!member || member.householdId !== args.householdId) {
+			throw new Error("Household member not found.");
+		}
+		const existing = await ctx.db
+			.query("meals")
+			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+			.take(1);
 		if (existing.length > 0) return { seeded: false };
 
 		const mealIds: Record<string, Id<"meals">> = {};
@@ -134,6 +141,7 @@ export const ensureSeed = mutation({
 						: (["dinner"] as const);
 			mealIds[meal.name] = await ctx.db.insert("meals", {
 				...meal,
+				householdId: args.householdId,
 				mealTimes: [...mealTimes],
 			});
 		}
@@ -214,6 +222,8 @@ export const ensureSeed = mutation({
 
 		for (const day of week) {
 			await ctx.db.insert("weekDays", {
+				householdId: args.householdId,
+				memberId: args.memberId,
 				date: isoForOffset(day.offset),
 				breakfast: day.breakfast ? getId(day.breakfast) : null,
 				lunch: day.lunch ? getId(day.lunch) : null,
@@ -235,6 +245,7 @@ export const ensureSeed = mutation({
 				if (seen.has(key)) continue;
 				seen.add(key);
 				await ctx.db.insert("shoppingItems", {
+					householdId: args.householdId,
 					key,
 					name: ingredient.name,
 					amount: ingredient.amount,

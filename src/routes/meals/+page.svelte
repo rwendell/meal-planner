@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { useMutation, useQuery } from "convex-svelte";
 	import Icon from "$lib/components/Icon.svelte";
+	import { session } from "$lib/session.svelte.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -51,6 +52,8 @@
 
 	let search = $state("");
 	let category = $state<"All" | MealCategory>("All");
+	let dbTab = $state<"mine" | "discover">("mine");
+	let discoverSearch = $state("");
 	let showMealDialog = $state(false);
 	let toast = $state("");
 	let editingMeal = $state<Meal | null>(null);
@@ -62,12 +65,90 @@
 	let editIngredients = $state<IngredientRow[]>([]);
 	let rowKey = 0;
 
-	const mealsQuery = useQuery(api.meals.list, () => ({}));
+	let householdId = $derived(session.session?.householdId ?? null);
+	let selfMemberId = $derived(session.session?.memberId ?? null);
+
+	const mealsQuery = useQuery(api.meals.list, () =>
+		householdId
+			? { householdId: householdId as Id<"households"> }
+			: "skip",
+	);
 
 	const createMeal = useMutation(api.meals.create);
 	const updateMeal = useMutation(api.meals.update);
 	const deleteMeal = useMutation(api.meals.remove);
 	const seedDatabase = useMutation(api.seed.ensureSeed);
+	const publishRecipe = useMutation(api.recipes.publish);
+	const unpublishRecipe = useMutation(api.recipes.unpublish);
+	const adoptRecipe = useMutation(api.recipes.adopt);
+	const seedSamples = useMutation(api.recipes.seedSamples);
+
+	let sampleSeedAttempted = $state(false);
+
+	$effect(() => {
+		if (dbTab !== "discover" || sampleSeedAttempted) return;
+		const data = recipesQuery.data;
+		if (data !== undefined && data.length === 0) {
+			sampleSeedAttempted = true;
+			seedSamples({}).catch(() => {
+				sampleSeedAttempted = false;
+			});
+		}
+	});
+
+	const recipesQuery = useQuery(api.recipes.list, () => ({}));
+	const myRecipesQuery = useQuery(api.recipes.mine, () =>
+		householdId
+			? { householdId: householdId as Id<"households"> }
+			: "skip",
+	);
+
+	let publishedMealIds = $derived(
+		new Set<string>(
+			(myRecipesQuery.data ?? []).map((row) => row.sourceMealId),
+		),
+	);
+
+	let visibleRecipes = $derived.by(() => {
+		const query = discoverSearch.trim().toLowerCase();
+		return (recipesQuery.data ?? []).filter((recipe) => {
+			const inCategory =
+				category === "All" || recipe.category === category;
+			const inSearch =
+				!query ||
+				`${recipe.name} ${recipe.note} ${recipe.householdName}`
+					.toLowerCase()
+					.includes(query);
+			return inCategory && inSearch;
+		});
+	});
+
+	async function toggleShare(meal: Meal): Promise<void> {
+		if (!householdId) return;
+		const household = householdId as Id<"households">;
+		if (publishedMealIds.has(meal.id)) {
+			await unpublishRecipe({
+				householdId: household,
+				mealId: meal.id as Id<"meals">,
+			});
+			toast = `${meal.name} is no longer shared`;
+		} else {
+			await publishRecipe({
+				householdId: household,
+				mealId: meal.id as Id<"meals">,
+			});
+			toast = `${meal.name} shared with the community`;
+		}
+	}
+
+	async function adoptSharedRecipe(recipeId: string): Promise<void> {
+		if (!householdId) return;
+		const result = await adoptRecipe({
+			householdId: householdId as Id<"households">,
+			recipeId: recipeId as Id<"publishedRecipes">,
+		});
+		toast = `${result.name} added to your database`;
+	}
 
 	let meals = $derived<Meal[]>(
 		(mealsQuery.data ?? []).map((meal) => ({
@@ -166,8 +247,10 @@
 	}
 
 	async function duplicateMeal(meal: Meal): Promise<void> {
+		if (!householdId) return;
 		const name = copyName(meal.name);
 		const id = await createMeal({
+			householdId: householdId as Id<"households">,
 			name,
 			category: meal.category,
 			note: meal.note,
@@ -210,6 +293,8 @@
 				group: row.group,
 			}))
 			.filter((ingredient) => ingredient.name);
+		if (!householdId) return;
+		const household = householdId as Id<"households">;
 		try {
 			if (editingMeal) {
 				await updateMeal({
@@ -223,6 +308,7 @@
 				toast = `${name} updated`;
 			} else {
 				await createMeal({
+					householdId: household,
 					name,
 					category: newCategory,
 					note: newNote.trim() || undefined,
@@ -248,7 +334,11 @@
 	}
 
 	async function loadSamples(): Promise<void> {
-		await seedDatabase({});
+		if (!householdId || !selfMemberId) return;
+		await seedDatabase({
+			householdId: householdId as Id<"households">,
+			memberId: selfMemberId as Id<"householdMembers">,
+		});
 		toast = "Sample data loaded";
 	}
 
@@ -281,6 +371,23 @@
 				><Icon name="plus" size={14} /> New meal</button
 			>
 		</div>
+		<fieldset class="db-tabs">
+			<legend class="sr-only">Database view</legend>
+			<button
+				type="button"
+				class:active={dbTab === "mine"}
+				aria-pressed={dbTab === "mine"}
+				onclick={() => (dbTab = "mine")}
+				>My meals</button
+			>
+			<button
+				type="button"
+				class:active={dbTab === "discover"}
+				aria-pressed={dbTab === "discover"}
+				onclick={() => (dbTab = "discover")}
+				>Discover</button
+			>
+		</fieldset>
 		{#if dataError}
 			<p class="error-note" role="alert">
 				Couldn't reach the database ({dataError.message}). Check your
@@ -300,12 +407,22 @@
 			</div>
 			<label class="search-box">
 				<Icon name="search" size={14} /><span class="sr-only"
-					>Search meals</span
+					>Search {dbTab === "mine" ? "meals" : "recipes"}</span
 				>
-				<input bind:value={search} placeholder="Search meals" />
+				<input
+					value={dbTab === "mine" ? search : discoverSearch}
+					placeholder={dbTab === "mine"
+						? "Search meals"
+						: "Search recipes"}
+					oninput={(event) => {
+						if (dbTab === "mine") search = event.currentTarget.value;
+						else discoverSearch = event.currentTarget.value;
+					}}
+				/>
 			</label>
 		</div>
-		{#if visibleMeals.length}
+		{#if dbTab === "mine"}
+			{#if visibleMeals.length}
 			<div class="meal-grid">
 				{#each visibleMeals as meal (meal.id)}
 					<article class="meal-card">
@@ -354,6 +471,21 @@
 								<button
 									type="button"
 									class="card-delete"
+									class:shared={publishedMealIds.has(meal.id)}
+									aria-label={publishedMealIds.has(meal.id)
+										? `Stop sharing ${meal.name}`
+										: `Share ${meal.name} with the community`}
+									title={publishedMealIds.has(meal.id)
+										? `Stop sharing ${meal.name}`
+										: `Share ${meal.name}`}
+									onclick={() => toggleShare(meal)}><Icon
+										name="globe"
+										size={11}
+									/></button
+								>
+								<button
+									type="button"
+									class="card-delete"
 									aria-label={`Delete ${meal.name} from the database`}
 									title={`Delete ${meal.name}`}
 									onclick={() =>
@@ -391,6 +523,53 @@
 				<strong>No meals found</strong>
 				<p>Try a different search or create a new meal.</p>
 			</div>
+		{/if}
+		{:else}
+			{#if visibleRecipes.length}
+				<div class="meal-grid">
+					{#each visibleRecipes as recipe (recipe._id)}
+						<article class="meal-card">
+							<div
+								class="meal-icon"
+								style={`background: ${recipe.color}`}
+							>
+								<Icon
+									name={recipe.category === "Breakfast"
+										? "spark"
+										: recipe.category === "Lunch"
+											? "leaf"
+											: "utensils"}
+									size={18}
+								/>
+							</div>
+							<span class="tag">{recipe.category}</span>
+							<h3>{recipe.name}</h3>
+							<p>{recipe.note}</p>
+							<div class="card-foot">
+								<span>by {recipe.householdName}</span>
+								<div class="card-actions">
+									<span class="ingredient-count"
+										>{recipe.ingredients.length} ingredients</span
+									>
+									<button
+										type="button"
+										class="add-round"
+										aria-label={`Add ${recipe.name} to your database`}
+										title={`Add ${recipe.name}`}
+										onclick={() => adoptSharedRecipe(recipe._id)}
+										><Icon name="plus" size={14} /></button
+									>
+								</div>
+							</div>
+						</article>
+					{/each}
+				</div>
+			{:else}
+				<div class="empty-state">
+					<strong>No recipes found</strong>
+					<p>Try a different search — or share one of yours.</p>
+				</div>
+			{/if}
 		{/if}
 	</section>
 </main>
@@ -637,6 +816,54 @@
 		color: #9a4b32;
 		font-size: 12px;
 		font-weight: 600;
+	}
+	.db-tabs {
+		display: inline-grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 4px;
+		margin: 0 0 16px;
+		padding: 4px;
+		border: 1px solid var(--app-line);
+		border-radius: 12px;
+		background: var(--app-surface-soft);
+	}
+	.db-tabs button {
+		border: 0;
+		border-radius: 8px;
+		padding: 8px 16px;
+		background: transparent;
+		color: var(--app-faint);
+		font-size: 11px;
+		font-weight: 800;
+		cursor: pointer;
+	}
+	.db-tabs button.active {
+		background: var(--app-dark-ink);
+		color: #141a17;
+	}
+	.card-delete.shared {
+		color: var(--app-accent);
+		background: color-mix(
+			in srgb,
+			var(--app-accent-strong) 14%,
+			transparent
+		);
+	}
+	.card-foot button.add-round {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		padding: 0;
+		border: 1px solid var(--app-line-strong);
+		border-radius: 10px;
+		background: transparent;
+		color: var(--app-ink);
+	}
+	.card-foot button.add-round:hover {
+		border-color: var(--app-accent-strong);
+		color: var(--app-accent);
+		background: transparent;
 	}
 	.toolbar {
 		display: flex;

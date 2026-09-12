@@ -15,7 +15,8 @@
 		| "pencil"
 		| "chevron-down"
 		| "copy"
-		| "user";
+		| "user"
+		| "globe";
 </script>
 
 <script lang="ts">
@@ -72,6 +73,10 @@
 			cx="12"
 			cy="7"
 			r="4"
+		/>
+	{:else if name === "globe"}
+		<circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path
+			d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
 		/>
 	{:else if name === "copy"}
 		<rect width="14" height="14" x="8" y="8" rx="2" /><path

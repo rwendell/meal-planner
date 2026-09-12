@@ -22,16 +22,33 @@ const shoppingRow = v.object({
 });
 
 /**
- * The shopping list is always derived from the current week plan.
- * Checked states persist in the `shoppingItems` table, keyed by ingredient.
+ * The unified household shopping list, derived from every member's plans
+ * on the given dates. Shared meals collapse to one row automatically.
+ * Checked states persist per household, keyed by ingredient.
  */
 export const list = query({
-	args: {},
-	handler: async (ctx) => {
-		const [days, meals, checks] = await Promise.all([
-			ctx.db.query("weekDays").collect(),
-			ctx.db.query("meals").collect(),
-			ctx.db.query("shoppingItems").collect(),
+	args: { householdId: v.id("households"), dates: v.array(v.string()) },
+	handler: async (ctx, args) => {
+		const unique = [...new Set(args.dates)].slice(0, 45);
+		const [dayGroups, meals, checks] = await Promise.all([
+			Promise.all(
+				unique.map((date) =>
+					ctx.db
+						.query("weekDays")
+						.withIndex("by_household_and_date", (q) =>
+							q.eq("householdId", args.householdId).eq("date", date),
+						)
+						.collect(),
+				),
+			),
+			ctx.db
+				.query("meals")
+				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+				.collect(),
+			ctx.db
+				.query("shoppingItems")
+				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+				.collect(),
 		]);
 		const mealsById = new Map(meals.map((meal) => [meal._id, meal]));
 		const checkedByKey = new Map(
@@ -42,18 +59,20 @@ export const list = query({
 			string,
 			{ name: string; amount?: string; group: GroceryGroup }
 		>();
-		for (const day of days) {
-			for (const mealId of [day.breakfast, day.lunch, day.dinner]) {
-				if (!mealId) continue;
-				const meal = mealsById.get(mealId);
-				for (const ingredient of meal?.ingredients ?? []) {
-					const key = ingredientKey(ingredient.name, ingredient.group);
-					if (!needed.has(key)) {
-						needed.set(key, {
-							name: ingredient.name,
-							amount: ingredient.amount,
-							group: ingredient.group,
-						});
+		for (const days of dayGroups) {
+			for (const day of days) {
+				for (const mealId of [day.breakfast, day.lunch, day.dinner]) {
+					if (!mealId) continue;
+					const meal = mealsById.get(mealId);
+					for (const ingredient of meal?.ingredients ?? []) {
+						const key = ingredientKey(ingredient.name, ingredient.group);
+						if (!needed.has(key)) {
+							needed.set(key, {
+								name: ingredient.name,
+								amount: ingredient.amount,
+								group: ingredient.group,
+							});
+						}
 					}
 				}
 			}
@@ -72,6 +91,7 @@ export const list = query({
 
 export const setChecked = mutation({
 	args: {
+		householdId: v.id("households"),
 		key: v.string(),
 		name: v.string(),
 		amount: v.optional(v.string()),
@@ -79,9 +99,13 @@ export const setChecked = mutation({
 		checked: v.boolean(),
 	},
 	handler: async (ctx, args) => {
+		const household = await ctx.db.get("households", args.householdId);
+		if (!household) throw new Error("Household not found.");
 		const existing = await ctx.db
 			.query("shoppingItems")
-			.withIndex("by_key", (q) => q.eq("key", args.key))
+			.withIndex("by_household_key", (q) =>
+				q.eq("householdId", args.householdId).eq("key", args.key),
+			)
 			.unique();
 		if (existing) {
 			await ctx.db.patch("shoppingItems", existing._id, {
@@ -90,6 +114,7 @@ export const setChecked = mutation({
 			return existing._id;
 		}
 		return await ctx.db.insert("shoppingItems", {
+			householdId: args.householdId,
 			key: args.key,
 			name: args.name,
 			amount: args.amount,

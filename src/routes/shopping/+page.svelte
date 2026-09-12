@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { useMutation, useQuery } from "convex-svelte";
 	import Icon from "$lib/components/Icon.svelte";
+	import { todayISO, weekDates } from "$lib/dates.js";
+	import { session } from "$lib/session.svelte.js";
 	import { api } from "../../convex/_generated/api.js";
+	import type { Id } from "../../convex/_generated/dataModel";
 
 	interface GroceryItem {
 		key: string;
@@ -19,7 +22,18 @@
 
 	let toast = $state("");
 
-	const shoppingQuery = useQuery(api.shopping.list, () => ({}));
+	let householdId = $derived(session.session?.householdId ?? null);
+	// The unified list covers everyone's plans for the current week.
+	let listDates = $derived(weekDates(todayISO()));
+
+	const shoppingQuery = useQuery(api.shopping.list, () =>
+		householdId
+			? {
+					householdId: householdId as Id<"households">,
+					dates: listDates,
+				}
+			: "skip",
+	);
 
 	const setItemChecked = useMutation(api.shopping.setChecked);
 
@@ -47,7 +61,9 @@
 	let dataError = $derived(shoppingQuery.error);
 
 	async function toggleItem(item: GroceryItem): Promise<void> {
+		if (!householdId) return;
 		await setItemChecked({
+			householdId: householdId as Id<"households">,
 			key: item.key,
 			name: item.name,
 			amount: item.amount || undefined,

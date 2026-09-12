@@ -7,10 +7,14 @@ const mealDoc = schema.doc("meals");
 
 async function assertUniqueName(
 	ctx: MutationCtx,
+	householdId: Id<"households">,
 	name: string,
 	exceptId?: Id<"meals">,
 ): Promise<void> {
-	const existing = await ctx.db.query("meals").take(200);
+	const existing = await ctx.db
+		.query("meals")
+		.withIndex("by_household", (q) => q.eq("householdId", householdId))
+		.take(200);
 	const clash = existing.some(
 		(meal) =>
 			meal._id !== exceptId &&
@@ -20,15 +24,20 @@ async function assertUniqueName(
 }
 
 export const list = query({
-	args: {},
-	handler: async (ctx) => {
-		return await ctx.db.query("meals").order("desc").take(200);
+	args: { householdId: v.id("households") },
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query("meals")
+			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+			.order("desc")
+			.take(200);
 	},
 	returns: v.array(mealDoc),
 });
 
 export const create = mutation({
 	args: {
+		householdId: v.id("households"),
 		name: v.string(),
 		category: mealCategory,
 		note: v.optional(v.string()),
@@ -38,13 +47,16 @@ export const create = mutation({
 		mealTimes: v.array(mealSlot),
 	},
 	handler: async (ctx, args) => {
+		const household = await ctx.db.get("households", args.householdId);
+		if (!household) throw new Error("Household not found.");
 		const name = args.name.trim();
 		if (!name) throw new Error("Meal name is required.");
 		if (args.mealTimes.length === 0) {
 			throw new Error("Pick at least one meal time.");
 		}
-		await assertUniqueName(ctx, name);
+		await assertUniqueName(ctx, args.householdId, name);
 		return await ctx.db.insert("meals", {
+			householdId: args.householdId,
 			name,
 			category: args.category,
 			note: args.note?.trim() || "No description",
@@ -70,13 +82,15 @@ export const update = mutation({
 	},
 	handler: async (ctx, args) => {
 		const existing = await ctx.db.get("meals", args.id);
-		if (!existing) throw new Error("That meal no longer exists.");
+		if (!existing?.householdId) {
+			throw new Error("That meal no longer exists.");
+		}
 		const name = args.name.trim();
 		if (!name) throw new Error("Meal name is required.");
 		if (args.mealTimes.length === 0) {
 			throw new Error("Pick at least one meal time.");
 		}
-		await assertUniqueName(ctx, name, args.id);
+		await assertUniqueName(ctx, existing.householdId, name, args.id);
 		await ctx.db.patch("meals", args.id, {
 			name,
 			category: args.category,
@@ -95,9 +109,13 @@ export const remove = mutation({
 	args: { id: v.id("meals") },
 	handler: async (ctx, args) => {
 		const meal = await ctx.db.get("meals", args.id);
-		if (!meal) return null;
-		// Clear any plan slots pointing at the deleted meal (at most 7 rows).
-		const days = await ctx.db.query("weekDays").collect();
+		if (!meal?.householdId) return null;
+		const householdId = meal.householdId;
+		// Clear any household plan slots pointing at the deleted meal.
+		const days = await ctx.db
+			.query("weekDays")
+			.withIndex("by_household", (q) => q.eq("householdId", householdId))
+			.collect();
 		for (const day of days) {
 			const patch: {
 				breakfast?: typeof day.breakfast;
