@@ -97,10 +97,12 @@ export const join = mutation({
 		const code = args.inviteCode.trim().toUpperCase();
 		const memberName = cleanName(args.memberName);
 		if (!memberName) throw new Error("Your name is required.");
+		// `.first()` instead of `.unique()`: a duplicate invite code must
+		// never crash joining; the first household wins.
 		const household = await ctx.db
 			.query("households")
 			.withIndex("by_inviteCode", (q) => q.eq("inviteCode", code))
-			.unique();
+			.first();
 		if (!household) throw new Error("No household found with that code.");
 		const name = await uniqueMemberName(ctx, household._id, memberName);
 		const memberId = await ctx.db.insert("householdMembers", {

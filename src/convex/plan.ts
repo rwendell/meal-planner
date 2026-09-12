@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx, query } from "./_generated/server";
-import schema, { mealSlot } from "./schema";
+import schema, { mealSlot, planSlotValue } from "./schema";
 
 const weekDayDoc = schema.doc("weekDays");
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -38,6 +38,8 @@ export const getDays = query({
 		if (args.memberId) {
 			const memberId = args.memberId;
 			await assertMember(ctx, args.householdId, memberId);
+			// `.first()` instead of `.unique()`: duplicate rows for one
+			// member+date must never crash reads (see setSlot self-heal below).
 			const rows = await Promise.all(
 				unique.map((date) =>
 					ctx.db
@@ -45,7 +47,7 @@ export const getDays = query({
 						.withIndex("by_member_date", (q) =>
 							q.eq("memberId", memberId).eq("date", date),
 						)
-						.unique(),
+						.first(),
 				),
 			);
 			return rows.filter((row) => row !== null);
@@ -71,7 +73,7 @@ export const setSlot = mutation({
 		memberId: v.id("householdMembers"),
 		date: v.string(),
 		slot: mealSlot,
-		mealId: v.union(v.id("meals"), v.null()),
+		mealId: planSlotValue,
 	},
 	handler: async (ctx, args) => {
 		assertDate(args.date);
@@ -79,7 +81,7 @@ export const setSlot = mutation({
 		if (!member || member.householdId !== args.householdId) {
 			throw new Error("Household member not found.");
 		}
-		if (args.mealId !== null) {
+		if (args.mealId !== null && args.mealId !== "skip") {
 			const meal = await ctx.db.get("meals", args.mealId);
 			if (!meal || meal.householdId !== args.householdId) {
 				throw new Error("That meal no longer exists.");
@@ -90,12 +92,17 @@ export const setSlot = mutation({
 			.withIndex("by_member_date", (q) =>
 				q.eq("memberId", args.memberId).eq("date", args.date),
 			)
-			.unique();
-		if (existing) {
-			await ctx.db.patch("weekDays", existing._id, {
+			.collect();
+		const [first, ...dupes] = existing;
+		if (first) {
+			await ctx.db.patch("weekDays", first._id, {
 				[args.slot]: args.mealId,
 			});
-			return existing._id;
+			// Self-heal: collapse duplicate rows left by concurrent inserts.
+			for (const dupe of dupes) {
+				await ctx.db.delete("weekDays", dupe._id);
+			}
+			return first._id;
 		}
 		return await ctx.db.insert("weekDays", {
 			householdId: args.householdId,
@@ -126,14 +133,18 @@ export const clearDay = mutation({
 			.withIndex("by_member_date", (q) =>
 				q.eq("memberId", args.memberId).eq("date", args.date),
 			)
-			.unique();
-		if (!existing) return null;
-		await ctx.db.patch("weekDays", existing._id, {
+			.collect();
+		const [first, ...dupes] = existing;
+		if (!first) return null;
+		await ctx.db.patch("weekDays", first._id, {
 			breakfast: null,
 			lunch: null,
 			dinner: null,
 		});
-		return existing._id;
+		for (const dupe of dupes) {
+			await ctx.db.delete("weekDays", dupe._id);
+		}
+		return first._id;
 	},
 	returns: v.union(v.id("weekDays"), v.null()),
 });

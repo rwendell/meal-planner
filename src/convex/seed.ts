@@ -22,6 +22,19 @@ export const ensureSeed = mutation({
 		if (existing.length > 0) return { seeded: false };
 
 		const mealIds: Record<string, Id<"meals">> = {};
+		// Guard every insert below against rows that already exist: concurrent
+		// runs serialize in Convex, so the loser sees the winner's writes and
+		// skips instead of creating duplicates.
+		const alreadySeeded = await ctx.db
+			.query("meals")
+			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+			.collect();
+		const takenNames = new Set(
+			alreadySeeded.map((meal) => meal.name.trim().toLowerCase()),
+		);
+		for (const row of alreadySeeded) {
+			mealIds[row.name] = row._id;
+		}
 		const meals: {
 			name: string;
 			category: "Breakfast" | "Lunch" | "Dinner" | "Snack";
@@ -122,17 +135,10 @@ export const ensureSeed = mutation({
 					{ name: "Limes", amount: "3", group: "Produce" },
 				],
 			},
-			{
-				name: "Carryout night",
-				category: "Dinner",
-				note: "A night off from the kitchen",
-				time: "No groceries",
-				color: "#dedee6",
-				ingredients: [],
-			},
 		];
 
 		for (const meal of meals) {
+			if (takenNames.has(meal.name.trim().toLowerCase())) continue;
 			const mealTimes =
 				meal.category === "Breakfast"
 					? (["breakfast"] as const)
@@ -197,7 +203,7 @@ export const ensureSeed = mutation({
 			{
 				offset: 3,
 				breakfast: "Ricotta toast",
-				lunch: "Carryout night",
+				lunch: "skip",
 				dinner: "Tomato basil pasta",
 			},
 			{
@@ -210,7 +216,7 @@ export const ensureSeed = mutation({
 				offset: 5,
 				breakfast: "Ricotta toast",
 				lunch: "Green goddess wrap",
-				dinner: "Carryout night",
+				dinner: "skip",
 			},
 			{
 				offset: 6,
@@ -220,14 +226,26 @@ export const ensureSeed = mutation({
 			},
 		];
 
+		const existingDays = await ctx.db
+			.query("weekDays")
+			.withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+			.collect();
+		const existingDates = new Set(existingDays.map((row) => row.date));
+		const slotRef = (name: string | null): Id<"meals"> | "skip" | null => {
+			if (name === null) return null;
+			if (name === "skip") return "skip";
+			return getId(name);
+		};
 		for (const day of week) {
+			const date = isoForOffset(day.offset);
+			if (existingDates.has(date)) continue;
 			await ctx.db.insert("weekDays", {
 				householdId: args.householdId,
 				memberId: args.memberId,
-				date: isoForOffset(day.offset),
-				breakfast: day.breakfast ? getId(day.breakfast) : null,
-				lunch: day.lunch ? getId(day.lunch) : null,
-				dinner: day.dinner ? getId(day.dinner) : null,
+				date,
+				breakfast: slotRef(day.breakfast),
+				lunch: slotRef(day.lunch),
+				dinner: slotRef(day.dinner),
 			});
 		}
 
@@ -239,6 +257,13 @@ export const ensureSeed = mutation({
 			"Pantry:almond-butter",
 		]);
 		const seen = new Set<string>();
+		const existingChecks = await ctx.db
+			.query("shoppingItems")
+			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+			.collect();
+		for (const row of existingChecks) {
+			seen.add(row.key);
+		}
 		for (const meal of meals) {
 			for (const ingredient of meal.ingredients) {
 				const key = ingredientKey(ingredient.name, ingredient.group);

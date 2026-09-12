@@ -20,6 +20,15 @@ export const mealSlot = v.union(
 	v.literal("dinner"),
 );
 
+// A planner slot holds a meal, is unplanned (null), or is deliberately
+// skipped ("skip"). Skips are first-class values — never meal rows — so
+// they need no database entry and stay out of the meal list and groceries.
+export const planSlotValue = v.union(
+	v.id("meals"),
+	v.null(),
+	v.literal("skip"),
+);
+
 export const ingredient = v.object({
 	name: v.string(),
 	amount: v.optional(v.string()),
@@ -57,9 +66,9 @@ export default defineSchema({
 		date: v.string(),
 		householdId: v.id("households"),
 		memberId: v.id("householdMembers"),
-		breakfast: v.union(v.id("meals"), v.null()),
-		lunch: v.union(v.id("meals"), v.null()),
-		dinner: v.union(v.id("meals"), v.null()),
+		breakfast: planSlotValue,
+		lunch: planSlotValue,
+		dinner: planSlotValue,
 	})
 		.index("by_member_date", ["memberId", "date"])
 		.index("by_household_and_date", ["householdId", "date"])

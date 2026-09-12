@@ -62,7 +62,8 @@ export const list = query({
 		for (const days of dayGroups) {
 			for (const day of days) {
 				for (const mealId of [day.breakfast, day.lunch, day.dinner]) {
-					if (!mealId) continue;
+					// Skipped slots contribute no groceries.
+					if (!mealId || mealId === "skip") continue;
 					const meal = mealsById.get(mealId);
 					for (const ingredient of meal?.ingredients ?? []) {
 						const key = ingredientKey(ingredient.name, ingredient.group);
@@ -106,12 +107,16 @@ export const setChecked = mutation({
 			.withIndex("by_household_key", (q) =>
 				q.eq("householdId", args.householdId).eq("key", args.key),
 			)
-			.unique();
-		if (existing) {
-			await ctx.db.patch("shoppingItems", existing._id, {
+			.collect();
+		const [first, ...dupes] = existing;
+		if (first) {
+			await ctx.db.patch("shoppingItems", first._id, {
 				checked: args.checked,
 			});
-			return existing._id;
+			for (const dupe of dupes) {
+				await ctx.db.delete("shoppingItems", dupe._id);
+			}
+			return first._id;
 		}
 		return await ctx.db.insert("shoppingItems", {
 			householdId: args.householdId,
