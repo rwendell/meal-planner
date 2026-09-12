@@ -8,10 +8,11 @@
 		id: string;
 		label: string;
 		icon: IconName;
-		href: "/#planner" | "/shopping";
+		href: "/#planner" | "/meals" | "/shopping";
 	}[] = [
 		{ id: "planner", label: "Planner", icon: "calendar", href: "/#planner" },
-		{ id: "shopping", label: "List", icon: "cart", href: "/shopping" },
+		{ id: "meals", label: "Meal database", icon: "book", href: "/meals" },
+		{ id: "shopping", label: "Shopping list", icon: "cart", href: "/shopping" },
 	];
 </script>
 
@@ -29,11 +30,16 @@
 
 <style>
 	.tab-bar {
-		position: sticky;
+		position: fixed;
+		left: 0;
+		right: 0;
+		width: 100%;
+		height: calc(var(--mobile-tab-bar-height, 64px) + env(safe-area-inset-bottom));
+		box-sizing: border-box;
 		bottom: 0;
 		z-index: 20;
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
+		grid-template-columns: repeat(3, 1fr);
 		padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
 		border-top: 1px solid var(--app-line);
 		background: color-mix(in srgb, var(--app-canvas) 96%, transparent);
@@ -46,7 +52,7 @@
 		gap: 3px;
 		padding: 6px 2px;
 		border-radius: 10px;
-		color: var(--app-faint);
+		color: var(--app-muted);
 		text-decoration: none;
 		font-size: 10px;
 		font-weight: 700;

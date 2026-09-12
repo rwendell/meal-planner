@@ -8,6 +8,6 @@
 
 ## 3. Dynamic Shopping List
 * **Automated Syncing:** Automatically pulls the meals you've selected in the Weekly Planner and sets them as column headers.
-* **Smart Filtering:** Automatically excludes specific meals that don't require groceries, such as "Carryout".
+* **Smart Filtering:** Skipped slots are automatically excluded since they need no groceries.
 * **Horizontal Layout:** Displays meals horizontally across the top row (frozen for easy scrolling) to maximize vertical space for ingredients.
 * **Interactive Checklists:** Includes built-in checkboxes beneath each meal, allowing you to easily type in ingredients and check them off as you shop.
