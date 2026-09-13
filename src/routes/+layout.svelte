@@ -81,6 +81,7 @@
 		const dark =
 			theme === "dark" || (theme === "system" && systemDark.current);
 		document.documentElement.classList.toggle("dark", dark);
+		document.documentElement.style.colorScheme = dark ? "dark" : "light";
 	});
 
 	let activeSection = $derived(

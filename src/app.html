@@ -5,13 +5,19 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<script>
+			// Must match the theme logic in +layout.svelte: apply the theme
+			// class before first paint so dark mode never flashes white.
 			var savedTheme = null;
+			var dark = false;
 			try {
 				savedTheme = localStorage.getItem("meal-planner-theme");
+				dark =
+					savedTheme === "dark" ||
+					(savedTheme !== "light" &&
+						window.matchMedia("(prefers-color-scheme: dark)").matches);
 			} catch (_e) {}
-			if (savedTheme === "light" || savedTheme === "dark") {
-				document.documentElement.dataset.theme = savedTheme;
-			}
+			document.documentElement.classList.toggle("dark", dark);
+			document.documentElement.style.colorScheme = dark ? "dark" : "light";
 		</script>
 		%sveltekit.head%
 	</head>
