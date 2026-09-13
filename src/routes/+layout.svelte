@@ -14,12 +14,12 @@
 	import * as Avatar from "$lib/components/ui/avatar";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
-	import { Input } from "$lib/components/ui/input";
 	import * as Popover from "$lib/components/ui/popover";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
+	import { roster } from "$lib/households.svelte.js";
 	import { plannerView } from "$lib/planner-view.svelte.js";
 	import { prefs } from "$lib/prefs.svelte.js";
 	import {
@@ -89,18 +89,17 @@
 			? "meals"
 			: page.url.pathname === "/shopping"
 				? "shopping"
-				: page.url.hash
-					? page.url.hash.slice(1)
-					: "planner",
+				: page.url.pathname === "/profile"
+					? "profile"
+					: page.url.hash
+						? page.url.hash.slice(1)
+						: "planner",
 	);
 
 	let profileOpen = $state(false);
 	type ProfileView = "profile" | "preferences";
 	let profileView = $state<ProfileView>("profile");
 	let copied = $state(false);
-	let confirmingLeave = $state(false);
-	let leaving = $state(false);
-	let leaveError = $state("");
 	let profileMenu = $state<HTMLDivElement | null>(null);
 	let profileTrigger = $state<HTMLElement | null>(null);
 	let swipeState = $state<{
@@ -129,15 +128,7 @@
 			? { householdId: session.session.householdId as Id<"households"> }
 			: "skip",
 	);
-	const leaveHousehold = useMutation(api.households.leave);
 	const createHousehold = useMutation(api.households.create);
-	const joinHousehold = useMutation(api.households.join);
-
-	let householdForm = $state<"create" | "join" | null>(null);
-	let newHouseholdName = $state("");
-	let joinCode = $state("");
-	let joinName = $state("");
-	let householdError = $state("");
 
 	// First visit lands straight in the planner with a personal household.
 	// A linked-but-deleted household resets the same way. A lock plus a
@@ -160,7 +151,7 @@
 			setProvisioningLock();
 			createHousehold({ householdName: "My Kitchen", memberName: "Me" })
 				.then((result) => {
-					session.connect({
+					roster.switchTo({
 						householdId: result.householdId,
 						memberId: result.memberId,
 					});
@@ -178,7 +169,9 @@
 
 	$effect(() => {
 		if (session.session && householdQuery.data === null) {
-			session.disconnect();
+			// Linked household is gone: fall through to the next known
+			// kitchen, or disconnect to provision a fresh one.
+			roster.forget(session.session.householdId);
 		}
 	});
 
@@ -187,50 +180,6 @@
 			(member) => member._id === session.session?.memberId,
 		);
 		return self?.name ?? "Me";
-	}
-
-	async function submitHouseholdForm(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		householdError = "";
-		try {
-			if (householdForm === "join") {
-				const result = await joinHousehold({
-					inviteCode: joinCode,
-					memberName: joinName.trim() || selfName(),
-				});
-				closeProfileMenu();
-				session.connect({
-					householdId: result.householdId,
-					memberId: result.memberId,
-				});
-			} else {
-				const name = newHouseholdName.trim();
-				if (!name) return;
-				const result = await createHousehold({
-					householdName: name,
-					memberName: selfName(),
-				});
-				closeProfileMenu();
-				session.connect({
-					householdId: result.householdId,
-					memberId: result.memberId,
-				});
-			}
-			householdForm = null;
-			newHouseholdName = "";
-			joinCode = "";
-			joinName = "";
-		} catch (error) {
-			householdError =
-				error instanceof Error ? error.message : "Something went wrong.";
-		}
-	}
-
-	function openHouseholdForm(form: "create" | "join"): void {
-		householdForm = form;
-		householdError = "";
-		confirmingLeave = false;
-		leaveError = "";
 	}
 
 	async function copyInviteCode(code: string): Promise<void> {
@@ -242,25 +191,6 @@
 			}, 2000);
 		} catch {
 			copied = false;
-		}
-	}
-
-	async function leave(): Promise<void> {
-		const currentSession = session.session;
-		if (!currentSession || leaving) return;
-		leaving = true;
-		leaveError = "";
-		try {
-			await leaveHousehold({
-				memberId: currentSession.memberId as Id<"householdMembers">,
-			});
-			closeProfileMenu();
-			session.disconnect();
-		} catch (error) {
-			leaveError =
-				error instanceof Error ? error.message : "Couldn't leave the household.";
-		} finally {
-			leaving = false;
 		}
 	}
 
@@ -296,8 +226,6 @@
 	function closeProfileMenu(): void {
 		profileOpen = false;
 		profileView = "profile";
-		confirmingLeave = false;
-		leaveError = "";
 		profileTrigger?.focus();
 	}
 
@@ -602,252 +530,210 @@
 				align="end"
 				sideOffset={8}
 				aria-label={profileView === "profile" ? "Profile menu" : "Preferences"}
-				class="max-h-[calc(100vh-70px)] w-[min(320px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
+				class="max-h-[calc(100vh-70px)] w-[min(360px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
 			>
 				{#if profileView === "profile"}
-					<h2 id="profile-heading" class="font-serif text-[18px] tracking-[-0.03em]">
-						Profile
-					</h2>
-					{#if householdQuery.data}
-					<div class="grid gap-2">
-						<div class="grid gap-0.5">
-							<span class="text-[10px] font-bold text-muted-foreground">Household</span>
-							<strong class="text-[13px] [overflow-wrap:anywhere]">{householdQuery.data.household.name}</strong>
-						</div>
-						<Button
-							variant="outline"
-							class="h-auto w-full justify-between py-2"
-							aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
-							onclick={() =>
-								copyInviteCode(
-									householdQuery.data?.household.inviteCode ?? "",
-								)}
-						>
-							<span class="font-mono text-sm font-extrabold tracking-[0.2em]"
-								>{householdQuery.data.household.inviteCode}</span
+					<div class="grid gap-4">
+						<div class="grid gap-1">
+							<h2
+								id="profile-heading"
+								class="font-serif text-[18px] tracking-[-0.03em] [overflow-wrap:anywhere]"
 							>
-							<span class="text-[11px] font-extrabold text-primary"
-								>{copied ? "Copied!" : "Copy invite"}</span
-							>
-						</Button>
-						<ul class="m-0 grid list-none gap-1.5 p-0">
-							{#each householdQuery.data.members as member, i (member._id)}
-								<li class="flex min-w-0 items-center gap-2 text-xs font-semibold">
-									<span
-										class="size-2.5 shrink-0 rounded-full"
-										style={`background: ${memberColors[i % memberColors.length]}`}
-									></span>
-									<span class="min-w-0 flex-1 truncate">{member.name}</span>
-									{#if member._id === session.session?.memberId}
-										<Badge variant="secondary">You</Badge>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-						<div class="grid gap-2">
-							{#if householdForm === null}
-								<Button
-									variant="outline"
-									class="w-full"
-									onclick={() => openHouseholdForm("create")}
-								>New family group</Button
-								>
-								<Button
-									variant="outline"
-									class="w-full"
-									onclick={() => openHouseholdForm("join")}
-								>Join with code</Button
-								>
-							{:else}
-								<form onsubmit={submitHouseholdForm} class="grid gap-2.5">
-									{#if householdForm === "create"}
-										<label
-											for="profile-group-name"
-											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
-											>Group name<Input
-												id="profile-group-name"
-												bind:value={newHouseholdName}
-												required
-												maxlength={40}
-												placeholder="The Rivera Kitchen"
-												autocomplete="off"
-											/></label
-										>
-									{:else}
-										<label
-											for="profile-join-code"
-											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
-											>Invite code<Input
-												id="profile-join-code"
-												bind:value={joinCode}
-												required
-												maxlength={6}
-												placeholder="ABC123"
-												autocomplete="off"
-												autocapitalize="characters"
-												class="uppercase [letter-spacing:0.2em]"
-											/></label
-										>
-										<label
-											for="profile-join-name"
-											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
-											>Your name<Input
-												id="profile-join-name"
-												bind:value={joinName}
-												maxlength={40}
-												placeholder={selfName()}
-												autocomplete="given-name"
-											/></label
-										>
-									{/if}
-									{#if householdError}
-										<p class="m-0 text-[11px] font-semibold text-destructive" role="alert">
-											{householdError}
-										</p>
-									{/if}
-									<div class="flex gap-2">
-										<Button type="submit" class="flex-1">
-											{householdForm === "create"
-												? "Create & switch"
-												: "Join"}
-										</Button>
-										<Button
-											variant="outline"
-											onclick={() => (householdForm = null)}
-										>Cancel</Button
-										>
-									</div>
-								</form>
-							{/if}
-						</div>
-						{#if confirmingLeave}
-							<div class="grid gap-2 pt-1" role="alert">
-								<p class="m-0 text-[11px] leading-relaxed text-muted-foreground">
-									Leaving removes your meal plan. If you're the last member, this
-									household and its data will be deleted.
-								</p>
-								{#if leaveError}
-									<p class="m-0 text-[11px] font-semibold text-destructive">{leaveError}</p>
+								{householdQuery.data?.household.name ?? "Profile"}
+							</h2>
+							<p class="m-0 text-xs text-muted-foreground">
+								{#if householdQuery.data}
+									{householdQuery.data.members.length}
+									{householdQuery.data.members.length === 1 ? "member" : "members"} in this household
+								{:else}
+									Your household and account settings
 								{/if}
-								<div class="grid grid-cols-2 gap-2">
+							</p>
+						</div>
+						{#if householdQuery.data}
+							<section aria-label="Members" class="grid gap-2">
+								<h3
+									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Members
+								</h3>
+								<ul class="m-0 grid list-none gap-1.5 p-0">
+									{#each householdQuery.data.members as member, i (member._id)}
+										<li class="flex min-w-0 items-center gap-2 text-[13px] font-medium">
+											<span
+												class="size-2.5 shrink-0 rounded-full"
+												style={`background: ${memberColors[i % memberColors.length]}`}
+												aria-hidden="true"
+											></span>
+											<span class="min-w-0 shrink truncate">{member.name}</span>
+											{#if member._id === session.session?.memberId}
+												<Badge variant="secondary" class="shrink-0">You</Badge>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</section>
+							<section aria-label="Invite code" class="grid gap-2">
+								<h3
+									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Invite code
+								</h3>
+								<div class="flex flex-wrap items-center gap-2">
 									<Button
 										variant="outline"
-										disabled={leaving}
-										onclick={() => {
-											confirmingLeave = false;
-											leaveError = "";
-										}}>Keep household</Button
+										class="h-auto w-fit max-w-full justify-start gap-2 py-1.5"
+										aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
+										onclick={() =>
+											copyInviteCode(
+												householdQuery.data?.household.inviteCode ?? "",
+											)}
 									>
-									<Button
-										variant="destructive"
-										disabled={leaving}
-										onclick={leave}>{leaving ? "Leaving…" : "Leave"}</Button
-									>
+										<Icon name="copy" size={13} dataIcon="inline-start" />
+										<span class="font-mono text-sm font-extrabold tracking-[0.2em]"
+											>{householdQuery.data.household.inviteCode}</span
+										>
+										<span class="text-[11px] font-extrabold text-primary"
+											>{copied ? "Copied!" : "Copy"}</span
+										>
+									</Button>
 								</div>
-							</div>
-						{:else}
+								<p class="m-0 text-xs text-muted-foreground">
+									Share this code to invite others. Manage members, switching, and join codes on the
+									profile page.
+								</p>
+							</section>
+						{/if}
+						<Separator />
+						<nav aria-label="Account" class="grid gap-1">
+							<h3
+								class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+							>
+								Account
+							</h3>
+							<Button
+								variant="ghost"
+								class="w-full justify-start gap-2 px-2"
+								onclick={() => {
+									closeProfileMenu();
+									void goto(resolve("/profile"));
+								}}
+							>
+								<Icon name="user" size={15} dataIcon="inline-start" />
+								<span class="flex-1 text-left">Profile & households</span>
+								<span class="grid shrink-0 -rotate-90 text-muted-foreground"
+									><Icon name="chevron-down" size={14} /></span
+								>
+							</Button>
+							<Button
+								variant="ghost"
+								class="w-full justify-start gap-2 px-2"
+								onclick={openPreferences}
+							>
+								<Icon name="spark" size={15} dataIcon="inline-start" />
+								<span class="flex-1 text-left">Preferences</span>
+								<span class="grid shrink-0 -rotate-90 text-muted-foreground"
+									><Icon name="chevron-down" size={14} /></span
+								>
+							</Button>
+						</nav>
+					</div>
+				{:else}
+					<div class="grid gap-4">
+						<div class="grid gap-2">
 							<Button
 								variant="ghost"
 								size="sm"
-								class="justify-start px-0 text-[11px] text-muted-foreground"
-								onclick={() => {
-									confirmingLeave = true;
-									leaveError = "";
-								}}>Leave household</Button
+								bind:ref={profileBackTrigger}
+								class="w-fit justify-start px-1"
+								onclick={showProfileView}
 							>
-						{/if}
-					</div>
-					{/if}
-					<Separator />
-					<Button
-						variant="outline"
-						class="w-full justify-between"
-						onclick={openPreferences}
-					>
-						<Icon name="spark" size={15} dataIcon="inline-start" />
-						<span class="flex-1 text-left">Preferences</span>
-						<span class="grid -rotate-90 text-muted-foreground"
-							><Icon name="chevron-down" size={14} /></span
-						>
-					</Button>
-				{:else}
-					<Button
-						variant="ghost"
-						size="sm"
-						bind:ref={profileBackTrigger}
-						class="justify-start px-1"
-						onclick={showProfileView}
-					>
-						<span class="grid rotate-90"><Icon name="chevron-down" size={14} /></span>
-						<span>Back to profile</span>
-					</Button>
-					<h2 id="preferences-heading" class="font-serif text-[18px] tracking-[-0.03em]">
-						Preferences
-					</h2>
-					<div class="flex flex-col gap-4">
-						<div class="grid gap-2">
-							<span class="text-[10px] font-bold text-muted-foreground" id="preferences-appearance-label"
-								>Appearance</span
-							>
-							<ToggleGroup.Root
-								type="single"
-								variant="outline"
-								value={theme}
-								aria-label="Appearance"
-								onValueChange={(value) => {
-									if (value === "system" || value === "light" || value === "dark") {
-										setTheme(value);
-									}
-								}}
-							>
-								{#each themeOptions as option (option.id)}
-									<ToggleGroup.Item value={option.id} aria-label={option.label}>
-										{option.label}
-									</ToggleGroup.Item>
-								{/each}
-							</ToggleGroup.Root>
+								<span class="grid rotate-90"><Icon name="chevron-down" size={14} /></span>
+								<span>Back to profile</span>
+							</Button>
+							<div class="grid gap-1">
+								<h2 id="preferences-heading" class="m-0 font-serif text-[18px] tracking-[-0.03em]">
+									Preferences
+								</h2>
+								<p class="m-0 text-xs text-muted-foreground">
+									Appearance and layout for this device.
+								</p>
+							</div>
 						</div>
-						{#if !wideScreen.current}
-							<div class="grid gap-2">
-								<span class="text-[10px] font-bold text-muted-foreground" id="preferences-planner-label"
-									>Mobile planner view</span
+						<div class="grid gap-4">
+							<section aria-label="Appearance" class="grid gap-2">
+								<h3
+									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
 								>
+									Appearance
+								</h3>
 								<ToggleGroup.Root
 									type="single"
 									variant="outline"
-									value={plannerView.view}
-									aria-label="Mobile planner view"
+									value={theme}
+									class="w-full"
+									aria-label="Appearance"
 									onValueChange={(value) => {
-										if (value === "day" || value === "week") {
-											plannerView.set(value);
+										if (value === "system" || value === "light" || value === "dark") {
+											setTheme(value);
 										}
 									}}
 								>
-									<ToggleGroup.Item value="day" aria-label="Day">Day</ToggleGroup.Item>
-									<ToggleGroup.Item value="week" aria-label="Week">Week</ToggleGroup.Item>
+									{#each themeOptions as option (option.id)}
+										<ToggleGroup.Item value={option.id} aria-label={option.label} class="flex-1">
+											{option.label}
+										</ToggleGroup.Item>
+									{/each}
 								</ToggleGroup.Root>
-							</div>
-						{/if}
-						{#if wideScreen.current}
-							<div class="grid gap-2">
-								<span class="text-[10px] font-bold text-muted-foreground" id="preferences-layout-label"
-									>Desktop layout</span
-								>
-								<ToggleGroup.Root
-									type="single"
-									variant="outline"
-									value={prefs.desktopDashboard ? "dashboard" : "pages"}
-									aria-label="Desktop layout"
-									onValueChange={(value) => {
-										if (value === "dashboard") void setDesktopLayout(true);
-										else if (value === "pages") void setDesktopLayout(false);
-									}}
-								>
-									<ToggleGroup.Item value="pages" aria-label="Pages">Pages</ToggleGroup.Item>
-									<ToggleGroup.Item value="dashboard" aria-label="Dashboard">Dashboard</ToggleGroup.Item>
-								</ToggleGroup.Root>
-							</div>
-						{/if}
+							</section>
+							{#if !wideScreen.current}
+								<section aria-label="Mobile planner view" class="grid gap-2">
+									<h3
+										class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+									>
+										Mobile planner view
+									</h3>
+									<ToggleGroup.Root
+										type="single"
+										variant="outline"
+										value={plannerView.view}
+										class="w-full"
+										aria-label="Mobile planner view"
+										onValueChange={(value) => {
+											if (value === "day" || value === "week") {
+												plannerView.set(value);
+											}
+										}}
+									>
+										<ToggleGroup.Item value="day" aria-label="Day" class="flex-1">Day</ToggleGroup.Item>
+										<ToggleGroup.Item value="week" aria-label="Week" class="flex-1">Week</ToggleGroup.Item>
+									</ToggleGroup.Root>
+								</section>
+							{/if}
+							{#if wideScreen.current}
+								<section aria-label="Desktop layout" class="grid gap-2">
+									<h3
+										class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+									>
+										Desktop layout
+									</h3>
+									<ToggleGroup.Root
+										type="single"
+										variant="outline"
+										value={prefs.desktopDashboard ? "dashboard" : "pages"}
+										class="w-full"
+										aria-label="Desktop layout"
+										onValueChange={(value) => {
+											if (value === "dashboard") void setDesktopLayout(true);
+											else if (value === "pages") void setDesktopLayout(false);
+										}}
+									>
+										<ToggleGroup.Item value="pages" aria-label="Pages" class="flex-1">Pages</ToggleGroup.Item>
+										<ToggleGroup.Item value="dashboard" aria-label="Dashboard" class="flex-1">Dashboard</ToggleGroup.Item>
+									</ToggleGroup.Root>
+								</section>
+							{/if}
+						</div>
 					</div>
 				{/if}
 			</Popover.Content>

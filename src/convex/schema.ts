@@ -41,6 +41,9 @@ export default defineSchema({
 	households: defineTable({
 		name: v.string(),
 		inviteCode: v.string(),
+		// The creating member. Unset on older rows, where any member may
+		// manage the household.
+		ownerId: v.optional(v.id("householdMembers")),
 	}).index("by_inviteCode", ["inviteCode"]),
 	householdMembers: defineTable({
 		householdId: v.id("households"),
