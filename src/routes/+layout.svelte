@@ -48,9 +48,19 @@
 	};
 
 	const navItems: NavItem[] = [
-		{ id: "planner", label: "Planner", icon: "calendar", href: "/#planner" },
+		{
+			id: "planner",
+			label: "Planner",
+			icon: "calendar",
+			href: "/#planner",
+		},
 		{ id: "meals", label: "Meal database", icon: "book", href: "/meals" },
-		{ id: "shopping", label: "Shopping list", icon: "cart", href: "/shopping" },
+		{
+			id: "shopping",
+			label: "Shopping list",
+			icon: "cart",
+			href: "/shopping",
+		},
 	];
 
 	type Theme = "system" | "light" | "dark";
@@ -111,7 +121,10 @@
 	let swipeDirection = $state<-1 | 0 | 1>(0);
 	let swipeTargetPath = $state<string | null>(null);
 	let profileBackTrigger = $state<HTMLButtonElement | null>(null);
-	const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)", false);
+	const reducedMotion = new MediaQuery(
+		"(prefers-reduced-motion: reduce)",
+		false,
+	);
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
 
 	const memberColors = [
@@ -201,7 +214,9 @@
 		// Only called when the menu is open or opening; no open-state guard
 		// so focus can't be skipped by bind:open propagation timing.
 		await tick();
-		profileMenu?.querySelector<HTMLElement>(profileFocusableSelector)?.focus();
+		profileMenu
+			?.querySelector<HTMLElement>(profileFocusableSelector)
+			?.focus();
 	}
 
 	function handleProfileOpenChange(open: boolean): void {
@@ -377,7 +392,8 @@
 	function clearSwipeTransition(): void {
 		swipeDirection = 0;
 		swipeTargetPath = null;
-		if (browser) delete document.documentElement.dataset.viewTransitionDirection;
+		if (browser)
+			delete document.documentElement.dataset.viewTransitionDirection;
 	}
 
 	onNavigate((navigation) => {
@@ -411,7 +427,10 @@
 					},
 				);
 				if (transition) {
-					void transition.finished.then(clearSwipeTransition, clearSwipeTransition);
+					void transition.finished.then(
+						clearSwipeTransition,
+						clearSwipeTransition,
+					);
 				} else {
 					clearSwipeTransition();
 					resolve();
@@ -450,12 +469,12 @@
 {:else if householdQuery.error}
 	<div class="app">
 		<div class="content">
-			<main class="splash"
-				><p role="alert" class="text-sm text-destructive">
+			<main class="splash">
+				<p role="alert" class="text-sm text-destructive">
 					Couldn't reach the database. Check your connection and
 					reload.
-				</p></main
-			>
+				</p>
+			</main>
 		</div>
 	</div>
 {:else}
@@ -465,286 +484,405 @@
 				bind:open={profileOpen}
 				onOpenChange={handleProfileOpenChange}
 			>
-			<header class="top-bar">
-			<a
-				class="top-bar-brand"
-				href={resolve(
-					prefs.desktopDashboard && wideScreen.current
-						? "/dashboard"
-						: "/#planner",
-				)}
-				aria-label={prefs.desktopDashboard && wideScreen.current
-					? "Go to dashboard"
-					: "Go to planner"}
-			>
-				<span class="mobile-mark"><Icon name="utensils" size={15} /></span>
-				<strong>Meal Planner</strong>
-			</a>
-			{#if !(prefs.desktopDashboard && wideScreen.current)}
-				<nav class="primary-nav" aria-label="Primary">
-					{#each navItems as item (item.id)}
-						<Button
-							variant={activeSection === item.id ? "secondary" : "ghost"}
-							size="sm"
-							href={resolve(item.href)}
-							aria-current={activeSection === item.id ? "page" : undefined}
+				<header class="top-bar">
+					<a
+						class="top-bar-brand"
+						href={resolve(
+							prefs.desktopDashboard && wideScreen.current
+								? "/dashboard"
+								: "/#planner",
+						)}
+						aria-label={prefs.desktopDashboard && wideScreen.current
+							? "Go to dashboard"
+							: "Go to planner"}
+					>
+						<span class="mobile-mark"
+							><Icon name="utensils" size={15} /></span
 						>
-							<Icon name={item.icon} size={16} dataIcon="inline-start" /><span
-								>{item.label}</span
-							>
-						</Button>
-					{/each}
-				</nav>
-			{/if}
-			<div class="top-bar-actions">
-				<Popover.Trigger>
-					{#snippet child({ props })}
-						<Button
-							variant="outline"
-							{...props}
-							bind:ref={profileTrigger}
-							class="max-w-[min(170px,20vw)] gap-[7px] rounded-full py-0 pr-2.5 pl-2 max-[360px]:size-[34px] max-[360px]:justify-center max-[360px]:p-0"
-							aria-label={
-								profileOpen ? "Close profile menu" : `Open profile menu for ${selfName()}`
-							}
-							title={`Profile: ${selfName()}`}
-							aria-haspopup="dialog"
-							aria-controls="profile-menu"
-							aria-expanded={profileOpen}
-						>
-							<Avatar.Root class="size-6">
-								<Avatar.Fallback class="text-[10px]">
-									{selfName().charAt(0).toUpperCase() || "M"}
-								</Avatar.Fallback>
-							</Avatar.Root>
-							<span class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden">{selfName()}</span>
-						</Button>
-					{/snippet}
-				</Popover.Trigger>
-			</div>
-		</header>
-			<Popover.Content
-				id="profile-menu"
-				bind:ref={profileMenu}
-				data-no-swipe
-				align="end"
-				sideOffset={8}
-				aria-label={profileView === "profile" ? "Profile menu" : "Preferences"}
-				class="max-h-[calc(100vh-70px)] w-[min(360px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
-			>
-				{#if profileView === "profile"}
-					<div class="grid gap-4">
-						<div class="grid gap-1">
-							<h2
-								id="profile-heading"
-								class="font-serif text-[18px] tracking-[-0.03em] [overflow-wrap:anywhere]"
-							>
-								{householdQuery.data?.household.name ?? "Profile"}
-							</h2>
-							<p class="m-0 text-xs text-muted-foreground">
-								{#if householdQuery.data}
-									{householdQuery.data.members.length}
-									{householdQuery.data.members.length === 1 ? "member" : "members"} in this household
-								{:else}
-									Your household and account settings
-								{/if}
-							</p>
-						</div>
-						{#if householdQuery.data}
-							<section aria-label="Members" class="grid gap-2">
-								<h3
-									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+						<strong>Meal Planner</strong>
+					</a>
+					{#if !(prefs.desktopDashboard && wideScreen.current)}
+						<nav class="primary-nav" aria-label="Primary">
+							{#each navItems as item (item.id)}
+								<Button
+									variant={activeSection === item.id
+										? "secondary"
+										: "ghost"}
+									size="sm"
+									href={resolve(item.href)}
+									aria-current={activeSection === item.id
+										? "page"
+										: undefined}
 								>
-									Members
-								</h3>
-								<ul class="m-0 grid list-none gap-1.5 p-0">
-									{#each householdQuery.data.members as member, i (member._id)}
-										<li class="flex min-w-0 items-center gap-2 text-[13px] font-medium">
-											<span
-												class="size-2.5 shrink-0 rounded-full"
-												style={`background: ${memberColors[i % memberColors.length]}`}
-												aria-hidden="true"
-											></span>
-											<span class="min-w-0 shrink truncate">{member.name}</span>
-											{#if member._id === session.session?.memberId}
-												<Badge variant="secondary" class="shrink-0">You</Badge>
-											{/if}
-										</li>
-									{/each}
-								</ul>
-							</section>
-							<section aria-label="Invite code" class="grid gap-2">
-								<h3
-									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-								>
-									Invite code
-								</h3>
-								<div class="flex flex-wrap items-center gap-2">
-									<Button
-										variant="outline"
-										class="h-auto w-fit max-w-full justify-start gap-2 py-1.5"
-										aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
-										onclick={() =>
-											copyInviteCode(
-												householdQuery.data?.household.inviteCode ?? "",
-											)}
-									>
-										<Icon name="copy" size={13} dataIcon="inline-start" />
-										<span class="font-mono text-sm font-extrabold tracking-[0.2em]"
-											>{householdQuery.data.household.inviteCode}</span
-										>
-										<span class="text-[11px] font-extrabold text-primary"
-											>{copied ? "Copied!" : "Copy"}</span
-										>
-									</Button>
-								</div>
-								<p class="m-0 text-xs text-muted-foreground">
-									Share this code to invite others. Manage members, switching, and join codes on the
-									profile page.
-								</p>
-							</section>
-						{/if}
-						<Separator />
-						<nav aria-label="Account" class="grid gap-1">
-							<h3
-								class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-							>
-								Account
-							</h3>
-							<Button
-								variant="ghost"
-								class="w-full justify-start gap-2 px-2"
-								onclick={() => {
-									closeProfileMenu();
-									void goto(resolve("/profile"));
-								}}
-							>
-								<Icon name="user" size={15} dataIcon="inline-start" />
-								<span class="flex-1 text-left">Profile & households</span>
-								<span class="grid shrink-0 -rotate-90 text-muted-foreground"
-									><Icon name="chevron-down" size={14} /></span
-								>
-							</Button>
-							<Button
-								variant="ghost"
-								class="w-full justify-start gap-2 px-2"
-								onclick={openPreferences}
-							>
-								<Icon name="spark" size={15} dataIcon="inline-start" />
-								<span class="flex-1 text-left">Preferences</span>
-								<span class="grid shrink-0 -rotate-90 text-muted-foreground"
-									><Icon name="chevron-down" size={14} /></span
-								>
-							</Button>
+									<Icon
+										name={item.icon}
+										size={16}
+										dataIcon="inline-start"
+									/><span>{item.label}</span>
+								</Button>
+							{/each}
 						</nav>
-					</div>
-				{:else}
-					<div class="grid gap-4">
-						<div class="grid gap-2">
-							<Button
-								variant="ghost"
-								size="sm"
-								bind:ref={profileBackTrigger}
-								class="w-fit justify-start px-1"
-								onclick={showProfileView}
-							>
-								<span class="grid rotate-90"><Icon name="chevron-down" size={14} /></span>
-								<span>Back to profile</span>
-							</Button>
-							<div class="grid gap-1">
-								<h2 id="preferences-heading" class="m-0 font-serif text-[18px] tracking-[-0.03em]">
-									Preferences
-								</h2>
-								<p class="m-0 text-xs text-muted-foreground">
-									Appearance and layout for this device.
-								</p>
-							</div>
-						</div>
-						<div class="grid gap-4">
-							<section aria-label="Appearance" class="grid gap-2">
-								<h3
-									class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-								>
-									Appearance
-								</h3>
-								<ToggleGroup.Root
-									type="single"
+					{/if}
+					<div class="top-bar-actions">
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
 									variant="outline"
-									value={theme}
-									class="w-full"
-									aria-label="Appearance"
-									onValueChange={(value) => {
-										if (value === "system" || value === "light" || value === "dark") {
-											setTheme(value);
-										}
-									}}
+									{...props}
+									bind:ref={profileTrigger}
+									class="max-w-[min(170px,20vw)] gap-[7px] rounded-full py-0 pr-2.5 pl-2 max-[360px]:size-[34px] max-[360px]:justify-center max-[360px]:p-0"
+									aria-label={profileOpen
+										? "Close profile menu"
+										: `Open profile menu for ${selfName()}`}
+									title={`Profile: ${selfName()}`}
+									aria-haspopup="dialog"
+									aria-controls="profile-menu"
+									aria-expanded={profileOpen}
 								>
-									{#each themeOptions as option (option.id)}
-										<ToggleGroup.Item value={option.id} aria-label={option.label} class="flex-1">
-											{option.label}
-										</ToggleGroup.Item>
-									{/each}
-								</ToggleGroup.Root>
-							</section>
-							{#if !wideScreen.current}
-								<section aria-label="Mobile planner view" class="grid gap-2">
+									<Avatar.Root class="size-6">
+										<Avatar.Fallback class="text-[10px]">
+											{(
+												selfName().charAt(0) +
+												selfName().charAt(
+													selfName().search(" ") + 1,
+												)
+											).toUpperCase()}
+										</Avatar.Fallback>
+									</Avatar.Root>
+									<span
+										class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden"
+										>{selfName()}</span
+									>
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+					</div>
+				</header>
+				<Popover.Content
+					id="profile-menu"
+					bind:ref={profileMenu}
+					data-no-swipe
+					align="end"
+					sideOffset={8}
+					aria-label={profileView === "profile"
+						? "Profile menu"
+						: "Preferences"}
+					class="max-h-[calc(100vh-70px)] w-[min(360px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
+				>
+					{#if profileView === "profile"}
+						<div class="grid gap-4">
+							<div class="flex items-start justify-between">
+								<div>
+									<h2
+										id="profile-heading"
+										class="font-serif text-[18px] tracking-[-0.03em] [overflow-wrap:anywhere]"
+									>
+										{householdQuery.data?.household.name ??
+											"Profile"}
+									</h2>
+									<p
+										class="m-0 text-xs text-muted-foreground"
+									>
+										{#if householdQuery.data}
+											{householdQuery.data.members.length}
+											{householdQuery.data.members
+												.length === 1
+												? "member"
+												: "members"} in this household
+										{:else}
+											Your household and account settings
+										{/if}
+									</p>
+								</div>
+								<section
+									aria-label="Invite code"
+									class="grid gap-2"
+								>
+									<div
+										class="flex flex-wrap items-center gap-2"
+									>
+										<Button
+											variant="outline"
+											class="h-auto w-fit max-w-full justify-start gap-2 py-1.5"
+											aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
+											onclick={() =>
+												copyInviteCode(
+													householdQuery.data
+														?.household
+														.inviteCode ?? "",
+												)}
+										>
+											<Icon
+												name={copied ? "check" : "copy"}
+												size={13}
+												dataIcon="inline-start"
+											/>
+											<span
+												class="font-mono text-sm font-extrabold tracking-[0.2em]"
+												>{householdQuery.data.household
+													.inviteCode}</span
+											>
+										</Button>
+									</div>
+								</section>
+							</div>
+							{#if householdQuery.data}
+								<section
+									aria-label="Members"
+									class="grid gap-2"
+								>
 									<h3
 										class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
 									>
-										Mobile planner view
+										Members
+									</h3>
+									<ul class="m-0 grid list-none gap-1.5 p-0">
+										{#each householdQuery.data.members as member, i (member._id)}
+											<li
+												class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
+											>
+												<span
+													class="size-2.5 shrink-0 rounded-full"
+													style={`background: ${memberColors[i % memberColors.length]}`}
+													aria-hidden="true"
+												></span>
+												<span
+													class="min-w-0 shrink truncate"
+													>{member.name}</span
+												>
+												{#if member._id === session.session?.memberId}
+													<Badge
+														variant="secondary"
+														class="shrink-0"
+														>You</Badge
+													>
+												{/if}
+											</li>
+										{/each}
+									</ul>
+								</section>
+							{/if}
+							<Separator />
+							<nav aria-label="Account" class="grid gap-1">
+								<h3
+									class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Account
+								</h3>
+								<Button
+									variant="ghost"
+									class="w-full justify-start gap-2 px-2"
+									onclick={() => {
+										closeProfileMenu();
+										void goto(resolve("/profile"));
+									}}
+								>
+									<Icon
+										name="user"
+										size={15}
+										dataIcon="inline-start"
+									/>
+									<span class="flex-1 text-left"
+										>Profile & households</span
+									>
+									<span
+										class="grid shrink-0 -rotate-90 text-muted-foreground"
+										><Icon
+											name="chevron-down"
+											size={14}
+										/></span
+									>
+								</Button>
+								<Button
+									variant="ghost"
+									class="w-full justify-start gap-2 px-2"
+									onclick={openPreferences}
+								>
+									<Icon
+										name="spark"
+										size={15}
+										dataIcon="inline-start"
+									/>
+									<span class="flex-1 text-left"
+										>Preferences</span
+									>
+									<span
+										class="grid shrink-0 -rotate-90 text-muted-foreground"
+										><Icon
+											name="chevron-down"
+											size={14}
+										/></span
+									>
+								</Button>
+							</nav>
+						</div>
+					{:else}
+						<div class="grid gap-4">
+							<div class="grid gap-2">
+								<Button
+									variant="ghost"
+									size="sm"
+									bind:ref={profileBackTrigger}
+									class="w-fit justify-start px-1"
+									onclick={showProfileView}
+								>
+									<span class="grid rotate-90"
+										><Icon
+											name="chevron-down"
+											size={14}
+										/></span
+									>
+									<span>Back to profile</span>
+								</Button>
+								<div class="grid gap-1">
+									<h2
+										id="preferences-heading"
+										class="m-0 font-serif text-[18px] tracking-[-0.03em]"
+									>
+										Preferences
+									</h2>
+									<p
+										class="m-0 text-xs text-muted-foreground"
+									>
+										Appearance and layout for this device.
+									</p>
+								</div>
+							</div>
+							<div class="grid gap-4">
+								<section
+									aria-label="Appearance"
+									class="grid gap-2"
+								>
+									<h3
+										class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+									>
+										Appearance
 									</h3>
 									<ToggleGroup.Root
 										type="single"
 										variant="outline"
-										value={plannerView.view}
+										value={theme}
 										class="w-full"
-										aria-label="Mobile planner view"
+										aria-label="Appearance"
 										onValueChange={(value) => {
-											if (value === "day" || value === "week") {
-												plannerView.set(value);
+											if (
+												value === "system" ||
+												value === "light" ||
+												value === "dark"
+											) {
+												setTheme(value);
 											}
 										}}
 									>
-										<ToggleGroup.Item value="day" aria-label="Day" class="flex-1">Day</ToggleGroup.Item>
-										<ToggleGroup.Item value="week" aria-label="Week" class="flex-1">Week</ToggleGroup.Item>
+										{#each themeOptions as option (option.id)}
+											<ToggleGroup.Item
+												value={option.id}
+												aria-label={option.label}
+												class="flex-1"
+											>
+												{option.label}
+											</ToggleGroup.Item>
+										{/each}
 									</ToggleGroup.Root>
 								</section>
-							{/if}
-							{#if wideScreen.current}
-								<section aria-label="Desktop layout" class="grid gap-2">
-									<h3
-										class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+								{#if !wideScreen.current}
+									<section
+										aria-label="Mobile planner view"
+										class="grid gap-2"
 									>
-										Desktop layout
-									</h3>
-									<ToggleGroup.Root
-										type="single"
-										variant="outline"
-										value={prefs.desktopDashboard ? "dashboard" : "pages"}
-										class="w-full"
+										<h3
+											class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+										>
+											Mobile planner view
+										</h3>
+										<ToggleGroup.Root
+											type="single"
+											variant="outline"
+											value={plannerView.view}
+											class="w-full"
+											aria-label="Mobile planner view"
+											onValueChange={(value) => {
+												if (
+													value === "day" ||
+													value === "week"
+												) {
+													plannerView.set(value);
+												}
+											}}
+										>
+											<ToggleGroup.Item
+												value="day"
+												aria-label="Day"
+												class="flex-1"
+												>Day</ToggleGroup.Item
+											>
+											<ToggleGroup.Item
+												value="week"
+												aria-label="Week"
+												class="flex-1"
+												>Week</ToggleGroup.Item
+											>
+										</ToggleGroup.Root>
+									</section>
+								{/if}
+								{#if wideScreen.current}
+									<section
 										aria-label="Desktop layout"
-										onValueChange={(value) => {
-											if (value === "dashboard") void setDesktopLayout(true);
-											else if (value === "pages") void setDesktopLayout(false);
-										}}
+										class="grid gap-2"
 									>
-										<ToggleGroup.Item value="pages" aria-label="Pages" class="flex-1">Pages</ToggleGroup.Item>
-										<ToggleGroup.Item value="dashboard" aria-label="Dashboard" class="flex-1">Dashboard</ToggleGroup.Item>
-									</ToggleGroup.Root>
-								</section>
-							{/if}
+										<h3
+											class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+										>
+											Desktop layout
+										</h3>
+										<ToggleGroup.Root
+											type="single"
+											variant="outline"
+											value={prefs.desktopDashboard
+												? "dashboard"
+												: "pages"}
+											class="w-full"
+											aria-label="Desktop layout"
+											onValueChange={(value) => {
+												if (value === "dashboard")
+													void setDesktopLayout(true);
+												else if (value === "pages")
+													void setDesktopLayout(
+														false,
+													);
+											}}
+										>
+											<ToggleGroup.Item
+												value="pages"
+												aria-label="Pages"
+												class="flex-1"
+												>Pages</ToggleGroup.Item
+											>
+											<ToggleGroup.Item
+												value="dashboard"
+												aria-label="Dashboard"
+												class="flex-1"
+												>Dashboard</ToggleGroup.Item
+											>
+										</ToggleGroup.Root>
+									</section>
+								{/if}
+							</div>
 						</div>
-					</div>
-				{/if}
-			</Popover.Content>
-		</Popover.Root>
+					{/if}
+				</Popover.Content>
+			</Popover.Root>
 
-		<div class="page-transition-shell">
-			{@render children()}
+			<div class="page-transition-shell">
+				{@render children()}
+			</div>
+			<TabBar active={activeSection} />
+			<Toaster
+				position="bottom-center"
+				offset={{ bottom: "84px" }}
+				{theme}
+			/>
 		</div>
-		<TabBar active={activeSection} />
-		<Toaster position="bottom-center" offset={{ bottom: "84px" }} theme={theme} />
-	</div>
 	</div>
 {/if}
 
@@ -767,16 +905,32 @@
 		overflow-x: clip;
 		view-transition-name: route-content;
 	}
-	:global(html[data-view-transition-direction="next"]::view-transition-old(route-content)) {
+	:global(
+			html[data-view-transition-direction="next"]::view-transition-old(
+					route-content
+				)
+		) {
 		animation: route-content-old-next 200ms ease both;
 	}
-	:global(html[data-view-transition-direction="next"]::view-transition-new(route-content)) {
+	:global(
+			html[data-view-transition-direction="next"]::view-transition-new(
+					route-content
+				)
+		) {
 		animation: route-content-new-next 200ms ease both;
 	}
-	:global(html[data-view-transition-direction="previous"]::view-transition-old(route-content)) {
+	:global(
+			html[data-view-transition-direction="previous"]::view-transition-old(
+					route-content
+				)
+		) {
 		animation: route-content-old-previous 200ms ease both;
 	}
-	:global(html[data-view-transition-direction="previous"]::view-transition-new(route-content)) {
+	:global(
+			html[data-view-transition-direction="previous"]::view-transition-new(
+					route-content
+				)
+		) {
 		animation: route-content-new-previous 200ms ease both;
 	}
 	@keyframes route-content-old-next {

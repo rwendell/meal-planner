@@ -4,9 +4,10 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "convex dev --start \"vite dev --open\"",
+		"dev": "aubx convex dev --start \"vite dev --open\"",
+		"dev:host": "aubx convex dev --start \"vite dev --host --open\"",
 		"dev:app": "vite dev --open",
-		"dev:convex": "convex dev",
+		"dev:convex": "aubx convex dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
