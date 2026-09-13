@@ -25,13 +25,15 @@
 	import { session } from "$lib/session.svelte.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
+	import AutoPlanSection from "./AutoPlanSection.svelte";
 
 	type MealCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack";
-	type MealType = "breakfast" | "lunch" | "dinner";
+	type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
 	function fallbackMealTimes(category: MealCategory): MealType[] {
 		if (category === "Breakfast") return ["breakfast"];
-		if (category === "Lunch" || category === "Snack") return ["lunch"];
+		if (category === "Lunch") return ["lunch"];
+		if (category === "Snack") return ["snack"];
 		return ["dinner"];
 	}
 	type IconName =
@@ -46,6 +48,7 @@
 		| "leaf"
 		| "utensils"
 		| "spark"
+		| "user"
 		| "menu";
 
 	interface Meal {
@@ -63,6 +66,7 @@
 		{ id: "breakfast", label: "Breakfast" },
 		{ id: "lunch", label: "Lunch" },
 		{ id: "dinner", label: "Dinner" },
+		{ id: "snack", label: "Snack" },
 	];
 
 	const today = todayISO();
@@ -102,10 +106,37 @@
 	);
 	let members = $derived(householdQuery.data?.members ?? []);
 	let viewingMemberId = $state<string | null>(null);
+	let selfIsManager = $derived(
+		!householdQuery.data?.household.ownerId ||
+			householdQuery.data?.household.ownerId === selfMemberId,
+	);
+	let canManageOthers = $derived(
+		Boolean(householdQuery.data?.household.ownerManagesPlans) &&
+			selfIsManager,
+	);
+	let showMemberToggle = $derived(members.length > 1);
 	let viewingMember = $derived(
 		members.find((m) => m._id === (viewingMemberId ?? selfMemberId)) ??
 			null,
 	);
+	// Anyone may look at other members' plans, but edits are limited
+	// to your own — unless the household lets the owner manage
+	// everyone's plans.
+	let canEditViewing = $derived(
+		!viewingMember ||
+			viewingMember._id === selfMemberId ||
+			canManageOthers,
+	);
+	// Each member owns their own planner view: the mode shown follows
+	// whoever you're viewing, and the toggle only ever writes your own
+	// row, so other members' views are respected.
+	let mode = $derived(
+		(viewingMember?.plannerMode ?? "planner") as "planner" | "list",
+	);
+	let isSelfView = $derived(
+		viewingMember !== null && viewingMember._id === selfMemberId,
+	);
+	let savingMode = $state(false);
 
 	function memberColor(id: string): string {
 		const index = members.findIndex((m) => m._id === id);
@@ -123,7 +154,8 @@
 			? {
 					householdId: householdId as Id<"households">,
 					memberId: viewingMember._id,
-					dates: visibleDates,
+					dates:
+						mode === "list" ? currentWeek : visibleDates,
 				}
 			: "skip",
 	);
@@ -131,6 +163,35 @@
 	const setSlot = useMutation(api.plan.setSlot);
 	const clearDayMutation = useMutation(api.plan.clearDay);
 	const createMeal = useMutation(api.meals.create);
+	const setPlannerMode = useMutation(api.households.setPlannerMode);
+
+	async function setMode(next: "planner" | "list"): Promise<void> {
+		if (
+			!householdId ||
+			!selfMemberId ||
+			!isSelfView ||
+			savingMode ||
+			next === mode
+		)
+			return;
+		savingMode = true;
+		try {
+			await setPlannerMode({
+				householdId: householdId as Id<"households">,
+				memberId: selfMemberId as Id<"householdMembers">,
+				callerMemberId: selfMemberId as Id<"householdMembers">,
+				mode: next,
+			});
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Couldn't change your view.",
+			);
+		} finally {
+			savingMode = false;
+		}
+	}
 
 	let meals = $derived<Meal[]>(
 		(mealsQuery.data ?? []).map((meal) => ({
@@ -148,24 +209,29 @@
 	let planMap = $derived.by(() => {
 		const map = new Map<string, Record<MealType, string | null>>();
 		for (const date of visibleDates) {
-			map.set(date, { breakfast: null, lunch: null, dinner: null });
+			map.set(date, { breakfast: null, lunch: null, dinner: null, snack: null });
 		}
 		for (const row of daysQuery.data ?? []) {
 			map.set(row.date, {
 				breakfast: row.breakfast,
 				lunch: row.lunch,
 				dinner: row.dinner,
+				snack: row.snack ?? null,
 			});
 		}
 		return map;
 	});
 
 	let viewHeading = $derived(
-		effectiveView === "day"
-			? formatMonthDay(anchorDate)
-			: wideScreen.current
+		mode === "list"
+			? wideScreen.current
 				? weekLabel(currentWeek)
-				: weekLabelShort(currentWeek),
+				: weekLabelShort(currentWeek)
+			: effectiveView === "day"
+				? formatMonthDay(anchorDate)
+				: wideScreen.current
+					? weekLabel(currentWeek)
+					: weekLabelShort(currentWeek),
 	);
 
 	let dataError = $derived(
@@ -202,6 +268,34 @@
 		});
 	});
 
+	// Whole-household rows for the picker's date, so meals other
+	// members picked for the same slot get an indicator.
+	const pickerDayQuery = useQuery(api.plan.getDays, () =>
+		householdId && pickerTarget
+			? {
+					householdId: householdId as Id<"households">,
+					dates: [pickerTarget.date],
+				}
+			: "skip",
+	);
+
+	let othersByMeal = $derived.by(() => {
+		const map = new Map<string, string[]>();
+		const target = pickerTarget;
+		if (!target) return map;
+		for (const row of pickerDayQuery.data ?? []) {
+			if (row.memberId === selfMemberId) continue;
+			const value = row[target.slot] ?? null;
+			if (value === null || value === "skip") continue;
+			const member = members.find((m) => m._id === row.memberId);
+			if (!member) continue;
+			const names = map.get(value) ?? [];
+			if (!names.includes(member.name)) names.push(member.name);
+			map.set(value, names);
+		}
+		return map;
+	});
+
 	function mealById(id: string | null): Meal | null {
 		return id ? (meals.find((meal) => meal.id === id) ?? null) : null;
 	}
@@ -216,7 +310,12 @@
 
 	function dayMealCount(date: string): number {
 		return Object.values(
-			planMap.get(date) ?? { breakfast: null, lunch: null, dinner: null },
+			planMap.get(date) ?? {
+				breakfast: null,
+				lunch: null,
+				dinner: null,
+				snack: null,
+			},
 		).filter(Boolean).length;
 	}
 
@@ -225,10 +324,12 @@
 	}
 
 	function stepView(direction: 1 | -1): void {
-		anchorDate = addDays(
-			anchorDate,
-			effectiveView === "day" ? direction : direction * 7,
-		);
+		// List mode is always week-based; planner day view steps one day.
+		const step =
+			mode === "list" || effectiveView !== "day"
+				? direction * 7
+				: direction;
+		anchorDate = addDays(anchorDate, step);
 	}
 
 	function goToday(): void {
@@ -251,109 +352,205 @@
 		return ` for ${viewingMember.name}`;
 	}
 
-	async function assignToSlot(mealId: string): Promise<void> {
-		if (!pickerTarget || !householdId || !viewingMember) return;
-		await setSlot({
+	function planTarget(): {
+		householdId: Id<"households">;
+		memberId: Id<"householdMembers">;
+		callerMemberId: Id<"householdMembers">;
+	} | null {
+		if (!householdId || !viewingMember || !selfMemberId) return null;
+		return {
 			householdId: householdId as Id<"households">,
 			memberId: viewingMember._id,
-			date: pickerTarget.date,
-			slot: pickerTarget.slot,
-			mealId: mealId as Id<"meals">,
-		});
-		const meal = meals.find((item) => item.id === mealId);
-		toast.success(
-			`${meal?.name ?? "Meal"} added to ${pickerTarget.dayLabel}${ownerSuffix()}`,
+			callerMemberId: selfMemberId as Id<"householdMembers">,
+		};
+	}
+
+	async function runPlanMutation(
+		action: () => Promise<unknown>,
+		successMessage: () => string,
+	): Promise<boolean> {
+		try {
+			await action();
+			toast.success(successMessage());
+			return true;
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Couldn't update the plan.",
+			);
+			return false;
+		}
+	}
+
+	async function assignToSlot(mealId: string): Promise<void> {
+		if (!pickerTarget) return;
+		const target = planTarget();
+		if (!target) return;
+		const { date, slot, dayLabel: label } = pickerTarget;
+		const ok = await runPlanMutation(
+			() =>
+				setSlot({
+					...target,
+					date,
+					slot,
+					mealId: mealId as Id<"meals">,
+				}),
+			() =>
+				`${meals.find((item) => item.id === mealId)?.name ?? "Meal"} added to ${label}${ownerSuffix()}`,
 		);
-		closePicker();
+		if (ok) closePicker();
 	}
 
 	async function addSearchedMeal(): Promise<void> {
-		if (!pickerTarget || !householdId || !viewingMember) return;
+		if (!pickerTarget || !householdId) return;
+		const target = planTarget();
+		if (!target) return;
+		const { date, slot, dayLabel: label } = pickerTarget;
 		const name = search.trim();
 		if (!name) return;
 		const category =
-			pickerTarget.slot === "breakfast"
+			slot === "breakfast"
 				? "Breakfast"
-				: pickerTarget.slot === "lunch"
+				: slot === "lunch"
 					? "Lunch"
-					: "Dinner";
+					: slot === "snack"
+						? "Snack"
+						: "Dinner";
 		const id = await createMeal({
 			householdId: householdId as Id<"households">,
 			name,
 			category,
 			ingredients: [],
-			mealTimes: [pickerTarget.slot],
+			mealTimes: [slot],
 		});
-		await setSlot({
-			householdId: householdId as Id<"households">,
-			memberId: viewingMember._id,
-			date: pickerTarget.date,
-			slot: pickerTarget.slot,
-			mealId: id,
-		});
-		toast.success(`${name} added to ${pickerTarget.dayLabel}${ownerSuffix()}`);
-		search = "";
-		closePicker();
+		const ok = await runPlanMutation(
+			() => setSlot({ ...target, date, slot, mealId: id }),
+			() => `${name} added to ${label}${ownerSuffix()}`,
+		);
+		if (ok) {
+			search = "";
+			closePicker();
+		}
 	}
 
 	async function skipSlot(): Promise<void> {
-		if (!pickerTarget || !householdId || !viewingMember) return;
-		await setSlot({
-			householdId: householdId as Id<"households">,
-			memberId: viewingMember._id,
-			date: pickerTarget.date,
-			slot: pickerTarget.slot,
-			mealId: "skip",
-		});
-		toast.success(
-			`${pickerTarget.slotLabel} on ${pickerTarget.dayLabel} skipped${ownerSuffix()}`,
+		if (!pickerTarget) return;
+		const target = planTarget();
+		if (!target) return;
+		const { date, slot, dayLabel: label, slotLabel } = pickerTarget;
+		const ok = await runPlanMutation(
+			() => setSlot({ ...target, date, slot, mealId: "skip" }),
+			() => `${slotLabel} on ${label} skipped${ownerSuffix()}`,
 		);
-		closePicker();
+		if (ok) closePicker();
 	}
 
 	async function unskipSlot(date: string, slot: MealType): Promise<void> {
-		if (!householdId || !viewingMember) return;
-		await setSlot({
-			householdId: householdId as Id<"households">,
-			memberId: viewingMember._id,
-			date,
-			slot,
-			mealId: null,
-		});
+		const target = planTarget();
+		if (!target) return;
 		const label =
 			mealTypes.find((type) => type.id === slot)?.label ?? slot;
-		toast.success(`${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`);
+		await runPlanMutation(
+			() => setSlot({ ...target, date, slot, mealId: null }),
+			() => `${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`,
+		);
 	}
 
 	async function removeMeal(date: string, slot: MealType): Promise<void> {
-		if (!householdId || !viewingMember) return;
+		const target = planTarget();
+		if (!target) return;
 		const meal = slotMeal(date, slot);
 		if (!meal) return;
-		await setSlot({
-			householdId: householdId as Id<"households">,
-			memberId: viewingMember._id,
-			date,
-			slot,
-			mealId: null,
-		});
-		toast.success(`${meal.name} removed from ${dayLabel(date)}${ownerSuffix()}`);
+		await runPlanMutation(
+			() => setSlot({ ...target, date, slot, mealId: null }),
+			() => `${meal.name} removed from ${dayLabel(date)}${ownerSuffix()}`,
+		);
 	}
 
 	async function clearDay(date: string): Promise<void> {
-		if (!householdId || !viewingMember) return;
+		const target = planTarget();
+		if (!target) return;
 		if (dayMealCount(date) === 0) return;
-		await clearDayMutation({
-			householdId: householdId as Id<"households">,
-			memberId: viewingMember._id,
-			date,
-		});
-		toast.success(`${dayLabel(date)} cleared${ownerSuffix()}`);
+		await runPlanMutation(
+			() =>
+				clearDayMutation({
+					householdId: target.householdId,
+					memberId: target.memberId,
+					callerMemberId: target.callerMemberId,
+					date,
+				}),
+			() => `${dayLabel(date)} cleared${ownerSuffix()}`,
+		);
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
 		if (event.key === "Escape" && pickerTarget) closePicker();
 	}
 </script>
+
+{#snippet familySelector()}
+	<ToggleGroup.Root
+		type="single"
+		variant="outline"
+		value={viewingMemberId ?? selfMemberId ?? ""}
+		aria-label="Whose plan"
+		onValueChange={(value) => {
+			if (value) viewingMemberId = value;
+		}}
+	>
+		{#each members as member (member._id)}
+			<ToggleGroup.Item value={member._id} aria-label={member.name}>
+				<span
+					class="member-dot"
+					style={`background: ${memberColor(member._id)}`}
+				></span>{member.name}</ToggleGroup.Item
+			>
+		{/each}
+	</ToggleGroup.Root>
+{/snippet}
+
+{#snippet viewControls()}
+	{#if showMemberToggle || isSelfView}
+		<Card.Header>
+			<div class="view-controls">
+				{#if showMemberToggle}
+					{@render familySelector()}
+				{/if}
+				{#if isSelfView}
+					<div
+						class="mode-switch"
+						role="radiogroup"
+						aria-label="Planner view"
+					>
+						<label class="mode-option" class:active={mode === "planner"}>
+							<input
+								type="radio"
+								name="planner-mode"
+								value="planner"
+								checked={mode === "planner"}
+								disabled={savingMode}
+								class="sr-only"
+								onchange={() => void setMode("planner")}
+							/>
+							Planner
+						</label>
+						<label class="mode-option" class:active={mode === "list"}>
+							<input
+								type="radio"
+								name="planner-mode"
+								value="list"
+								checked={mode === "list"}
+								disabled={savingMode}
+								class="sr-only"
+								onchange={() => void setMode("list")}
+							/>
+							List
+						</label>
+					</div>
+				{/if}
+			</div>
+		</Card.Header>
+	{/if}
+{/snippet}
 
 <svelte:window onkeydown={onKeydown} />
 
@@ -401,6 +598,12 @@
 			/>
 		{:else if name === "menu"}
 			<path d="M4 6h16M4 12h16M4 18h16" />
+		{:else if name === "user"}
+			<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle
+				cx="12"
+				cy="7"
+				r="4"
+			/>
 		{:else}
 			<path
 				d="m12 3-1.3 5.7L5 10l5.7 1.3L12 17l1.3-5.7L19 10l-5.7-1.3L12 3Z"
@@ -424,51 +627,35 @@
 						variant="outline"
 						size="icon"
 						class="text-[18px] leading-none"
-						aria-label={effectiveView === "day"
-							? "Previous day"
-							: "Previous week"}
+						aria-label={mode === "list" ||
+						effectiveView !== "day"
+							? "Previous week"
+							: "Previous day"}
 						onclick={() => stepView(-1)}>‹</Button
 					>
 					<Button
 						variant="outline"
-						size="sm"
+						size="default"
 						onclick={goToday}>Today</Button
 					>
 					<Button
 						variant="outline"
 						size="icon"
 						class="text-[18px] leading-none"
-						aria-label={effectiveView === "day" ? "Next day" : "Next week"}
+						aria-label={mode === "list" ||
+						effectiveView !== "day"
+							? "Next week"
+							: "Next day"}
 						onclick={() => stepView(1)}>›</Button
 					>
 				</div>
 		</Card.Content>
 	</Card.Root>
 
-	<Card.Root>
-		{#if members.length > 1}
-			<Card.Header>
-				<ToggleGroup.Root
-					type="single"
-					variant="outline"
-					value={viewingMemberId ?? selfMemberId ?? ""}
-					aria-label="Whose plan"
-					onValueChange={(value) => {
-						if (value) viewingMemberId = value;
-					}}
-				>
-					{#each members as member (member._id)}
-						<ToggleGroup.Item value={member._id} aria-label={member.name}>
-							<span
-								class="member-dot"
-								style={`background: ${memberColor(member._id)}`}
-							></span>{member.name}</ToggleGroup.Item
-						>
-					{/each}
-				</ToggleGroup.Root>
-			</Card.Header>
-		{/if}
-		<Card.Content>
+	{#if mode === "planner"}
+		<Card.Root>
+			{@render viewControls()}
+			<Card.Content>
 			{#if effectiveView === "day"}
 				<div class="day-detail">
 					<div class="day-detail-head">
@@ -484,22 +671,24 @@
 							{#if isSkipped(anchorDate, type.id)}
 								<div class="empty-day-slot skipped">
 									<p>Skipped</p>
-									<button
-										type="button"
-										class="empty-slot"
-										onclick={() =>
-											openPicker(anchorDate, type.id)}
-										>{@render icon("plus", 11)} Change</button
-									>
-									<button
-										type="button"
-										class="chip-remove"
-										aria-label={`Unskip ${type.label}`}
-										title="Back to unplanned"
-										onclick={() =>
-											unskipSlot(anchorDate, type.id)}
-										>{@render icon("close", 11)}</button
-									>
+									{#if canEditViewing}
+										<button
+											type="button"
+											class="empty-slot"
+											onclick={() =>
+												openPicker(anchorDate, type.id)}
+											>{@render icon("plus", 11)} Change</button
+										>
+										<button
+											type="button"
+											class="chip-remove"
+											aria-label={`Unskip ${type.label}`}
+											title="Back to unplanned"
+											onclick={() =>
+												unskipSlot(anchorDate, type.id)}
+											>{@render icon("close", 11)}</button
+										>
+									{/if}
 								</div>
 							{:else if meal}
 								<div
@@ -520,26 +709,30 @@
 											</Badge>
 										</div>
 									</div>
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label={`Remove ${meal.name} from ${type.label}`}
-										title={`Remove ${meal.name}`}
-										onclick={() =>
-											removeMeal(anchorDate, type.id)}
-										>{@render icon("close", 11)}</Button
-									>
+									{#if canEditViewing}
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Remove ${meal.name} from ${type.label}`}
+											title={`Remove ${meal.name}`}
+											onclick={() =>
+												removeMeal(anchorDate, type.id)}
+											>{@render icon("close", 11)}</Button
+										>
+									{/if}
 								</div>
 							{:else}
 								<div class="empty-day-slot">
 									<p>No meal planned</p>
-									<Button
-										variant="outline"
-										size="sm"
-										onclick={() =>
-											openPicker(anchorDate, type.id)}
-										>{@render icon("plus", 11)} Add meal</Button
-									>
+									{#if canEditViewing}
+										<Button
+											variant="outline"
+											size="sm"
+											onclick={() =>
+												openPicker(anchorDate, type.id)}
+											>{@render icon("plus", 11)} Add meal</Button
+										>
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -562,27 +755,31 @@
 									<div class="slot">
 										<small>{type.label}</small>
 										{#if isSkipped(date, type.id)}
-											<div class="skipped-wrap">
-												<button
-													type="button"
-													class="empty-slot"
-													onclick={() =>
-														openPicker(date, type.id)}
-													>{@render icon("plus", 11)} Skipped</button
-												>
-												<button
-													type="button"
-													class="chip-remove"
-													aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
-													title="Back to unplanned"
-													onclick={() =>
-														unskipSlot(date, type.id)}
-													>{@render icon(
-														"close",
-														11,
-													)}</button
-												>
-											</div>
+											{#if canEditViewing}
+												<div class="skipped-wrap">
+													<button
+														type="button"
+														class="empty-slot"
+														onclick={() =>
+															openPicker(date, type.id)}
+														>{@render icon("plus", 11)} Skipped</button
+													>
+													<button
+														type="button"
+														class="chip-remove"
+														aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
+														title="Back to unplanned"
+														onclick={() =>
+															unskipSlot(date, type.id)}
+														>{@render icon(
+															"close",
+															11,
+														)}</button
+													>
+												</div>
+											{:else}
+												<span class="text-xs text-muted-foreground">Skipped</span>
+											{/if}
 										{:else if meal}
 											<div
 												class="meal-chip"
@@ -594,34 +791,40 @@
 															>No list</span
 														>{/if}</span
 												>
-												<button
-													type="button"
-													class="chip-remove"
-													aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
-													title={`Remove ${meal.name}`}
-													onclick={() =>
-														removeMeal(
-															date,
-															type.id,
-														)}
-													>{@render icon(
-														"close",
-														11,
-													)}</button
-												>
+												{#if canEditViewing}
+													<button
+														type="button"
+														class="chip-remove"
+														aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
+														title={`Remove ${meal.name}`}
+														onclick={() =>
+															removeMeal(
+																date,
+																type.id,
+															)}
+														>{@render icon(
+															"close",
+															11,
+														)}</button
+													>
+												{/if}
 											</div>
 										{:else}
-											<button
-												type="button"
-												class="empty-slot"
-												onclick={() =>
-													openPicker(date, type.id)}
-												>{@render icon("plus", 11)} Add</button
-											>
+											{#if canEditViewing}
+												<button
+													type="button"
+													class="empty-slot"
+													onclick={() =>
+														openPicker(date, type.id)}
+													>{@render icon("plus", 11)} Add</button
+												>
+											{:else}
+												<span class="text-xs text-muted-foreground">Empty</span>
+											{/if}
 										{/if}
 									</div>
 								{/each}
-								{#if dayMealCount(date) > 0}
+								{#if canEditViewing && dayMealCount(date) > 0}
 									<Button
 										variant="ghost"
 										size="sm"
@@ -636,7 +839,19 @@
 				</div>
 			{/if}
 		</Card.Content>
-	</Card.Root>
+		</Card.Root>
+	{:else if householdId && viewingMember && selfMemberId}
+		<Card.Root>
+			{@render viewControls()}
+		<AutoPlanSection
+			{householdId}
+			memberId={viewingMember._id}
+			callerMemberId={selfMemberId}
+			week={currentWeek}
+			canEdit={canEditViewing}
+		/>
+		</Card.Root>
+	{/if}
 </main>
 
 <Dialog.Root
@@ -682,6 +897,16 @@
 						<span class="picker-name"
 							>{meal.name}<small>{meal.category}</small></span
 						>
+						{@const others = othersByMeal.get(meal.id)}
+						{#if others?.length}
+							<span
+								class="picker-others"
+								title={`Picked by ${others.join(", ")}`}
+							>
+								{@render icon("user", 13)}
+								<span>{others.join(", ")}</span>
+							</span>
+						{/if}
 						{@render icon("plus", 13)}
 					</Button>
 				{/each}
@@ -735,6 +960,46 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
+	}
+	.view-controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.mode-switch {
+		display: inline-flex;
+		align-items: baseline;
+	}
+	.mode-option {
+		display: inline-flex;
+		align-items: baseline;
+		border-bottom: 2px solid transparent;
+		padding: 6px 2px;
+		margin: 0;
+		color: var(--muted-foreground);
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.mode-option + .mode-option {
+		margin-left: 14px;
+	}
+	.mode-option.active {
+		color: var(--foreground);
+		border-bottom-color: var(--foreground);
+	}
+	.mode-option:not(.active):hover {
+		color: var(--foreground);
+	}
+	.mode-option:has(input:disabled) {
+		opacity: 0.6;
+		cursor: default;
+	}
+	.mode-option:has(input:focus-visible) {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
 	}
 	.day-detail {
 		display: grid;
@@ -999,6 +1264,22 @@
 		color: var(--muted-foreground);
 		font-size: 10px;
 		font-weight: 600;
+	}
+	.picker-others {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+		max-width: 38%;
+		overflow: hidden;
+		color: var(--muted-foreground);
+		font-size: 11px;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	.picker-others span {
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 

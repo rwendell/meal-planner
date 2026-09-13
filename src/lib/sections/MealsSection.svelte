@@ -21,16 +21,36 @@
 	import type { Id } from "../../convex/_generated/dataModel";
 
 	type MealCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack";
-	type MealTime = "breakfast" | "lunch" | "dinner";
+	type MealTime = "breakfast" | "lunch" | "dinner" | "snack";
 
-	const ALL_MEAL_TIMES: MealTime[] = ["breakfast", "lunch", "dinner"];
+	const ALL_MEAL_TIMES: MealTime[] = ["breakfast", "lunch", "dinner", "snack"];
 
 	function fallbackMealTimes(category: MealCategory): MealTime[] {
 		if (category === "Breakfast") return ["breakfast"];
-		if (category === "Lunch" || category === "Snack") return ["lunch"];
+		if (category === "Lunch") return ["lunch"];
+		if (category === "Snack") return ["snack"];
 		return ["dinner"];
 	}
-	type GroceryGroup = "Produce" | "Pantry" | "Dairy";
+	type GroceryGroup =
+		| "Produce"
+		| "Bakery & Deli"
+		| "Meat & Seafood"
+		| "Dairy & Eggs"
+		| "Frozen"
+		| "Beverages"
+		| "Pantry Staples"
+		| "Other";
+
+	const groceryGroups: GroceryGroup[] = [
+		"Produce",
+		"Bakery & Deli",
+		"Meat & Seafood",
+		"Dairy & Eggs",
+		"Frozen",
+		"Beverages",
+		"Pantry Staples",
+		"Other",
+	];
 
 	interface Ingredient {
 		name: string;
@@ -212,7 +232,7 @@
 
 	function blankRow(): IngredientRow {
 		rowKey += 1;
-		return { key: rowKey, name: "", amount: "", group: "Pantry" };
+		return { key: rowKey, name: "", amount: "", group: "Produce" };
 	}
 
 	function openAddMeal(): void {
@@ -722,9 +742,10 @@
 							</Select.Trigger>
 							<Select.Content>
 								<Select.Group>
-									<Select.Item value="Produce" label="Produce" />
-									<Select.Item value="Pantry" label="Pantry" />
-									<Select.Item value="Dairy" label="Dairy" />
+									{#each groceryGroups as group (group)}<Select.Item
+											value={group}
+											label={group}
+										/>{/each}
 								</Select.Group>
 							</Select.Content>
 						</Select.Root>

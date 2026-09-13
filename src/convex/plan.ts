@@ -21,6 +21,45 @@ async function assertMember(
 	}
 }
 
+function canManage(
+	household: { ownerId?: Id<"householdMembers"> },
+	callerMemberId: Id<"householdMembers">,
+): boolean {
+	return !household.ownerId || household.ownerId === callerMemberId;
+}
+
+/**
+ * Members plan only for themselves, unless the household lets the
+ * owner manage everyone's plans.
+ */
+async function assertCanEdit(
+	ctx: QueryCtx,
+	householdId: Id<"households">,
+	targetMemberId: Id<"householdMembers">,
+	callerMemberId: Id<"householdMembers">,
+): Promise<void> {
+	const [household, target, caller] = await Promise.all([
+		ctx.db.get("households", householdId),
+		ctx.db.get("householdMembers", targetMemberId),
+		ctx.db.get("householdMembers", callerMemberId),
+	]);
+	if (
+		!household ||
+		!target ||
+		target.householdId !== householdId ||
+		!caller ||
+		caller.householdId !== householdId
+	) {
+		throw new Error("Household member not found.");
+	}
+	if (
+		target._id !== caller._id &&
+		!(household.ownerManagesPlans && canManage(household, caller._id))
+	) {
+		throw new Error("You can only plan your own meals.");
+	}
+}
+
 /**
  * Week plans are keyed by member and ISO date, so every week — past and
  * future — persists per member. Pass `memberId` for one member's days, or
@@ -71,16 +110,19 @@ export const setSlot = mutation({
 	args: {
 		householdId: v.id("households"),
 		memberId: v.id("householdMembers"),
+		callerMemberId: v.id("householdMembers"),
 		date: v.string(),
 		slot: mealSlot,
 		mealId: planSlotValue,
 	},
 	handler: async (ctx, args) => {
 		assertDate(args.date);
-		const member = await ctx.db.get("householdMembers", args.memberId);
-		if (!member || member.householdId !== args.householdId) {
-			throw new Error("Household member not found.");
-		}
+		await assertCanEdit(
+			ctx,
+			args.householdId,
+			args.memberId,
+			args.callerMemberId,
+		);
 		if (args.mealId !== null && args.mealId !== "skip") {
 			const meal = await ctx.db.get("meals", args.mealId);
 			if (!meal || meal.householdId !== args.householdId) {
@@ -111,6 +153,7 @@ export const setSlot = mutation({
 			breakfast: args.slot === "breakfast" ? args.mealId : null,
 			lunch: args.slot === "lunch" ? args.mealId : null,
 			dinner: args.slot === "dinner" ? args.mealId : null,
+			snack: args.slot === "snack" ? args.mealId : null,
 		});
 	},
 	returns: v.id("weekDays"),
@@ -120,14 +163,17 @@ export const clearDay = mutation({
 	args: {
 		householdId: v.id("households"),
 		memberId: v.id("householdMembers"),
+		callerMemberId: v.id("householdMembers"),
 		date: v.string(),
 	},
 	handler: async (ctx, args) => {
 		assertDate(args.date);
-		const member = await ctx.db.get("householdMembers", args.memberId);
-		if (!member || member.householdId !== args.householdId) {
-			throw new Error("Household member not found.");
-		}
+		await assertCanEdit(
+			ctx,
+			args.householdId,
+			args.memberId,
+			args.callerMemberId,
+		);
 		const existing = await ctx.db
 			.query("weekDays")
 			.withIndex("by_member_date", (q) =>
@@ -140,6 +186,7 @@ export const clearDay = mutation({
 			breakfast: null,
 			lunch: null,
 			dinner: null,
+			snack: null,
 		});
 		for (const dupe of dupes) {
 			await ctx.db.delete("weekDays", dupe._id);

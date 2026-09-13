@@ -61,7 +61,12 @@ export const list = query({
 		>();
 		for (const days of dayGroups) {
 			for (const day of days) {
-				for (const mealId of [day.breakfast, day.lunch, day.dinner]) {
+				for (const mealId of [
+					day.breakfast,
+					day.lunch,
+					day.dinner,
+					day.snack ?? null,
+				]) {
 					// Skipped slots contribute no groceries.
 					if (!mealId || mealId === "skip") continue;
 					const meal = mealsById.get(mealId);

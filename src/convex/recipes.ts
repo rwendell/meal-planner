@@ -108,11 +108,19 @@ type SampleMeal = {
 	note: string;
 	time: string;
 	color: string;
-	mealTimes: ("breakfast" | "lunch" | "dinner")[];
+	mealTimes: ("breakfast" | "lunch" | "dinner" | "snack")[];
 	ingredients: {
 		name: string;
 		amount: string;
-		group: "Produce" | "Pantry" | "Dairy";
+		group:
+			| "Produce"
+			| "Bakery & Deli"
+			| "Meat & Seafood"
+			| "Dairy & Eggs"
+			| "Frozen"
+			| "Beverages"
+			| "Pantry Staples"
+			| "Other";
 	}[];
 };
 
@@ -125,11 +133,11 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#e9c5bb",
 		mealTimes: ["breakfast"],
 		ingredients: [
-			{ name: "Eggs", amount: "4", group: "Dairy" },
-			{ name: "Crushed tomatoes", amount: "2 cans", group: "Pantry" },
+			{ name: "Eggs", amount: "4", group: "Dairy & Eggs" },
+			{ name: "Crushed tomatoes", amount: "2 cans", group: "Pantry Staples" },
 			{ name: "Bell peppers", amount: "1", group: "Produce" },
 			{ name: "Onion", amount: "1", group: "Produce" },
-			{ name: "Feta", amount: "1 pack", group: "Dairy" },
+			{ name: "Feta", amount: "1 pack", group: "Dairy & Eggs" },
 		],
 	},
 	{
@@ -140,9 +148,9 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#f0dfbd",
 		ingredients: [
 			{ name: "Bananas", amount: "2", group: "Produce" },
-			{ name: "Eggs", amount: "2", group: "Dairy" },
-			{ name: "Rolled oats", amount: "1 cup", group: "Pantry" },
-			{ name: "Milk", amount: "1 cup", group: "Dairy" },
+			{ name: "Eggs", amount: "2", group: "Dairy & Eggs" },
+			{ name: "Rolled oats", amount: "1 cup", group: "Pantry Staples" },
+			{ name: "Milk", amount: "1 cup", group: "Dairy & Eggs" },
 		],
 		mealTimes: ["breakfast"],
 	},
@@ -154,11 +162,11 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#cfe2d8",
 		mealTimes: ["lunch"],
 		ingredients: [
-			{ name: "Quinoa", amount: "1 cup", group: "Pantry" },
-			{ name: "Chickpeas", amount: "1 can", group: "Pantry" },
+			{ name: "Quinoa", amount: "1 cup", group: "Pantry Staples" },
+			{ name: "Chickpeas", amount: "1 can", group: "Pantry Staples" },
 			{ name: "Cucumber", amount: "1", group: "Produce" },
 			{ name: "Cherry tomatoes", amount: "1 pint", group: "Produce" },
-			{ name: "Feta", amount: "1 pack", group: "Dairy" },
+			{ name: "Feta", amount: "1 pack", group: "Dairy & Eggs" },
 		],
 	},
 	{
@@ -169,8 +177,8 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#e7d5ae",
 		mealTimes: ["lunch"],
 		ingredients: [
-			{ name: "Ciabatta rolls", amount: "2", group: "Pantry" },
-			{ name: "Mozzarella", amount: "1 ball", group: "Dairy" },
+			{ name: "Ciabatta rolls", amount: "2", group: "Bakery & Deli" },
+			{ name: "Mozzarella", amount: "1 ball", group: "Dairy & Eggs" },
 			{ name: "Tomatoes", amount: "2", group: "Produce" },
 			{ name: "Fresh basil", amount: "1 pack", group: "Produce" },
 		],
@@ -183,10 +191,10 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#f2cbb9",
 		mealTimes: ["dinner"],
 		ingredients: [
-			{ name: "Chicken thighs", amount: "4", group: "Dairy" },
-			{ name: "Basmati rice", amount: "1 bag", group: "Pantry" },
-			{ name: "Crushed tomatoes", amount: "1 can", group: "Pantry" },
-			{ name: "Greek yogurt", amount: "1 tub", group: "Dairy" },
+			{ name: "Chicken thighs", amount: "4", group: "Meat & Seafood" },
+			{ name: "Basmati rice", amount: "1 bag", group: "Pantry Staples" },
+			{ name: "Crushed tomatoes", amount: "1 can", group: "Pantry Staples" },
+			{ name: "Greek yogurt", amount: "1 tub", group: "Dairy & Eggs" },
 			{ name: "Onion", amount: "1", group: "Produce" },
 		],
 	},
@@ -201,8 +209,8 @@ const SAMPLE_MEALS: SampleMeal[] = [
 			{ name: "Bell peppers", amount: "2", group: "Produce" },
 			{ name: "Broccoli", amount: "1 head", group: "Produce" },
 			{ name: "Carrots", amount: "3", group: "Produce" },
-			{ name: "Jasmine rice", amount: "1 bag", group: "Pantry" },
-			{ name: "Soy sauce", amount: "1 bottle", group: "Pantry" },
+			{ name: "Jasmine rice", amount: "1 bag", group: "Pantry Staples" },
+			{ name: "Soy sauce", amount: "1 bottle", group: "Pantry Staples" },
 		],
 	},
 	{
@@ -213,7 +221,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#e4ddbf",
 		mealTimes: ["dinner", "lunch"],
 		ingredients: [
-			{ name: "Red lentils", amount: "1 bag", group: "Pantry" },
+			{ name: "Red lentils", amount: "1 bag", group: "Pantry Staples" },
 			{ name: "Carrots", amount: "2", group: "Produce" },
 			{ name: "Onion", amount: "1", group: "Produce" },
 			{ name: "Lemons", amount: "2", group: "Produce" },
@@ -227,10 +235,10 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		color: "#cfe2d8",
 		mealTimes: ["breakfast"],
 		ingredients: [
-			{ name: "Sourdough loaf", amount: "1", group: "Pantry" },
+			{ name: "Sourdough loaf", amount: "1", group: "Bakery & Deli" },
 			{ name: "Avocados", amount: "2", group: "Produce" },
 			{ name: "Lemons", amount: "1", group: "Produce" },
-			{ name: "Eggs", amount: "2", group: "Dairy" },
+			{ name: "Eggs", amount: "2", group: "Dairy & Eggs" },
 		],
 	},
 ];

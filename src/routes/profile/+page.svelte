@@ -9,6 +9,7 @@
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
+	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
@@ -39,6 +40,9 @@
 	);
 
 	const renameHousehold = useMutation(api.households.renameHousehold);
+	const setOwnerManagesPlans = useMutation(
+		api.households.setOwnerManagesPlans,
+	);
 	const renameMember = useMutation(api.households.renameMember);
 	const removeMember = useMutation(api.households.removeMember);
 	const createHousehold = useMutation(api.households.create);
@@ -172,6 +176,23 @@
 			toast.success("Invite code copied");
 		} catch {
 			toast.error("Copy was blocked by the browser");
+		}
+	}
+
+	async function saveOwnerManagesPlans(enabled: boolean): Promise<void> {
+		const current = session.session;
+		if (!current) return;
+		try {
+			await setOwnerManagesPlans({
+				householdId: current.householdId as Id<"households">,
+				callerMemberId: current.memberId as Id<"householdMembers">,
+				enabled,
+			});
+			toast.success(
+				enabled ? "Owner planning turned on" : "Owner planning turned off",
+			);
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't update the setting."));
 		}
 	}
 
@@ -465,6 +486,38 @@
 								{/each}
 							{/if}
 						</div>
+						{#if isManager}
+							<Separator class="sm:col-span-2" />
+							<div class="grid gap-2 sm:col-span-2">
+								<span class="text-xs font-semibold text-muted-foreground">
+									Owner settings
+								</span>
+								<div class="flex items-start gap-2.5">
+									<Checkbox
+										id="owner-manages-plans"
+										checked={household?.ownerManagesPlans ?? false}
+										onCheckedChange={(value) => {
+											if (typeof value === "boolean") {
+												void saveOwnerManagesPlans(value);
+											}
+										}}
+										class="mt-0.5"
+									/>
+									<span class="grid gap-0.5">
+										<label
+											for="owner-manages-plans"
+											class="cursor-pointer text-sm font-medium"
+											>Owner can plan for everyone</label
+										>
+										<span class="text-xs text-muted-foreground">
+											When on, the owner can switch between members'
+											plans and pick meals for them. Everyone else only
+											ever sees and edits their own plan.
+										</span>
+									</span>
+								</div>
+							</div>
+						{/if}
 					</Card.Content>
 				</Card.Root>
 			{/if}

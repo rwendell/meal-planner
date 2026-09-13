@@ -44,7 +44,15 @@ export const ensureSeed = mutation({
 			ingredients: {
 				name: string;
 				amount: string;
-				group: "Produce" | "Pantry" | "Dairy";
+				group:
+					| "Produce"
+					| "Bakery & Deli"
+					| "Meat & Seafood"
+					| "Dairy & Eggs"
+					| "Frozen"
+					| "Beverages"
+					| "Pantry Staples"
+					| "Other";
 			}[];
 		}[] = [
 			{
@@ -54,9 +62,9 @@ export const ensureSeed = mutation({
 				time: "5 min",
 				color: "#dce9db",
 				ingredients: [
-					{ name: "Rolled oats", amount: "1 bag", group: "Pantry" },
+					{ name: "Rolled oats", amount: "1 bag", group: "Pantry Staples" },
 					{ name: "Blueberries", amount: "1 pint", group: "Produce" },
-					{ name: "Almond butter", amount: "1 jar", group: "Pantry" },
+					{ name: "Almond butter", amount: "1 jar", group: "Pantry Staples" },
 				],
 			},
 			{
@@ -66,8 +74,8 @@ export const ensureSeed = mutation({
 				time: "10 min",
 				color: "#f0dfbd",
 				ingredients: [
-					{ name: "Sourdough loaf", amount: "1", group: "Pantry" },
-					{ name: "Ricotta", amount: "1 tub", group: "Dairy" },
+					{ name: "Sourdough loaf", amount: "1", group: "Bakery & Deli" },
+					{ name: "Ricotta", amount: "1 tub", group: "Dairy & Eggs" },
 					{ name: "Figs", amount: "1 pack", group: "Produce" },
 				],
 			},
@@ -78,7 +86,7 @@ export const ensureSeed = mutation({
 				time: "15 min",
 				color: "#cfe2d8",
 				ingredients: [
-					{ name: "Flour tortillas", amount: "1 pack", group: "Pantry" },
+					{ name: "Flour tortillas", amount: "1 pack", group: "Bakery & Deli" },
 					{ name: "Avocados", amount: "3", group: "Produce" },
 					{ name: "Cucumber", amount: "1", group: "Produce" },
 					{ name: "Fresh herbs", amount: "2 bunches", group: "Produce" },
@@ -91,9 +99,9 @@ export const ensureSeed = mutation({
 				time: "30 min",
 				color: "#f2cbb9",
 				ingredients: [
-					{ name: "Salmon fillets", amount: "2", group: "Produce" },
-					{ name: "Jasmine rice", amount: "1 bag", group: "Pantry" },
-					{ name: "White miso", amount: "1 tub", group: "Pantry" },
+					{ name: "Salmon fillets", amount: "2", group: "Meat & Seafood" },
+					{ name: "Jasmine rice", amount: "1 bag", group: "Pantry Staples" },
+					{ name: "White miso", amount: "1 tub", group: "Pantry Staples" },
 					{ name: "Baby spinach", amount: "1 bag", group: "Produce" },
 				],
 			},
@@ -104,7 +112,7 @@ export const ensureSeed = mutation({
 				time: "35 min",
 				color: "#e4ddbf",
 				ingredients: [
-					{ name: "Chicken thighs", amount: "4", group: "Dairy" },
+					{ name: "Chicken thighs", amount: "4", group: "Meat & Seafood" },
 					{ name: "Lemons", amount: "4", group: "Produce" },
 					{ name: "Fresh herbs", amount: "2 bunches", group: "Produce" },
 				],
@@ -116,10 +124,14 @@ export const ensureSeed = mutation({
 				time: "25 min",
 				color: "#e9c5bb",
 				ingredients: [
-					{ name: "Rigatoni", amount: "1 box", group: "Pantry" },
-					{ name: "Crushed tomatoes", amount: "2 cans", group: "Pantry" },
+					{ name: "Rigatoni", amount: "1 box", group: "Pantry Staples" },
+					{
+						name: "Crushed tomatoes",
+						amount: "2 cans",
+						group: "Pantry Staples",
+					},
 					{ name: "Fresh basil", amount: "1 pack", group: "Produce" },
-					{ name: "Parmesan", amount: "1 wedge", group: "Dairy" },
+					{ name: "Parmesan", amount: "1 wedge", group: "Dairy & Eggs" },
 				],
 			},
 			{
@@ -129,7 +141,7 @@ export const ensureSeed = mutation({
 				time: "25 min",
 				color: "#e7d5ae",
 				ingredients: [
-					{ name: "Flour tortillas", amount: "1 pack", group: "Pantry" },
+					{ name: "Flour tortillas", amount: "1 pack", group: "Bakery & Deli" },
 					{ name: "Bell peppers", amount: "3", group: "Produce" },
 					{ name: "Avocados", amount: "3", group: "Produce" },
 					{ name: "Limes", amount: "3", group: "Produce" },
@@ -142,9 +154,11 @@ export const ensureSeed = mutation({
 			const mealTimes =
 				meal.category === "Breakfast"
 					? (["breakfast"] as const)
-					: meal.category === "Lunch" || meal.category === "Snack"
+					: meal.category === "Lunch"
 						? (["lunch"] as const)
-						: (["dinner"] as const);
+						: meal.category === "Snack"
+							? (["snack"] as const)
+							: (["dinner"] as const);
 			mealIds[meal.name] = await ctx.db.insert("meals", {
 				...meal,
 				householdId: args.householdId,
@@ -252,9 +266,9 @@ export const ensureSeed = mutation({
 		// Generate the initial shopping list, pre-checking a few staples.
 		const preChecked = new Set([
 			"Produce:avocados",
-			"Pantry:jasmine-rice",
-			"Pantry:rolled-oats",
-			"Pantry:almond-butter",
+			"Pantry Staples:jasmine-rice",
+			"Pantry Staples:rolled-oats",
+			"Pantry Staples:almond-butter",
 		]);
 		const seen = new Set<string>();
 		const existingChecks = await ctx.db

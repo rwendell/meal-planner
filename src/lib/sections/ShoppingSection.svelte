@@ -2,7 +2,6 @@
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
-	import Icon from "$lib/components/Icon.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
@@ -18,14 +17,27 @@
 		key: string;
 		name: string;
 		amount: string;
-		group: "Produce" | "Pantry" | "Dairy";
+		group:
+			| "Produce"
+			| "Bakery & Deli"
+			| "Meat & Seafood"
+			| "Dairy & Eggs"
+			| "Frozen"
+			| "Beverages"
+			| "Pantry Staples"
+			| "Other";
 		checked: boolean;
 	}
 
 	const groceryGroups: GroceryItem["group"][] = [
 		"Produce",
-		"Pantry",
-		"Dairy",
+		"Bakery & Deli",
+		"Meat & Seafood",
+		"Dairy & Eggs",
+		"Frozen",
+		"Beverages",
+		"Pantry Staples",
+		"Other",
 	];
 
 	let householdId = $derived(session.session?.householdId ?? null);
@@ -153,12 +165,13 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Title id="shopping-title">Shopping list</Card.Title>
-			<Card.Description>Generated from the plan</Card.Description>
-			<Card.Action>
-				<span class="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground"
-					><Icon name="cart" size={17} /></span
-				>
-			</Card.Action>
+			{#if listItems.length > 0}
+				<Card.Action>
+					<Button variant="outline" size="sm" onclick={copyList}
+						>Export to clipboard</Button
+					>
+				</Card.Action>
+			{/if}
 		</Card.Header>
 		<Card.Content>
 			{#if dataLoading}
@@ -169,17 +182,8 @@
 					<Skeleton class="h-4 w-2/3" />
 				</div>
 			{/if}
-			{#if listItems.length > 0}
-				<div class="export-row">
-					<Button variant="outline" size="sm" onclick={copyList}
-						>Export to clipboard</Button
-					>
-				</div>
-			{/if}
 			<div class="list-progress">
-				<strong>{doneCount}<small>/{listItems.length}</small></strong><span
-					>{listPct}%</span
-				>
+				<strong>{doneCount}<small>/{listItems.length}</small></strong>
 				<div class="meter">
 					<span style={`width: ${listPct}%`}></span>
 				</div>
@@ -188,7 +192,7 @@
 				{#if group.items.length}
 					<div class="grocery-group">
 						<h3>
-							{group.group}<span>{group.items.length}</span>
+							{group.group} <span>{group.items.filter((item) => item.checked).length}/{group.items.length}</span>
 						</h3>
 						{#each group.items as item (item.key)}
 							<div class="grocery-item">
@@ -241,18 +245,8 @@
 		margin: 0 auto;
 		padding: 20px 18px 72px;
 	}
-	.export-row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 16px;
-	}
 	.list-progress {
 		display: grid;
-		grid-template-columns: 1fr auto;
-		align-items: end;
-		gap: 10px;
 		margin-bottom: 18px;
 	}
 	.list-progress strong {
@@ -265,13 +259,7 @@
 		font-size: 12px;
 		color: var(--muted-foreground);
 	}
-	.list-progress > span {
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--muted-foreground);
-	}
 	.meter {
-		grid-column: 1 / -1;
 		height: 8px;
 		overflow: hidden;
 		border-radius: 999px;
@@ -288,8 +276,6 @@
 		margin-top: 16px;
 	}
 	.grocery-group h3 {
-		display: flex;
-		justify-content: space-between;
 		margin-bottom: 6px;
 		color: var(--muted-foreground);
 		font-size: 10px;
@@ -329,7 +315,7 @@
 		cursor: pointer;
 	}
 	.grocery-text span {
-		flex: 1;
+		flex: 0 1 auto;
 		min-width: 0;
 	}
 	.grocery-text span.done {

@@ -121,10 +121,12 @@ export const remove = mutation({
 				breakfast?: typeof day.breakfast;
 				lunch?: typeof day.lunch;
 				dinner?: typeof day.dinner;
+				snack?: typeof day.snack;
 			} = {};
 			if (day.breakfast === args.id) patch.breakfast = null;
 			if (day.lunch === args.id) patch.lunch = null;
 			if (day.dinner === args.id) patch.dinner = null;
+			if (day.snack === args.id) patch.snack = null;
 			if (Object.keys(patch).length > 0) {
 				await ctx.db.patch("weekDays", day._id, patch);
 			}
