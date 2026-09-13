@@ -1,7 +1,16 @@
 <script lang="ts">
+	import SearchXIcon from "@lucide/svelte/icons/search-x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
+	import { toast } from "svelte-sonner";
 	import { resolve } from "$app/paths";
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button } from "$lib/components/ui/button";
+	import * as Card from "$lib/components/ui/card";
+	import * as Dialog from "$lib/components/ui/dialog";
+	import * as Empty from "$lib/components/ui/empty";
+	import { Input } from "$lib/components/ui/input";
+	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import {
 		addDays,
 		formatMonthDay,
@@ -70,7 +79,6 @@
 
 	let anchorDate = $state(today);
 	let search = $state("");
-	let toast = $state("");
 	let pickerTarget = $state<{
 		date: string;
 		dayLabel: string;
@@ -164,16 +172,21 @@
 		mealsQuery.error ?? daysQuery.error ?? householdQuery.error,
 	);
 
-	let errorToast = $state("");
+	let lastErrorToasted = "";
 
-	// Surface database errors as a dismissible toast instead of a permanent
-	// inline note. Dismissing sticks until the error itself changes.
+	// Surface database errors as a toast. Each distinct error toasts once
+	// until it resolves.
 	$effect(() => {
 		const error = dataError;
 		if (error) {
-			errorToast = `Couldn't reach the database (${error.message}). Check your connection and reload.`;
+			if (error.message !== lastErrorToasted) {
+				lastErrorToasted = error.message;
+				toast.error(
+					`Couldn't reach the database (${error.message}). Check your connection and reload.`,
+				);
+			}
 		} else {
-			errorToast = "";
+			lastErrorToasted = "";
 		}
 	});
 
@@ -248,7 +261,9 @@
 			mealId: mealId as Id<"meals">,
 		});
 		const meal = meals.find((item) => item.id === mealId);
-		toast = `${meal?.name ?? "Meal"} added to ${pickerTarget.dayLabel}${ownerSuffix()}`;
+		toast.success(
+			`${meal?.name ?? "Meal"} added to ${pickerTarget.dayLabel}${ownerSuffix()}`,
+		);
 		closePicker();
 	}
 
@@ -276,7 +291,7 @@
 			slot: pickerTarget.slot,
 			mealId: id,
 		});
-		toast = `${name} added to ${pickerTarget.dayLabel}${ownerSuffix()}`;
+		toast.success(`${name} added to ${pickerTarget.dayLabel}${ownerSuffix()}`);
 		search = "";
 		closePicker();
 	}
@@ -290,7 +305,9 @@
 			slot: pickerTarget.slot,
 			mealId: "skip",
 		});
-		toast = `${pickerTarget.slotLabel} on ${pickerTarget.dayLabel} skipped${ownerSuffix()}`;
+		toast.success(
+			`${pickerTarget.slotLabel} on ${pickerTarget.dayLabel} skipped${ownerSuffix()}`,
+		);
 		closePicker();
 	}
 
@@ -305,7 +322,7 @@
 		});
 		const label =
 			mealTypes.find((type) => type.id === slot)?.label ?? slot;
-		toast = `${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`;
+		toast.success(`${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`);
 	}
 
 	async function removeMeal(date: string, slot: MealType): Promise<void> {
@@ -319,7 +336,7 @@
 			slot,
 			mealId: null,
 		});
-		toast = `${meal.name} removed from ${dayLabel(date)}${ownerSuffix()}`;
+		toast.success(`${meal.name} removed from ${dayLabel(date)}${ownerSuffix()}`);
 	}
 
 	async function clearDay(date: string): Promise<void> {
@@ -330,7 +347,7 @@
 			memberId: viewingMember._id,
 			date,
 		});
-		toast = `${dayLabel(date)} cleared${ownerSuffix()}`;
+		toast.success(`${dayLabel(date)} cleared${ownerSuffix()}`);
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -393,318 +410,307 @@
 {/snippet}
 
 <main>
-	<section id="planner" class="hero">
-		<div>
-			<h1>{viewHeading}</h1>
-			<div class="view-bar">
-				<div class="date-nav">
-					<button
-						type="button"
-						class="icon-button"
+	<Card.Root id="planner" class="bg-muted">
+		<Card.Header>
+			<Card.Title
+				class="font-serif text-[clamp(42px,9vw,64px)] leading-[0.95] tracking-[-0.045em]"
+			>
+				{viewHeading}
+			</Card.Title>
+		</Card.Header>
+		<Card.Content>
+			<div class="date-nav">
+					<Button
+						variant="outline"
+						size="icon"
+						class="text-[18px] leading-none"
 						aria-label={effectiveView === "day"
 							? "Previous day"
 							: "Previous week"}
-						onclick={() => stepView(-1)}>‹</button
+						onclick={() => stepView(-1)}>‹</Button
 					>
-					<button
-						type="button"
-						class="ghost compact"
-						onclick={goToday}>Today</button
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={goToday}>Today</Button
 					>
-					<button
-						type="button"
-						class="icon-button"
-						aria-label={effectiveView === "day"
-							? "Next day"
-							: "Next week"}
-						onclick={() => stepView(1)}>›</button
+					<Button
+						variant="outline"
+						size="icon"
+						class="text-[18px] leading-none"
+						aria-label={effectiveView === "day" ? "Next day" : "Next week"}
+						onclick={() => stepView(1)}>›</Button
 					>
 				</div>
-			</div>
-		</div>
-	</section>
+		</Card.Content>
+	</Card.Root>
 
-	<section class="panel">
+	<Card.Root>
 		{#if members.length > 1}
-			<fieldset class="member-tabs">
-				<legend class="sr-only">Whose plan</legend>
-				{#each members as member, i (member._id)}
-					<button
-						type="button"
-						class:active={viewingMember?._id === member._id}
-						aria-pressed={viewingMember?._id === member._id}
-						onclick={() => (viewingMemberId = member._id)}
-					>
-						<span
-							class="member-dot"
-							style={`background: ${memberColor(member._id)}`}
-						></span>{member.name}</button
-					>
-				{/each}
-			</fieldset>
+			<Card.Header>
+				<ToggleGroup.Root
+					type="single"
+					variant="outline"
+					value={viewingMemberId ?? selfMemberId ?? ""}
+					aria-label="Whose plan"
+					onValueChange={(value) => {
+						if (value) viewingMemberId = value;
+					}}
+				>
+					{#each members as member (member._id)}
+						<ToggleGroup.Item value={member._id} aria-label={member.name}>
+							<span
+								class="member-dot"
+								style={`background: ${memberColor(member._id)}`}
+							></span>{member.name}</ToggleGroup.Item
+						>
+					{/each}
+				</ToggleGroup.Root>
+			</Card.Header>
 		{/if}
-		{#if effectiveView === "day"}
-			<div class="day-detail">
-				<div class="day-detail-head">
-					<h2>{weekdayLabel(anchorDate)}</h2>
-					{#if anchorDate === today}
-						<span class="day-current-label">Today</span>
-					{/if}
-				</div>
-						{#each mealTypes as type (type.id)}
-							{@const meal = slotMeal(anchorDate, type.id)}
-							<div class="day-slot">
-								<h3>{type.label}</h3>
-								{#if isSkipped(anchorDate, type.id)}
-									<div class="empty-day-slot skipped">
-										<p>Skipped</p>
-										<button
-											type="button"
-											class="empty-slot"
-											onclick={() =>
-												openPicker(anchorDate, type.id)}
-											>{@render icon("plus", 11)} Change</button
-										>
-										<button
-											type="button"
-											class="chip-remove day-meal-remove"
-											aria-label={`Unskip ${type.label}`}
-											title="Back to unplanned"
-											onclick={() =>
-												unskipSlot(anchorDate, type.id)}
-											>{@render icon("close", 11)}</button
-										>
-									</div>
-								{:else if meal}
-							<div
-								class="day-meal-card"
-								style={`--meal-color: ${meal.color}`}
-							>
-								<div class="day-meal-content">
-									<strong>{meal.name}</strong>
-									<p class="day-meal-note">
-										{meal.note || "No note added"}
-									</p>
-									<div class="day-meal-meta">
-										<span>{meal.time}</span>
-										<span>
-											{meal.ingredientCount > 0
-												? `${meal.ingredientCount} ingredient${meal.ingredientCount === 1 ? "" : "s"}`
-												: "No groceries"}
-										</span>
-									</div>
-								</div>
-								<button
-									type="button"
-									class="chip-remove day-meal-remove"
-									aria-label={`Remove ${meal.name} from ${type.label}`}
-									title={`Remove ${meal.name}`}
-									onclick={() =>
-										removeMeal(anchorDate, type.id)}
-									>{@render icon("close", 11)}</button
-								>
-							</div>
-						{:else}
-							<div class="empty-day-slot">
-								<p>No meal planned</p>
-								<button
-									type="button"
-									class="empty-slot"
-									onclick={() =>
-										openPicker(anchorDate, type.id)}
-									>{@render icon("plus", 11)} Add meal</button
-								>
-							</div>
+		<Card.Content>
+			{#if effectiveView === "day"}
+				<div class="day-detail">
+					<div class="day-detail-head">
+						<h2 class="m-0 text-[22px]">{weekdayLabel(anchorDate)}</h2>
+						{#if anchorDate === today}
+							<Badge>Today</Badge>
 						{/if}
 					</div>
-				{/each}
-			</div>
-		{:else}
-			<div class="week-scroll">
-				<div class="week-track">
-					{#each currentWeek as date (date)}
-						<article class="day" class:selected={date === today}>
-							<div class="day-head">
-								<span>{weekdayLabel(date)}</span>
-								{#if date === today}<em>Today</em>{/if}
-							</div>
-									{#each mealTypes as type (type.id)}
-										{@const meal = slotMeal(date, type.id)}
-										<div class="slot">
-											<small>{type.label}</small>
-											{#if isSkipped(date, type.id)}
-												<div class="skipped-wrap">
-													<button
-														type="button"
-														class="empty-slot"
-														onclick={() =>
-															openPicker(date, type.id)}
-														>{@render icon("plus", 11)} Skipped</button
-													>
-													<button
-														type="button"
-														class="chip-remove"
-														aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
-														title="Back to unplanned"
-														onclick={() =>
-															unskipSlot(date, type.id)}
-														>{@render icon(
-															"close",
-															11,
-														)}</button
-													>
-												</div>
-											{:else if meal}
-										<div
-											class="meal-chip"
-											style={`background: ${meal.color}`}
-										>
-											<span class="chip-name"
-												>{meal.name}{#if meal.ingredientCount === 0}<span
-														class="chip-note"
-														>No list</span
-													>{/if}</span
-											>
-											<button
-												type="button"
-												class="chip-remove"
-												aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
-												title={`Remove ${meal.name}`}
-												onclick={() =>
-													removeMeal(date, type.id)}
-												>{@render icon(
-													"close",
-													11,
-												)}</button
-											>
-										</div>
-									{:else}
-										<button
-											type="button"
-											class="empty-slot"
-											onclick={() =>
-												openPicker(date, type.id)}
-											>{@render icon("plus", 11)} Add</button
-										>
-									{/if}
+					{#each mealTypes as type (type.id)}
+						{@const meal = slotMeal(anchorDate, type.id)}
+						<div class="day-slot">
+							<h3>{type.label}</h3>
+							{#if isSkipped(anchorDate, type.id)}
+								<div class="empty-day-slot skipped">
+									<p>Skipped</p>
+									<button
+										type="button"
+										class="empty-slot"
+										onclick={() =>
+											openPicker(anchorDate, type.id)}
+										>{@render icon("plus", 11)} Change</button
+									>
+									<button
+										type="button"
+										class="chip-remove"
+										aria-label={`Unskip ${type.label}`}
+										title="Back to unplanned"
+										onclick={() =>
+											unskipSlot(anchorDate, type.id)}
+										>{@render icon("close", 11)}</button
+									>
 								</div>
-							{/each}
-							{#if dayMealCount(date) > 0}
-								<button
-									type="button"
-									class="clear-day"
-									onclick={() => clearDay(date)}
-									>Clear day</button
+							{:else if meal}
+								<div
+									class="day-meal-card"
+									style={`--meal-color: ${meal.color}`}
 								>
+									<div class="day-meal-content">
+										<strong>{meal.name}</strong>
+										<p class="day-meal-note">
+											{meal.note || "No note added"}
+										</p>
+										<div class="day-meal-meta">
+											<Badge variant="secondary">{meal.time}</Badge>
+											<Badge variant="outline">
+												{meal.ingredientCount > 0
+													? `${meal.ingredientCount} ingredient${meal.ingredientCount === 1 ? "" : "s"}`
+													: "No groceries"}
+											</Badge>
+										</div>
+									</div>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label={`Remove ${meal.name} from ${type.label}`}
+										title={`Remove ${meal.name}`}
+										onclick={() =>
+											removeMeal(anchorDate, type.id)}
+										>{@render icon("close", 11)}</Button
+									>
+								</div>
+							{:else}
+								<div class="empty-day-slot">
+									<p>No meal planned</p>
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() =>
+											openPicker(anchorDate, type.id)}
+										>{@render icon("plus", 11)} Add meal</Button
+									>
+								</div>
 							{/if}
-						</article>
-					{/each}
-				</div>
-			</div>
-		{/if}
-	</section>
-</main>
-
-{#if toast}
-	<div class="toast" role="status">
-		{@render icon("check", 13)}
-		{toast}
-		<button type="button" aria-label="Dismiss" onclick={() => (toast = "")}
-			>{@render icon("close", 12)}</button
-		>
-	</div>
-{/if}
-
-{#if errorToast}
-	<div class="toast error" role="alert">
-		{@render icon("bell", 13)}
-		{errorToast}
-		<button
-			type="button"
-			aria-label="Dismiss error"
-			onclick={() => (errorToast = "")}
-			>{@render icon("close", 12)}</button
-		>
-	</div>
-{/if}
-
-{#if pickerTarget}
-	<div class="backdrop" data-no-swipe>
-		<div
-			class="modal"
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="picker-title"
-		>
-			<div class="section-head">
-				<div>
-					<p class="eyebrow">
-						{pickerTarget.dayLabel} · {pickerTarget.slotLabel}
-					</p>
-					<h2 id="picker-title">Choose a meal</h2>
-				</div>
-				<button
-					type="button"
-					class="icon-button"
-					aria-label="Close dialog"
-					onclick={closePicker}>{@render icon("close", 15)}</button
-				>
-			</div>
-			<label class="search-box">
-				{@render icon("search", 14)}<span class="sr-only"
-					>Search meals</span
-				>
-				<input bind:value={search} placeholder="Search meals" />
-			</label>
-			<button type="button" class="picker-row skip-row" onclick={skipSlot}>
-				<span class="picker-dot skip-dot"></span>
-				<span class="picker-name"
-					>Skip this meal<small>No cooking, no groceries</small></span
-				>
-			</button>
-			{#if pickerMeals.length}
-				<div class="picker-list">
-					{#each pickerMeals as meal (meal.id)}
-						<button
-							type="button"
-							class="picker-row"
-							onclick={() => assignToSlot(meal.id)}
-						>
-							<span
-								class="picker-dot"
-								style={`background: ${meal.color}`}
-							></span>
-							<span class="picker-name"
-								>{meal.name}<small>{meal.category}</small></span
-							>
-							{@render icon("plus", 13)}
-						</button>
+						</div>
 					{/each}
 				</div>
 			{:else}
-				<div class="empty-state">
-					<strong>No meals found</strong>
-					{#if search.trim()}
-						<p>No match for "{search.trim()}".</p>
-						<div class="empty-actions">
-							<button
-								type="button"
-								class="primary"
-								onclick={addSearchedMeal}
-								>Add "{search.trim()}" to the database</button
+				<div class="week-scroll">
+					<div class="week-track">
+						{#each currentWeek as date (date)}
+							<article
+								class="day"
+								class:selected={date === today}
 							>
-						</div>
-					{:else}
-						<p>
-							Add meals in the
-							<a href={resolve("/meals")}>meal database</a> first.
-						</p>
-					{/if}
+								<div class="day-head">
+									<span>{weekdayLabel(date)}</span>
+									{#if date === today}<em>Today</em>{/if}
+								</div>
+								{#each mealTypes as type (type.id)}
+									{@const meal = slotMeal(date, type.id)}
+									<div class="slot">
+										<small>{type.label}</small>
+										{#if isSkipped(date, type.id)}
+											<div class="skipped-wrap">
+												<button
+													type="button"
+													class="empty-slot"
+													onclick={() =>
+														openPicker(date, type.id)}
+													>{@render icon("plus", 11)} Skipped</button
+												>
+												<button
+													type="button"
+													class="chip-remove"
+													aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
+													title="Back to unplanned"
+													onclick={() =>
+														unskipSlot(date, type.id)}
+													>{@render icon(
+														"close",
+														11,
+													)}</button
+												>
+											</div>
+										{:else if meal}
+											<div
+												class="meal-chip"
+												style={`background: ${meal.color}`}
+											>
+												<span class="chip-name"
+													>{meal.name}{#if meal.ingredientCount === 0}<span
+															class="chip-note"
+															>No list</span
+														>{/if}</span
+												>
+												<button
+													type="button"
+													class="chip-remove"
+													aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
+													title={`Remove ${meal.name}`}
+													onclick={() =>
+														removeMeal(
+															date,
+															type.id,
+														)}
+													>{@render icon(
+														"close",
+														11,
+													)}</button
+												>
+											</div>
+										{:else}
+											<button
+												type="button"
+												class="empty-slot"
+												onclick={() =>
+													openPicker(date, type.id)}
+												>{@render icon("plus", 11)} Add</button
+											>
+										{/if}
+									</div>
+								{/each}
+								{#if dayMealCount(date) > 0}
+									<Button
+										variant="ghost"
+										size="sm"
+										class="mt-2.5 w-full text-[9px] font-extrabold tracking-[0.1em] uppercase"
+										onclick={() => clearDay(date)}
+									>Clear day</Button
+									>
+								{/if}
+							</article>
+						{/each}
+					</div>
 				</div>
 			{/if}
-		</div>
-	</div>
-{/if}
+		</Card.Content>
+	</Card.Root>
+</main>
+
+<Dialog.Root
+	open={pickerTarget !== null}
+	onOpenChange={(open) => {
+		if (!open) closePicker();
+	}}
+>
+	<Dialog.Content data-no-swipe interactOutsideBehavior="ignore">
+		<Dialog.Header>
+			<Dialog.Title id="picker-title">Choose a meal</Dialog.Title>
+			<Dialog.Description>
+				{pickerTarget?.dayLabel} · {pickerTarget?.slotLabel}
+			</Dialog.Description>
+		</Dialog.Header>
+		<Input
+			bind:value={search}
+			placeholder="Search meals"
+			aria-label="Search meals"
+		/>
+		<Button
+			variant="outline"
+			class="w-full justify-start gap-2.5"
+			onclick={skipSlot}
+		>
+			<span class="picker-dot skip-dot"></span>
+			<span class="picker-name"
+				>Skip this meal<small>No cooking, no groceries</small></span
+			>
+		</Button>
+		{#if pickerMeals.length}
+			<div class="picker-list">
+				{#each pickerMeals as meal (meal.id)}
+					<Button
+						variant="ghost"
+						class="h-auto w-full justify-start gap-2.5 px-3 py-2.5 text-left"
+						onclick={() => assignToSlot(meal.id)}
+					>
+						<span
+							class="picker-dot"
+							style={`background: ${meal.color}`}
+						></span>
+						<span class="picker-name"
+							>{meal.name}<small>{meal.category}</small></span
+						>
+						{@render icon("plus", 13)}
+					</Button>
+				{/each}
+			</div>
+		{:else}
+			<Empty.Root>
+				<Empty.Header>
+					<Empty.Media><SearchXIcon /></Empty.Media>
+					<Empty.Title>No meals found</Empty.Title>
+					<Empty.Description>
+						{#if search.trim()}
+							No match for "{search.trim()}".
+						{:else}
+							Add meals in the
+							<a href={resolve("/meals")}>meal database</a> first.
+						{/if}
+					</Empty.Description>
+				</Empty.Header>
+				{#if search.trim()}
+					<Empty.Content>
+						<Button onclick={addSearchedMeal}
+							>Add "{search.trim()}" to the database</Button
+						>
+					</Empty.Content>
+				{/if}
+			</Empty.Root>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	:global(html) {
@@ -712,124 +718,23 @@
 	}
 	:global(body) {
 		min-width: 320px;
-		background: #f7f5ef;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
-
-	main {
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 20px 18px 72px;
-	}
-	.eyebrow {
-		margin: 0 0 8px;
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: #66746b;
-	}
-	h1,
-	h2,
-	p {
-		margin-top: 0;
-	}
-	h1,
-	h2 {
-		font-family: Georgia, "Times New Roman", serif;
-		letter-spacing: -0.045em;
-	}
-	h1 {
-		margin-bottom: 14px;
-		font-size: clamp(42px, 9vw, 64px);
-		line-height: 0.95;
-	}
-	h2 {
-		margin-bottom: 0;
-		font-size: 26px;
-	}
-	button,
-	input,
-	a {
-		font: inherit;
 	}
 	button {
 		cursor: pointer;
 	}
 
-	.icon-button {
-		display: grid;
-		width: 34px;
-		height: 34px;
-		place-items: center;
-		border: 1px solid #d9d5ca;
-		border-radius: 10px;
-		background: transparent;
-		color: #53615a;
-	}
-
-	.hero {
-		display: grid;
-		gap: 24px;
-		margin-top: 18px;
-		padding: 28px 22px;
-		border-radius: 26px;
-		background: #e8ddd0;
-		overflow: hidden;
-	}
-	.primary {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		border: 0;
-		border-radius: 12px;
-		padding: 11px 14px;
-		background: #17221f;
-		color: #f7f5ef;
-		font-size: 12px;
-		font-weight: 800;
-		text-decoration: none;
-		cursor: pointer;
-	}
-	.view-bar {
+	main {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 12px;
-		margin-top: 20px;
+		flex-direction: column;
+		gap: 16px;
+		max-width: 1180px;
+		margin: 0 auto;
+		padding: 20px 18px 72px;
 	}
 	.date-nav {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-	}
-	.date-nav .icon-button {
-		width: 36px;
-		height: 36px;
-		font-size: 18px;
-		line-height: 1;
-	}
-	.ghost {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		border: 1px solid #cfd4cc;
-		border-radius: 12px;
-		padding: 9px 14px;
-		background: rgba(255, 255, 255, 0.55);
-		color: #35453d;
-		font-size: 12px;
-		font-weight: 800;
-		cursor: pointer;
 	}
 	.day-detail {
 		display: grid;
@@ -846,23 +751,6 @@
 		margin: 0;
 		font-size: 22px;
 	}
-	.day-current-label {
-		flex: 0 0 auto;
-		justify-self: start;
-		margin: 0;
-		padding: 4px 9px;
-		border-radius: 999px;
-		background: color-mix(
-			in srgb,
-			var(--app-accent-strong) 18%,
-			transparent
-		);
-		color: var(--app-accent);
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-	}
 	.day-slot {
 		display: grid;
 		gap: 8px;
@@ -873,7 +761,7 @@
 		font-weight: 800;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--app-faint);
+		color: var(--muted-foreground);
 	}
 	.day-meal-card {
 		display: flex;
@@ -882,15 +770,15 @@
 		gap: 12px;
 		padding: 13px 14px;
 		border: 1px solid
-			color-mix(in srgb, var(--meal-color) 30%, var(--app-line));
+			color-mix(in srgb, var(--meal-color) 30%, var(--border));
 		border-left: 4px solid var(--meal-color);
 		border-radius: 14px;
 		background: color-mix(
 			in srgb,
 			var(--meal-color) 12%,
-			var(--app-surface)
+			var(--card)
 		);
-		color: var(--app-ink);
+		color: var(--foreground);
 	}
 	.day-meal-content {
 		min-width: 0;
@@ -903,7 +791,7 @@
 	.day-meal-note {
 		margin: 5px 0 10px;
 		overflow-wrap: anywhere;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 		font-size: 12px;
 		line-height: 1.4;
 	}
@@ -912,65 +800,34 @@
 		flex-wrap: wrap;
 		gap: 6px;
 	}
-	.day-meal-meta span {
-		padding: 3px 7px;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--app-ink) 8%, transparent);
-		color: var(--app-muted);
-		font-size: 10px;
-		font-weight: 800;
-	}
-	.day-meal-remove {
-		width: 28px;
-		height: 28px;
-		margin: 0;
-		border: 1px solid color-mix(in srgb, var(--app-ink) 14%, transparent);
-		background: color-mix(in srgb, var(--app-surface) 60%, transparent);
-		color: var(--app-faint);
-	}
-	.day-meal-remove:hover {
-		background: color-mix(in srgb, var(--app-ink) 8%, transparent);
-		color: var(--app-ink);
-	}
 	.empty-day-slot {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
 		padding: 10px 12px;
-		border: 1px dashed var(--app-line-strong);
+		border: 1px dashed var(--border);
 		border-radius: 14px;
-		background: color-mix(in srgb, var(--app-ink) 3%, transparent);
+		background: color-mix(in srgb, var(--foreground) 3%, transparent);
 	}
 	.empty-day-slot p {
 		margin: 0;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 		font-size: 12px;
 		font-weight: 700;
 	}
 	.empty-day-slot.skipped {
 		border-style: solid;
 	}
-	.skip-row {
-		margin-top: 14px;
-	}
 	.skip-dot {
-		border: 1px dashed var(--app-line-strong);
+		border: 1px dashed var(--border);
 		background: transparent;
 	}
-	.panel {
-		margin-top: 22px;
-		padding: 20px 16px;
-		border: 1px solid #e3dfd5;
-		border-radius: 22px;
-		background: rgba(255, 255, 255, 0.55);
-	}
-	.section-head {
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 16px;
+	.member-dot {
+		flex: 0 0 auto;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
 	}
 	.week-scroll {
 		overflow-x: auto;
@@ -985,13 +842,13 @@
 	}
 	.day {
 		padding: 9px;
-		border: 1px solid #e1ded4;
+		border: 1px solid var(--border);
 		border-radius: 16px;
-		background: rgba(255, 255, 255, 0.5);
+		background: color-mix(in srgb, var(--card) 50%, transparent);
 	}
 	.day.selected {
-		border-color: #e47d5f;
-		background: #fffdf9;
+		border-color: var(--primary);
+		background: var(--card);
 		box-shadow: 0 8px 24px rgba(23, 34, 31, 0.06);
 	}
 	.day-head {
@@ -1001,17 +858,16 @@
 		border: 0;
 		background: transparent;
 		text-align: left;
-		color: #66746b;
+		color: var(--muted-foreground);
 	}
 	.day-head span {
 		font-size: 10px;
 		font-weight: 800;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: #4f5e55;
 	}
 	.day.selected .day-head span {
-		color: #17221f;
+		color: var(--foreground);
 	}
 	.day-head em {
 		grid-row: 1;
@@ -1020,7 +876,7 @@
 		font-size: 9px;
 		font-style: normal;
 		font-weight: 800;
-		color: #d06f52;
+		color: var(--destructive);
 	}
 	.slot {
 		margin-top: 10px;
@@ -1032,8 +888,10 @@
 		font-weight: 800;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: #66746b;
+		color: var(--muted-foreground);
 	}
+	/* Chip backgrounds come from meal data (pastels in both modes), so the
+	   text stays a fixed dark tone for contrast in light and dark mode. */
 	.meal-chip {
 		display: flex;
 		align-items: flex-start;
@@ -1057,7 +915,7 @@
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: #78857c;
+		color: var(--muted-foreground);
 	}
 	.chip-remove {
 		flex: 0 0 auto;
@@ -1069,28 +927,11 @@
 		border: 0;
 		border-radius: 6px;
 		background: transparent;
-		color: rgba(50, 67, 59, 0.55);
+		color: var(--muted-foreground);
 	}
 	.chip-remove:hover {
-		background: rgba(255, 255, 255, 0.55);
-		color: #17221f;
-	}
-	.clear-day {
-		width: 100%;
-		margin-top: 10px;
-		padding: 6px 0;
-		border: 0;
-		border-radius: 8px;
-		background: transparent;
-		color: #66746b;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-	}
-	.clear-day:hover {
-		background: #f5e6dd;
-		color: #bf6c51;
+		background: color-mix(in srgb, var(--foreground) 12%, transparent);
+		color: var(--foreground);
 	}
 	@media (hover: hover) {
 		.meal-chip .chip-remove {
@@ -1108,10 +949,10 @@
 		width: 100%;
 		min-height: 46px;
 		padding: 8px;
-		border: 1px dashed #b9c2ba;
+		border: 1px dashed var(--border);
 		border-radius: 11px;
 		background: transparent;
-		color: #66746b;
+		color: var(--muted-foreground);
 		font-size: 10px;
 		font-weight: 800;
 	}
@@ -1123,9 +964,9 @@
 		border-radius: 9px;
 	}
 	.empty-slot:hover {
-		border-color: #e47d5f;
-		color: #bd6b51;
-		background: #f7ece5;
+		border-color: var(--primary);
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.skipped-wrap {
 		display: flex;
@@ -1136,65 +977,31 @@
 		flex: 1;
 		min-width: 0;
 	}
-	.search-box {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 38px;
-		padding: 0 10px;
-		border: 1px solid #d9d5ca;
-		border-radius: 10px;
-		background: rgba(255, 255, 255, 0.6);
-		color: #89958c;
-	}
-	.search-box input {
-		width: 100%;
-		border: 0;
-		outline: 0;
-		background: transparent;
-		font-size: 12px;
-		color: #17221f;
-	}
-	.empty-state {
-		padding: 34px 16px;
-		border: 1px dashed #b8c2b9;
-		border-radius: 16px;
-		text-align: center;
-		color: #66746b;
-	}
-	.toast {
-		position: fixed;
-		left: 50%;
-		bottom: 18px;
-		z-index: 40;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		transform: translateX(-50%);
-		padding: 11px 13px;
-		border-radius: 12px;
-		background: #17221f;
-		color: #f7f5ef;
-		font-size: 12px;
-		font-weight: 700;
-		box-shadow: 0 12px 30px rgba(23, 34, 31, 0.22);
-	}
-	.toast button {
+	.picker-list {
 		display: grid;
-		place-items: center;
-		border: 0;
-		background: transparent;
-		color: #aab8ad;
+		gap: 8px;
+		max-height: 320px;
+		margin-top: 14px;
+		overflow-y: auto;
 	}
-	.toast.error {
-		bottom: 70px;
-		max-width: min(480px, calc(100vw - 32px));
-		background: #9a4b32;
-		color: #fbf6ef;
+	.picker-dot {
+		flex: 0 0 auto;
+		width: 12px;
+		height: 12px;
+		border-radius: 4px;
 	}
-	.toast.error button {
-		color: #f3d9cd;
+	.picker-name {
+		flex: 1;
+		min-width: 0;
 	}
+	.picker-name small {
+		display: block;
+		color: var(--muted-foreground);
+		font-size: 10px;
+		font-weight: 600;
+	}
+
+
 	@media (max-width: 1023px) {
 		.week-scroll {
 			overflow-x: visible;
@@ -1225,122 +1032,16 @@
 			grid-row: auto;
 			grid-column: auto;
 		}
-		.day > .slot,
-		.day > .clear-day {
+		.day > .slot {
 			grid-column: 1;
 			min-width: 0;
 			margin-top: 0;
 		}
-		.toast {
-			bottom: 78px;
-		}
-		.toast.error {
-			bottom: 134px;
-		}
-	}
-
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 50;
-		display: grid;
-		place-items: center;
-		padding: 16px;
-		background: rgba(23, 34, 31, 0.5);
-		backdrop-filter: blur(4px);
-	}
-	.modal {
-		width: 100%;
-		max-width: 480px;
-		padding: 22px;
-		border: 1px solid rgba(255, 255, 255, 0.5);
-		border-radius: 24px;
-		background: #fbfaf6;
-		box-shadow: 0 24px 70px rgba(23, 34, 31, 0.25);
-	}
-	.picker-list {
-		display: grid;
-		gap: 8px;
-		max-height: 320px;
-		margin-top: 14px;
-		overflow-y: auto;
-	}
-	.picker-row {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		width: 100%;
-		padding: 10px 12px;
-		border: 1px solid #e3dfd5;
-		border-radius: 12px;
-		background: rgba(255, 255, 255, 0.7);
-		text-align: left;
-		font-size: 12px;
-		font-weight: 700;
-		color: #26352e;
-	}
-	.picker-row:hover {
-		border-color: #e47d5f;
-		background: #fffdf9;
-	}
-	.picker-dot {
-		flex: 0 0 auto;
-		width: 12px;
-		height: 12px;
-		border-radius: 4px;
-	}
-	.picker-name {
-		flex: 1;
-		min-width: 0;
-	}
-	.picker-name small {
-		display: block;
-		color: #66746b;
-		font-size: 10px;
-		font-weight: 600;
-	}
-	.member-tabs {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		margin: 0 0 16px;
-		padding: 0;
-		border: 0;
-	}
-	.member-tabs button {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		border: 1px solid #cfd4cc;
-		border-radius: 999px;
-		padding: 7px 13px;
-		background: rgba(255, 255, 255, 0.55);
-		color: #35453d;
-		font-size: 12px;
-		font-weight: 800;
-		cursor: pointer;
-	}
-	.member-tabs button.active {
-		border-color: #17221f;
-		background: #17221f;
-		color: #f7f5ef;
-	}
-	.member-dot {
-		flex: 0 0 auto;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
 	}
 
 	@media (min-width: 560px) {
 		main {
 			padding: 24px 28px 80px;
-		}
-		.hero {
-			padding: 34px 30px;
-		}
-		.search-box {
-			width: 100%;
 		}
 	}
 
@@ -1367,229 +1068,5 @@
 		.day {
 			padding: 8px;
 		}
-	}
-
-	@media (prefers-color-scheme: dark) {
-		:root:not([data-theme="light"]) :global(body) {
-			background: var(--app-canvas);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .eyebrow {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .picker-name small {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .hero {
-			background: var(--app-hero);
-		}
-		:root:not([data-theme="light"]) .panel {
-			border-color: var(--app-line);
-			background: var(--app-surface-soft);
-		}
-		:root:not([data-theme="light"]) .day {
-			border-color: var(--app-line);
-			background: var(--app-surface-soft);
-		}
-		:root:not([data-theme="light"]) .day.selected {
-			background: var(--app-surface);
-		}
-		:root:not([data-theme="light"]) .day-head {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .day-head span {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .day.selected .day-head span {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .slot small {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .chip-remove {
-			color: color-mix(in srgb, var(--app-ink) 55%, transparent);
-		}
-		:root:not([data-theme="light"]) .chip-remove:hover {
-			background: color-mix(in srgb, var(--app-surface) 60%, transparent);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .empty-slot {
-			border-color: var(--app-line-strong);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .empty-slot:hover {
-			background: color-mix(
-				in srgb,
-				var(--app-accent-strong) 18%,
-				transparent
-			);
-			color: var(--app-accent);
-		}
-		:root:not([data-theme="light"]) .clear-day {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .clear-day:hover {
-			background: color-mix(
-				in srgb,
-				var(--app-accent-strong) 18%,
-				transparent
-			);
-			color: var(--app-accent);
-		}
-		:root:not([data-theme="light"]) .primary {
-			background: #2b3330;
-			color: var(--app-dark-ink);
-		}
-		:root:not([data-theme="light"]) .icon-button {
-			border-color: var(--app-line-strong);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .search-box {
-			border-color: var(--app-line-strong);
-			background: var(--app-surface-soft);
-			color: var(--app-faint);
-		}
-		:root:not([data-theme="light"]) .search-box input {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .toast {
-			background: var(--app-dark);
-			color: var(--app-dark-ink);
-		}
-		:root:not([data-theme="light"]) .toast button {
-			color: var(--app-dark-muted);
-		}
-		:root:not([data-theme="light"]) .modal {
-			border-color: var(--app-line-strong);
-			background: var(--app-modal);
-		}
-		:root:not([data-theme="light"]) .picker-row {
-			border-color: var(--app-line);
-			background: var(--app-surface-soft);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .picker-row:hover {
-			background: var(--app-surface);
-		}
-		:root:not([data-theme="light"]) .empty-state {
-			border-color: var(--app-line-strong);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .ghost {
-			border-color: var(--app-line-strong);
-			background: var(--app-surface-soft);
-			color: var(--app-ink);
-		}
-	}
-
-	:root[data-theme="dark"] :global(body) {
-		background: var(--app-canvas);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .eyebrow {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .picker-name small {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .hero {
-		background: var(--app-hero);
-	}
-	:root[data-theme="dark"] .panel {
-		border-color: var(--app-line);
-		background: var(--app-surface-soft);
-	}
-	:root[data-theme="dark"] .day {
-		border-color: var(--app-line);
-		background: var(--app-surface-soft);
-	}
-	:root[data-theme="dark"] .day.selected {
-		background: var(--app-surface);
-	}
-	:root[data-theme="dark"] .day-head {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .day-head span {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .day.selected .day-head span {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .slot small {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .chip-remove {
-		color: color-mix(in srgb, var(--app-ink) 55%, transparent);
-	}
-	:root[data-theme="dark"] .chip-remove:hover {
-		background: color-mix(in srgb, var(--app-surface) 60%, transparent);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .empty-slot {
-		border-color: var(--app-line-strong);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .empty-slot:hover {
-		background: color-mix(
-			in srgb,
-			var(--app-accent-strong) 18%,
-			transparent
-		);
-		color: var(--app-accent);
-	}
-	:root[data-theme="dark"] .clear-day {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .clear-day:hover {
-		background: color-mix(
-			in srgb,
-			var(--app-accent-strong) 18%,
-			transparent
-		);
-		color: var(--app-accent);
-	}
-	:root[data-theme="dark"] .primary {
-		background: #2b3330;
-		color: var(--app-dark-ink);
-	}
-	:root[data-theme="dark"] .icon-button {
-		border-color: var(--app-line-strong);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .search-box {
-		border-color: var(--app-line-strong);
-		background: var(--app-surface-soft);
-		color: var(--app-faint);
-	}
-	:root[data-theme="dark"] .search-box input {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .toast {
-		background: var(--app-dark);
-		color: var(--app-dark-ink);
-	}
-	:root[data-theme="dark"] .toast button {
-		color: var(--app-dark-muted);
-	}
-	:root[data-theme="dark"] .modal {
-		border-color: var(--app-line-strong);
-		background: var(--app-modal);
-	}
-	:root[data-theme="dark"] .picker-row {
-		border-color: var(--app-line);
-		background: var(--app-surface-soft);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .picker-row:hover {
-		background: var(--app-surface);
-	}
-	:root[data-theme="dark"] .empty-state {
-		border-color: var(--app-line-strong);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .ghost {
-		border-color: var(--app-line-strong);
-		background: var(--app-surface-soft);
-		color: var(--app-ink);
 	}
 </style>

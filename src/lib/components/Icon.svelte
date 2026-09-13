@@ -20,12 +20,21 @@
 </script>
 
 <script lang="ts">
-	let { name, size = 16 }: { name: IconName; size?: number } = $props();
+	let {
+		name,
+		size = 16,
+		dataIcon,
+	}: {
+		name: IconName;
+		size?: number;
+		dataIcon?: "inline-start" | "inline-end";
+	} = $props();
 </script>
 
 <svg
 	width={size}
 	height={size}
+	data-icon={dataIcon}
 	viewBox="0 0 24 24"
 	fill="none"
 	stroke="currentColor"

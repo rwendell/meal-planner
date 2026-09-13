@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from "$app/paths";
 	import Icon, { type IconName } from "$lib/components/Icon.svelte";
+	import { cn } from "$lib/utils.js";
 
 	let { active = "planner" }: { active?: string } = $props();
 
@@ -20,7 +21,7 @@
 	{#each tabs as tab (tab.id)}
 		<a
 			href={resolve(tab.href)}
-			class:active={active === tab.id}
+			class={cn(active === tab.id && "active")}
 			aria-current={active === tab.id ? "page" : undefined}
 		>
 			<Icon name={tab.icon} size={18} /><span>{tab.label}</span>
@@ -41,8 +42,8 @@
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-		border-top: 1px solid var(--app-line);
-		background: color-mix(in srgb, var(--app-canvas) 96%, transparent);
+		border-top: 1px solid var(--border);
+		background: color-mix(in srgb, var(--background) 96%, transparent);
 		backdrop-filter: blur(10px);
 	}
 	.tab-bar a {
@@ -52,13 +53,16 @@
 		gap: 3px;
 		padding: 6px 2px;
 		border-radius: 10px;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 		text-decoration: none;
 		font-size: 10px;
 		font-weight: 700;
 	}
+	.tab-bar a:hover {
+		color: var(--foreground);
+	}
 	.tab-bar a.active {
-		color: var(--app-accent);
+		color: var(--primary);
 	}
 
 	@media (min-width: 1024px) {

@@ -1,7 +1,22 @@
 <script lang="ts">
+	import BookOpenIcon from "@lucide/svelte/icons/book-open";
+	import CookingPotIcon from "@lucide/svelte/icons/cooking-pot";
+	import SearchXIcon from "@lucide/svelte/icons/search-x";
 	import { useMutation, useQuery } from "convex-svelte";
+	import { toast } from "svelte-sonner";
 	import Icon from "$lib/components/Icon.svelte";
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button } from "$lib/components/ui/button";
+	import * as Card from "$lib/components/ui/card";
+	import { Checkbox } from "$lib/components/ui/checkbox";
+	import * as Dialog from "$lib/components/ui/dialog";
+	import * as Empty from "$lib/components/ui/empty";
+	import { Input } from "$lib/components/ui/input";
+	import * as Select from "$lib/components/ui/select";
+	import { Skeleton } from "$lib/components/ui/skeleton";
+	import * as Tabs from "$lib/components/ui/tabs";
 	import { session } from "$lib/session.svelte.js";
+	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -55,7 +70,6 @@
 	let dbTab = $state<"mine" | "discover">("mine");
 	let discoverSearch = $state("");
 	let showMealDialog = $state(false);
-	let toast = $state("");
 	let editingMeal = $state<Meal | null>(null);
 	let newName = $state("");
 	let newCategory = $state<MealCategory>("Dinner");
@@ -127,13 +141,13 @@
 				householdId: household,
 				mealId: meal.id as Id<"meals">,
 			});
-			toast = `${meal.name} is no longer shared`;
+			toast.success(`${meal.name} is no longer shared`);
 		} else {
 			await publishRecipe({
 				householdId: household,
 				mealId: meal.id as Id<"meals">,
 			});
-			toast = `${meal.name} shared with the community`;
+			toast.success(`${meal.name} shared with the community`);
 		}
 	}
 
@@ -143,7 +157,7 @@
 			householdId: householdId as Id<"households">,
 			recipeId: recipeId as Id<"publishedRecipes">,
 		});
-		toast = `${result.name} added to your database`;
+		toast.success(`${result.name} added to your database`);
 	}
 
 	let meals = $derived<Meal[]>(
@@ -167,16 +181,21 @@
 	let dataLoading = $derived(mealsQuery.isLoading);
 	let dataError = $derived(mealsQuery.error);
 
-	let errorToast = $state("");
+	let lastErrorToasted = "";
 
-	// Surface database errors as a dismissible toast instead of a permanent
-	// inline note. Dismissing sticks until the error itself changes.
+	// Surface database errors as a toast. Each distinct error toasts once
+	// until it resolves.
 	$effect(() => {
 		const error = dataError;
 		if (error) {
-			errorToast = `Couldn't reach the database (${error.message}). Check your connection and reload.`;
+			if (error.message !== lastErrorToasted) {
+				lastErrorToasted = error.message;
+				toast.error(
+					`Couldn't reach the database (${error.message}). Check your connection and reload.`,
+				);
+			}
 		} else {
-			errorToast = "";
+			lastErrorToasted = "";
 		}
 	});
 
@@ -270,7 +289,7 @@
 			})),
 			mealTimes: [...meal.mealTimes],
 		});
-		toast = `Duplicated as "${name}"`;
+		toast.success(`Duplicated as "${name}"`);
 		openEditMeal({ ...meal, id, name });
 	}
 
@@ -314,7 +333,7 @@
 					ingredients,
 					mealTimes: newTimes,
 				});
-				toast = `${name} updated`;
+				toast.success(`${name} updated`);
 			} else {
 				await createMeal({
 					householdId: household,
@@ -324,7 +343,7 @@
 					ingredients,
 					mealTimes: newTimes,
 				});
-				toast = `${name} added to the database`;
+				toast.success(`${name} added to the database`);
 			}
 		} catch (error) {
 			formError =
@@ -341,7 +360,7 @@
 		name: string,
 	): Promise<void> {
 		await deleteMeal({ id: id as Id<"meals"> });
-		toast = `${name} deleted`;
+		toast.success(`${name} deleted`);
 	}
 
 	async function loadSamples(): Promise<void> {
@@ -350,7 +369,7 @@
 			householdId: householdId as Id<"households">,
 			memberId: selfMemberId as Id<"householdMembers">,
 		});
-		toast = "Sample data loaded";
+		toast.success("Sample data loaded");
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -361,356 +380,381 @@
 <svelte:window onkeydown={onKeydown} />
 
 <main>
-	<section class="panel" aria-labelledby="meals-title">
-		<div class="section-head">
-			<div>
-				<h2 id="meals-title">Meals</h2>
-			</div>
-			<button type="button" class="ghost compact" onclick={openAddMeal}
-				><Icon name="plus" size={14} /> New meal</button
+	<Card.Root>
+		<Card.Header>
+			<Card.Title id="meals-title">Meals</Card.Title>
+			<Card.Action>
+				<Button variant="outline" size="sm" onclick={openAddMeal}
+					><Icon name="plus" size={14} dataIcon="inline-start" /> New meal</Button
+				>
+			</Card.Action>
+		</Card.Header>
+		<Card.Content>
+			<Tabs.Root
+				value={dbTab}
+				onValueChange={(value) => {
+					if (value === "mine" || value === "discover") dbTab = value;
+				}}
 			>
-		</div>
-		<fieldset class="db-tabs">
-			<legend class="sr-only">Database view</legend>
-			<button
-				type="button"
-				class:active={dbTab === "mine"}
-				aria-pressed={dbTab === "mine"}
-				onclick={() => (dbTab = "mine")}>My meals</button
-			>
-			<button
-				type="button"
-				class:active={dbTab === "discover"}
-				aria-pressed={dbTab === "discover"}
-				onclick={() => (dbTab = "discover")}>Discover</button
-			>
-		</fieldset>
-		<div class="toolbar">
-			<div class="filters" data-no-swipe>
-				{#each categoryFilters as filter (filter)}
-					<button
-						type="button"
-						class:active={category === filter}
-						onclick={() => (category = filter)}>{filter}</button
-					>
-				{/each}
-			</div>
-			<label class="search-box">
-				<Icon name="search" size={14} /><span class="sr-only"
-					>Search {dbTab === "mine" ? "meals" : "recipes"}</span
-				>
-				<input
-					value={dbTab === "mine" ? search : discoverSearch}
-					placeholder={dbTab === "mine"
-						? "Search meals"
-						: "Search recipes"}
-					oninput={(event) => {
-						if (dbTab === "mine")
-							search = event.currentTarget.value;
-						else discoverSearch = event.currentTarget.value;
-					}}
-				/>
-			</label>
-		</div>
-		{#if dbTab === "mine"}
-			{#if visibleMeals.length}
-				<div class="meal-grid">
-					{#each visibleMeals as meal (meal.id)}
-						<article class="meal-card">
-							<div
-								class="meal-icon"
-								style={`background: ${meal.color}`}
-							>
-								<Icon
-									name={meal.category === "Breakfast"
-										? "spark"
-										: meal.category === "Lunch"
-											? "leaf"
-											: "utensils"}
-									size={18}
-								/>
-							</div>
-							<span class="tag">{meal.category}</span>
-							<h3>{meal.name}</h3>
-							<p>{meal.note}</p>
-							<div class="card-foot">
-								<span>{meal.time}</span>
-								<div class="card-actions">
-									<span class="ingredient-count"
-										>{meal.ingredientCount} ingredients</span
-									>
-									<button
-										type="button"
-										class="card-delete"
-										aria-label={`Edit ${meal.name}`}
-										title={`Edit ${meal.name}`}
-										onclick={() => openEditMeal(meal)}
-										><Icon
-											name="pencil"
-											size={11}
-										/></button
-									>
-									<button
-										type="button"
-										class="card-delete"
-										aria-label={`Duplicate ${meal.name}`}
-										title={`Duplicate ${meal.name}`}
-										onclick={() => duplicateMeal(meal)}
-										><Icon name="copy" size={11} /></button
-									>
-									<button
-										type="button"
-										class="card-delete"
-										class:shared={publishedMealIds.has(
-											meal.id,
-										)}
-										aria-label={publishedMealIds.has(
-											meal.id,
-										)
-											? `Stop sharing ${meal.name}`
-											: `Share ${meal.name} with the community`}
-										title={publishedMealIds.has(meal.id)
-											? `Stop sharing ${meal.name}`
-											: `Share ${meal.name}`}
-										onclick={() => toggleShare(meal)}
-										><Icon name="globe" size={11} /></button
-									>
-									<button
-										type="button"
-										class="card-delete"
-										aria-label={`Delete ${meal.name} from the database`}
-										title={`Delete ${meal.name}`}
-										onclick={() =>
-											deleteMealFromDatabase(
-												meal.id,
-												meal.name,
-											)}
-										><Icon name="close" size={11} /></button
-									>
-								</div>
-							</div>
-						</article>
-					{/each}
-				</div>
-			{:else if meals.length === 0 && !dataLoading}
-				<div class="empty-state">
-					<strong>Your database is empty</strong>
-					<p>
-						Add your first meal, or load the sample data to explore.
-					</p>
-					<div class="empty-actions">
-						<button
-							type="button"
-							class="primary"
-							onclick={openAddMeal}>Add a meal</button
-						>
-						<button
-							type="button"
-							class="ghost compact"
-							onclick={loadSamples}>Load sample data</button
-						>
-					</div>
-				</div>
-			{:else}
-				<div class="empty-state">
-					<strong>No meals found</strong>
-					<p>Try a different search or create a new meal.</p>
-				</div>
-			{/if}
-		{:else if visibleRecipes.length}
-			<div class="meal-grid">
-				{#each visibleRecipes as recipe (recipe._id)}
-					<article class="meal-card">
-						<div
-							class="meal-icon"
-							style={`background: ${recipe.color}`}
-						>
-							<Icon
-								name={recipe.category === "Breakfast"
-									? "spark"
-									: recipe.category === "Lunch"
-										? "leaf"
-										: "utensils"}
-								size={18}
-							/>
-						</div>
-						<span class="tag">{recipe.category}</span>
-						<h3>{recipe.name}</h3>
-						<p>{recipe.note}</p>
-						<div class="card-foot">
-							<span>by {recipe.householdName}</span>
-							<div class="card-actions">
-								<span class="ingredient-count"
-									>{recipe.ingredients.length} ingredients</span
-								>
-								<button
-									type="button"
-									class="add-round"
-									aria-label={`Add ${recipe.name} to your database`}
-									title={`Add ${recipe.name}`}
-									onclick={() =>
-										adoptSharedRecipe(recipe._id)}
-									><Icon name="plus" size={14} /></button
-								>
-							</div>
-						</div>
-					</article>
-				{/each}
-			</div>
-		{:else}
-			<div class="empty-state">
-				<strong>No recipes found</strong>
-				<p>Try a different search — or share one of yours.</p>
-			</div>
-		{/if}
-	</section>
-</main>
-
-{#if toast}
-	<div class="toast" role="status">
-		<Icon name="check" size={13} />
-		{toast}
-		<button type="button" aria-label="Dismiss" onclick={() => (toast = "")}
-			><Icon name="close" size={12} /></button
-		>
-	</div>
-{/if}
-
-{#if errorToast}
-	<div class="toast error" role="alert">
-		<Icon name="bell" size={13} />
-		{errorToast}
-		<button
-			type="button"
-			aria-label="Dismiss error"
-			onclick={() => (errorToast = "")}
-			><Icon name="close" size={12} /></button
-		>
-	</div>
-{/if}
-
-{#if showMealDialog}
-	<div class="backdrop" data-no-swipe>
-		<div
-			class="modal"
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="meal-dialog-title"
-		>
-			<div class="section-head">
-				<div>
-					<p class="eyebrow">
-						{editingMeal ? "Edit meal" : "New meal"}
-					</p>
-					<h2 id="meal-dialog-title">
-						{editingMeal ? "Edit meal" : "Add a meal"}
-					</h2>
-				</div>
-				<button
-					type="button"
-					class="icon-button"
-					aria-label="Close dialog"
-					onclick={closeMealDialog}
-					><Icon name="close" size={15} /></button
-				>
-			</div>
-			<form onsubmit={saveMeal}>
-				<label
-					>Meal name<input
-						bind:value={newName}
-						required
-						placeholder="Crispy chickpea salad"
-					/></label
-				>
-				<label
-					>Category
-					<select bind:value={newCategory}>
-						{#each categoryFilters.slice(1) as option (option)}<option
-								value={option}>{option}</option
-							>{/each}
-					</select>
-				</label>
-				<fieldset class="times-field">
-					<legend>Meal times</legend>
-					<div class="time-options">
-						{#each ALL_MEAL_TIMES as time (time)}
-							<label>
-								<input
-									type="checkbox"
-									checked={newTimes.includes(time)}
-									onchange={() => toggleMealTime(time)}
-								/>
-								<span class="time-label">{time}</span>
-							</label>
-						{/each}
-					</div>
-				</fieldset>
-				<label
-					>Short description<input
-						bind:value={newNote}
-						placeholder="A few words to jog your memory"
-					/></label
-				>
-				<div class="ingredient-editor">
-					<span class="ingredient-label" id="ingredients-label"
-						>Ingredients</span
-					>
-					<div class="ingredient-head" aria-hidden="true">
-						<span>Name</span><span>Amount</span><span>Group</span
-						><span></span>
-					</div>
-					{#each editIngredients as row, i (row.key)}
-						<div class="ingredient-row">
-							<input
-								bind:value={row.name}
-								placeholder="Flour"
-								aria-label={`Ingredient ${i + 1} name`}
-							/>
-							<input
-								bind:value={row.amount}
-								placeholder="1 bag"
-								aria-label={`Ingredient ${i + 1} amount`}
-							/>
-							<select
-								bind:value={row.group}
-								aria-label={`Ingredient ${i + 1} group`}
-							>
-								<option value="Produce">Produce</option>
-								<option value="Pantry">Pantry</option>
-								<option value="Dairy">Dairy</option>
-							</select>
+				<Tabs.List aria-label="Database view">
+					<Tabs.Trigger value="mine">My meals</Tabs.Trigger>
+					<Tabs.Trigger value="discover">Discover</Tabs.Trigger>
+				</Tabs.List>
+				<div class="toolbar">
+					<div class="filters" data-no-swipe>
+						{#each categoryFilters as filter (filter)}
 							<button
 								type="button"
-								class="icon-button small"
-								aria-label={`Remove ingredient ${i + 1}`}
-								onclick={() => removeIngredientRow(row.key)}
-								><Icon name="close" size={12} /></button
+								class={cn(category === filter && "active")}
+								onclick={() => (category = filter)}>{filter}</button
 							>
+						{/each}
+					</div>
+					<Input
+						value={dbTab === "mine" ? search : discoverSearch}
+						placeholder={dbTab === "mine"
+							? "Search meals"
+							: "Search recipes"}
+						aria-label={dbTab === "mine" ? "Search meals" : "Search recipes"}
+						class="sm:w-[220px]"
+						oninput={(event) => {
+							if (dbTab === "mine")
+								search = event.currentTarget.value;
+							else discoverSearch = event.currentTarget.value;
+						}}
+					/>
+				</div>
+				<Tabs.Content value="mine">
+					{#if visibleMeals.length}
+						<div class="meal-grid">
+							{#each visibleMeals as meal (meal.id)}
+								<Card.Root>
+									<Card.Header>
+										<div class="flex items-center gap-3">
+											<div
+												class="meal-icon"
+												style={`background: ${meal.color}`}
+											>
+												<Icon
+													name={meal.category === "Breakfast"
+														? "spark"
+														: meal.category === "Lunch"
+															? "leaf"
+															: "utensils"}
+													size={18}
+												/>
+											</div>
+											<div class="min-w-0 flex-1">
+												<Card.Title>{meal.name}</Card.Title>
+												<Card.Description>{meal.note}</Card.Description>
+											</div>
+										</div>
+										<Card.Action>
+											<Badge variant="secondary">{meal.category}</Badge>
+										</Card.Action>
+									</Card.Header>
+									<Card.Content>
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-[10px] text-muted-foreground">{meal.time}</span>
+											<div class="flex items-center gap-1">
+												<Badge variant="outline"
+													>{meal.ingredientCount} ingredients</Badge
+												>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Edit ${meal.name}`}
+													title={`Edit ${meal.name}`}
+													onclick={() => openEditMeal(meal)}><Icon
+														name="pencil"
+														size={11}
+													/></Button
+												>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Duplicate ${meal.name}`}
+													title={`Duplicate ${meal.name}`}
+													onclick={() => duplicateMeal(meal)}><Icon name="copy" size={11} /></Button
+												>
+												<Button
+													variant={publishedMealIds.has(meal.id)
+														? "secondary"
+														: "ghost"}
+													size="icon-sm"
+													aria-label={publishedMealIds.has(meal.id)
+														? `Stop sharing ${meal.name}`
+														: `Share ${meal.name} with the community`}
+													title={publishedMealIds.has(meal.id)
+														? `Stop sharing ${meal.name}`
+														: `Share ${meal.name}`}
+													onclick={() => toggleShare(meal)}><Icon
+														name="globe"
+														size={11}
+													/></Button
+												>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Delete ${meal.name} from the database`}
+													title={`Delete ${meal.name}`}
+													onclick={() =>
+														deleteMealFromDatabase(
+															meal.id,
+															meal.name,
+														)}><Icon name="close" size={11} /></Button
+												>
+											</div>
+										</div>
+									</Card.Content>
+								</Card.Root>
+							{/each}
 						</div>
+					{:else if dataLoading}
+						<div class="meal-grid">
+							<Skeleton class="h-40" />
+							<Skeleton class="h-40" />
+							<Skeleton class="h-40" />
+						</div>
+					{:else if meals.length === 0}
+						<Empty.Root>
+							<Empty.Header>
+								<Empty.Media><CookingPotIcon /></Empty.Media>
+								<Empty.Title>Your database is empty</Empty.Title>
+								<Empty.Description>
+									Add your first meal, or load the sample data to explore.
+								</Empty.Description>
+							</Empty.Header>
+							<Empty.Content>
+								<div class="flex flex-wrap justify-center gap-2">
+									<Button onclick={openAddMeal}>Add a meal</Button>
+									<Button variant="outline" onclick={loadSamples}
+										>Load sample data</Button
+									>
+								</div>
+							</Empty.Content>
+						</Empty.Root>
+					{:else}
+						<Empty.Root>
+							<Empty.Header>
+								<Empty.Media><SearchXIcon /></Empty.Media>
+								<Empty.Title>No meals found</Empty.Title>
+								<Empty.Description>
+									Try a different search or create a new meal.
+								</Empty.Description>
+							</Empty.Header>
+						</Empty.Root>
+					{/if}
+				</Tabs.Content>
+				<Tabs.Content value="discover">
+					{#if visibleRecipes.length}
+						<div class="meal-grid">
+							{#each visibleRecipes as recipe (recipe._id)}
+								<Card.Root>
+									<Card.Header>
+										<div class="flex items-center gap-3">
+											<div
+												class="meal-icon"
+												style={`background: ${recipe.color}`}
+											>
+												<Icon
+													name={recipe.category === "Breakfast"
+														? "spark"
+														: recipe.category === "Lunch"
+															? "leaf"
+															: "utensils"}
+													size={18}
+												/>
+											</div>
+											<div class="min-w-0 flex-1">
+												<Card.Title>{recipe.name}</Card.Title>
+												<Card.Description>{recipe.note}</Card.Description>
+											</div>
+										</div>
+										<Card.Action>
+											<Badge variant="secondary">{recipe.category}</Badge>
+										</Card.Action>
+									</Card.Header>
+									<Card.Content>
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-[10px] text-muted-foreground"
+												>by {recipe.householdName}</span
+											>
+											<div class="flex items-center gap-1">
+												<Badge variant="outline"
+													>{recipe.ingredients.length} ingredients</Badge
+												>
+												<Button
+													variant="outline"
+													size="icon-sm"
+													aria-label={`Add ${recipe.name} to your database`}
+													title={`Add ${recipe.name}`}
+													onclick={() => adoptSharedRecipe(recipe._id)}
+													><Icon name="plus" size={14} /></Button
+												>
+											</div>
+										</div>
+									</Card.Content>
+								</Card.Root>
+							{/each}
+						</div>
+					{:else}
+						<Empty.Root>
+							<Empty.Header>
+								<Empty.Media><BookOpenIcon /></Empty.Media>
+								<Empty.Title>No recipes found</Empty.Title>
+								<Empty.Description>
+									Try a different search — or share one of yours.
+								</Empty.Description>
+							</Empty.Header>
+						</Empty.Root>
+					{/if}
+				</Tabs.Content>
+			</Tabs.Root>
+		</Card.Content>
+	</Card.Root>
+</main>
+
+<Dialog.Root
+	open={showMealDialog}
+	onOpenChange={(open) => {
+		if (!open) closeMealDialog();
+	}}
+>
+	<Dialog.Content data-no-swipe interactOutsideBehavior="ignore">
+		<Dialog.Header>
+			<Dialog.Title id="meal-dialog-title">
+				{editingMeal ? "Edit meal" : "Add a meal"}
+			</Dialog.Title>
+			<Dialog.Description>
+				{editingMeal ? "Edit meal" : "New meal"}
+			</Dialog.Description>
+		</Dialog.Header>
+		<form onsubmit={saveMeal} class="grid gap-3.5">
+			<label
+				for="meal-name"
+				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+				>Meal name<Input
+					id="meal-name"
+					bind:value={newName}
+					required
+					placeholder="Crispy chickpea salad"
+				/></label
+			>
+			<label
+				for="meal-category"
+				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+				>Category
+				<Select.Root
+					type="single"
+					value={newCategory}
+					onValueChange={(value) => {
+						if (value) newCategory = value as MealCategory;
+					}}
+				>
+					<Select.Trigger id="meal-category">
+						<Select.Value placeholder="Select category" />
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Group>
+							{#each categoryFilters.slice(1) as option (option)}<Select.Item
+									value={option}
+									label={option}
+								/>{/each}
+						</Select.Group>
+					</Select.Content>
+				</Select.Root>
+			</label>
+			<fieldset class="times-field">
+				<legend>Meal times</legend>
+				<div class="time-options">
+					{#each ALL_MEAL_TIMES as time (time)}
+						<span class="time-pick">
+							<Checkbox
+								checked={newTimes.includes(time)}
+								onCheckedChange={() => toggleMealTime(time)}
+								aria-label={time}
+							/>
+							<button type="button" onclick={() => toggleMealTime(time)}>
+								{time}
+							</button>
+						</span>
 					{/each}
-					<button
-						type="button"
-						class="ghost compact ingredient-add"
-						onclick={addIngredientRow}
-						><Icon name="plus" size={12} /> Add ingredient</button
-					>
 				</div>
-				{#if formError}
-					<p class="form-error" role="alert">{formError}</p>
-				{/if}
-				<div class="form-actions">
-					<button
-						type="button"
-						class="ghost"
-						onclick={closeMealDialog}>Cancel</button
-					><button type="submit" class="primary"
-						>{editingMeal ? "Save changes" : "Add meal"}</button
-					>
+			</fieldset>
+			<label
+				for="meal-note"
+				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+				>Short description<Input
+					id="meal-note"
+					bind:value={newNote}
+					placeholder="A few words to jog your memory"
+				/></label
+			>
+			<div class="ingredient-editor">
+				<span class="ingredient-label" id="ingredients-label"
+					>Ingredients</span
+				>
+				<div class="ingredient-head" aria-hidden="true">
+					<span>Name</span><span>Amount</span><span>Group</span><span></span>
 				</div>
-			</form>
-		</div>
-	</div>
-{/if}
+				{#each editIngredients as row, i (row.key)}
+					<div class="ingredient-row">
+						<Input
+							bind:value={row.name}
+							placeholder="Flour"
+							aria-label={`Ingredient ${i + 1} name`}
+						/>
+						<Input
+							bind:value={row.amount}
+							placeholder="1 bag"
+							aria-label={`Ingredient ${i + 1} amount`}
+						/>
+						<Select.Root
+							type="single"
+							value={row.group}
+							onValueChange={(value) => {
+								if (value) row.group = value as GroceryGroup;
+							}}
+						>
+							<Select.Trigger aria-label={`Ingredient ${i + 1} group`}>
+								<Select.Value placeholder="Group" />
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Group>
+									<Select.Item value="Produce" label="Produce" />
+									<Select.Item value="Pantry" label="Pantry" />
+									<Select.Item value="Dairy" label="Dairy" />
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							aria-label={`Remove ingredient ${i + 1}`}
+							onclick={() => removeIngredientRow(row.key)}
+							><Icon name="close" size={12} /></Button
+						>
+					</div>
+				{/each}
+				<Button
+					variant="outline"
+					size="sm"
+					class="justify-self-start"
+					onclick={addIngredientRow}
+					><Icon name="plus" size={12} dataIcon="inline-start" /> Add ingredient</Button
+				>
+			</div>
+			{#if formError}
+				<p class="m-0 text-xs font-semibold text-destructive" role="alert">{formError}</p>
+			{/if}
+			<Dialog.Footer>
+				<Button variant="outline" onclick={closeMealDialog}>Cancel</Button>
+				<Button type="submit">{editingMeal ? "Save changes" : "Add meal"}</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	:global(html) {
@@ -718,147 +762,14 @@
 	}
 	:global(body) {
 		min-width: 320px;
-		background: #f7f5ef;
 	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
+	button {
+		cursor: pointer;
 	}
 	main {
 		max-width: 1180px;
 		margin: 0 auto;
 		padding: 20px 18px 72px;
-	}
-	.eyebrow {
-		margin: 0 0 8px;
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: #66746b;
-	}
-	h2,
-	h3,
-	p {
-		margin-top: 0;
-	}
-	h2 {
-		font-family: Georgia, "Times New Roman", serif;
-		letter-spacing: -0.045em;
-		margin-bottom: 0;
-		font-size: 26px;
-	}
-	h3 {
-		margin-bottom: 6px;
-		font-size: 14px;
-	}
-	button,
-	input,
-	select {
-		font: inherit;
-	}
-	button {
-		cursor: pointer;
-	}
-	.primary,
-	.ghost {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		border-radius: 12px;
-		padding: 11px 14px;
-		font-size: 12px;
-		font-weight: 800;
-	}
-	.primary {
-		border: 0;
-		background: #17221f;
-		color: #f7f5ef;
-	}
-	.ghost {
-		border: 1px solid #cfd4cc;
-		background: rgba(255, 255, 255, 0.55);
-		color: #35453d;
-	}
-	.ghost.compact {
-		padding: 9px 11px;
-	}
-	.icon-button {
-		display: grid;
-		width: 34px;
-		height: 34px;
-		place-items: center;
-		border: 1px solid #d9d5ca;
-		border-radius: 10px;
-		background: transparent;
-		color: #53615a;
-	}
-	.panel {
-		margin-top: 22px;
-		padding: 20px 16px;
-		border: 1px solid #e3dfd5;
-		border-radius: 22px;
-		background: rgba(255, 255, 255, 0.55);
-	}
-	.section-head {
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 16px;
-	}
-	.db-tabs {
-		display: inline-grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 4px;
-		margin: 0 0 16px;
-		padding: 4px;
-		border: 1px solid var(--app-line);
-		border-radius: 12px;
-		background: var(--app-surface-soft);
-	}
-	.db-tabs button {
-		border: 0;
-		border-radius: 8px;
-		padding: 8px 16px;
-		background: transparent;
-		color: var(--app-muted);
-		font-size: 11px;
-		font-weight: 800;
-		cursor: pointer;
-	}
-	.db-tabs button.active {
-		background: var(--app-dark-ink);
-		color: #141a17;
-	}
-	.card-delete.shared {
-		color: var(--app-accent);
-		background: color-mix(
-			in srgb,
-			var(--app-accent-strong) 14%,
-			transparent
-		);
-	}
-	.card-foot button.add-round {
-		display: grid;
-		place-items: center;
-		width: 30px;
-		height: 30px;
-		padding: 0;
-		border: 1px solid var(--app-line-strong);
-		border-radius: 10px;
-		background: transparent;
-		color: var(--app-ink);
-	}
-	.card-foot button.add-round:hover {
-		border-color: var(--app-accent-strong);
-		color: var(--app-accent);
-		background: transparent;
 	}
 	.toolbar {
 		display: flex;
@@ -878,44 +789,20 @@
 		border-radius: 9px;
 		padding: 8px 11px;
 		background: transparent;
-		color: #4f5e55;
+		color: var(--muted-foreground);
 		font-size: 11px;
 		font-weight: 800;
 	}
 	.filters button.active {
-		background: #17221f;
-		color: #f7f5ef;
-	}
-	.search-box {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 38px;
-		padding: 0 10px;
-		border: 1px solid #d9d5ca;
-		border-radius: 10px;
-		background: rgba(255, 255, 255, 0.6);
-		color: #89958c;
-	}
-	.search-box input {
-		width: 100%;
-		border: 0;
-		outline: 0;
-		background: transparent;
-		font-size: 12px;
-		color: #17221f;
+		background: var(--foreground);
+		color: var(--background);
 	}
 	.meal-grid {
 		display: grid;
 		gap: 10px;
 	}
-	.meal-card {
-		position: relative;
-		padding: 14px;
-		border: 1px solid #e3dfd5;
-		border-radius: 16px;
-		background: rgba(255, 255, 255, 0.7);
-	}
+	/* Icon tiles use meal data colors (pastels in both modes), so the glyph
+	   stays a fixed dark tone for contrast in light and dark mode. */
 	.meal-icon {
 		display: grid;
 		width: 42px;
@@ -923,229 +810,6 @@
 		place-items: center;
 		border-radius: 13px;
 		color: #41574b;
-	}
-	.tag {
-		position: absolute;
-		top: 14px;
-		right: 14px;
-		padding: 4px 8px;
-		border-radius: 999px;
-		background: #f2f0e9;
-		color: #66746b;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-	.meal-card h3 {
-		margin: 14px 0 4px;
-	}
-	.meal-card p {
-		min-height: 32px;
-		margin-bottom: 12px;
-		color: #66746b;
-		font-size: 11px;
-		line-height: 1.5;
-	}
-	.card-foot {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding-top: 10px;
-		border-top: 1px solid #ece8de;
-		color: #66746b;
-		font-size: 10px;
-	}
-	.card-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.ingredient-count {
-		font-size: 10px;
-		color: #66746b;
-	}
-	.card-delete {
-		display: inline-flex;
-		align-items: center;
-		border: 0;
-		border-radius: 8px;
-		padding: 7px 8px;
-		background: transparent;
-		color: #7f8c83;
-	}
-	.card-delete:hover {
-		background: #f7e3da;
-		color: #9a4b32;
-	}
-	.empty-state {
-		padding: 34px 16px;
-		border: 1px dashed #b8c2b9;
-		border-radius: 16px;
-		text-align: center;
-		color: #66746b;
-	}
-	.empty-actions {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 8px;
-		margin-top: 14px;
-	}
-	.toast {
-		position: fixed;
-		left: 50%;
-		bottom: 18px;
-		z-index: 40;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		transform: translateX(-50%);
-		padding: 11px 13px;
-		border-radius: 12px;
-		background: #17221f;
-		color: #f7f5ef;
-		font-size: 12px;
-		font-weight: 700;
-		box-shadow: 0 12px 30px rgba(23, 34, 31, 0.22);
-	}
-	.toast button {
-		display: grid;
-		place-items: center;
-		border: 0;
-		background: transparent;
-		color: #aab8ad;
-	}
-	.toast.error {
-		bottom: 70px;
-		max-width: min(480px, calc(100vw - 32px));
-		background: #9a4b32;
-		color: #fbf6ef;
-	}
-	.toast.error button {
-		color: #f3d9cd;
-	}
-	@media (max-width: 1023px) {
-		.filters {
-			touch-action: pan-x;
-		}
-		.toast {
-			bottom: 78px;
-		}
-		.toast.error {
-			bottom: 134px;
-		}
-	}
-
-	.backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 50;
-		display: grid;
-		place-items: center;
-		padding: 16px;
-		background: rgba(23, 34, 31, 0.5);
-		backdrop-filter: blur(4px);
-	}
-	.modal {
-		width: 100%;
-		max-width: 480px;
-		max-height: calc(100vh - 32px);
-		overflow-y: auto;
-		padding: 22px;
-		border: 1px solid rgba(255, 255, 255, 0.5);
-		border-radius: 24px;
-		background: #fbfaf6;
-		box-shadow: 0 24px 70px rgba(23, 34, 31, 0.25);
-	}
-	.modal form {
-		display: grid;
-		gap: 14px;
-	}
-	.modal label {
-		display: grid;
-		gap: 6px;
-		font-size: 11px;
-		font-weight: 800;
-		color: #4f5e55;
-	}
-	.modal input,
-	.modal select {
-		width: 100%;
-		box-sizing: border-box;
-		border: 1px solid #d9d5ca;
-		border-radius: 12px;
-		padding: 11px 12px;
-		background: white;
-		outline: 0;
-		font-size: 13px;
-		color: #17221f;
-	}
-	.modal input:focus,
-	.modal select:focus {
-		border-color: #e47d5f;
-		box-shadow: 0 0 0 3px rgba(228, 125, 95, 0.15);
-	}
-	.form-actions {
-		display: flex;
-		flex-direction: column-reverse;
-		gap: 8px;
-		padding-top: 8px;
-	}
-	.form-actions button {
-		width: 100%;
-	}
-
-	.ingredient-editor {
-		display: grid;
-		gap: 8px;
-	}
-	.ingredient-label {
-		font-size: 11px;
-		font-weight: 800;
-		color: #4f5e55;
-	}
-	.ingredient-head {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: #66746b;
-	}
-	.ingredient-row {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		align-items: center;
-	}
-	.ingredient-row input,
-	.ingredient-row select {
-		width: 100%;
-		min-width: 0;
-		box-sizing: border-box;
-		border: 1px solid #d9d5ca;
-		border-radius: 10px;
-		padding: 9px 8px;
-		background: white;
-		outline: 0;
-		font-size: 12px;
-		color: #17221f;
-	}
-	.ingredient-row input:focus,
-	.ingredient-row select:focus {
-		border-color: #e47d5f;
-		box-shadow: 0 0 0 3px rgba(228, 125, 95, 0.15);
-	}
-	.icon-button.small {
-		width: 30px;
-		height: 30px;
-		border-radius: 9px;
-	}
-	.ingredient-add {
-		justify-self: start;
 	}
 	.times-field {
 		display: grid;
@@ -1158,35 +822,58 @@
 		padding: 0;
 		font-size: 11px;
 		font-weight: 800;
-		color: #4f5e55;
+		color: var(--muted-foreground);
 	}
 	.time-options {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
 	}
-	.time-options label {
-		display: flex;
+	.time-pick {
+		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 8px 12px;
-		border: 1px solid #d9d5ca;
-		border-radius: 999px;
-		background: white;
+	}
+	.time-pick button {
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: var(--foreground);
 		font-size: 12px;
 		font-weight: 700;
-		color: #4f5e55;
-		cursor: pointer;
 		text-transform: capitalize;
+		cursor: pointer;
 	}
-	.time-options input {
-		accent-color: #bf6c51;
+	.ingredient-editor {
+		display: grid;
+		gap: 8px;
 	}
-	.form-error {
-		margin: 0;
-		font-size: 12px;
-		font-weight: 600;
-		color: #9a4b32;
+	.ingredient-label {
+		font-size: 11px;
+		font-weight: 800;
+		color: var(--muted-foreground);
+	}
+	.ingredient-head {
+		display: grid;
+		grid-template-columns: 1fr 72px 88px 30px;
+		gap: 6px;
+		font-size: 9px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--muted-foreground);
+	}
+	.ingredient-row {
+		display: grid;
+		grid-template-columns: 1fr 72px 88px 30px;
+		gap: 6px;
+		align-items: center;
+	}
+
+	@media (max-width: 1023px) {
+		.filters {
+			touch-action: pan-x;
+		}
 	}
 
 	@media (min-width: 560px) {
@@ -1198,18 +885,8 @@
 			align-items: center;
 			justify-content: space-between;
 		}
-		.search-box {
-			width: 220px;
-		}
 		.meal-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-		.form-actions {
-			flex-direction: row;
-			justify-content: flex-end;
-		}
-		.form-actions button {
-			width: auto;
 		}
 	}
 
@@ -1217,215 +894,5 @@
 		main {
 			padding: 34px 40px 80px;
 		}
-	}
-
-	@media (prefers-color-scheme: dark) {
-		:root:not([data-theme="light"]) :global(body) {
-			background: var(--app-canvas);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .eyebrow,
-		:root:not([data-theme="light"]) .meal-card p,
-		:root:not([data-theme="light"]) .ingredient-count,
-		:root:not([data-theme="light"]) .empty-state,
-		:root:not([data-theme="light"]) .modal label,
-		:root:not([data-theme="light"]) .ingredient-label {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) h2,
-		:root:not([data-theme="light"]) h3 {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .primary {
-			background: #2b3330;
-			color: var(--app-dark-ink);
-		}
-		:root:not([data-theme="light"]) .ghost {
-			border-color: var(--app-line-strong);
-			background: var(--app-surface-soft);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .icon-button {
-			border-color: var(--app-line-strong);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .panel {
-			border-color: var(--app-line);
-			background: var(--app-surface-soft);
-		}
-		:root:not([data-theme="light"]) .filters button {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .filters button.active {
-			background: var(--app-dark-ink);
-			color: #141a17;
-		}
-		:root:not([data-theme="light"]) .search-box {
-			border-color: var(--app-line-strong);
-			background: var(--app-surface-soft);
-			color: var(--app-faint);
-		}
-		:root:not([data-theme="light"]) .search-box input {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .meal-card {
-			border-color: var(--app-line);
-			background: var(--app-surface-soft);
-		}
-		:root:not([data-theme="light"]) .tag {
-			background: var(--app-line);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .card-foot {
-			border-top-color: var(--app-line);
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .card-delete {
-			color: var(--app-faint);
-		}
-		:root:not([data-theme="light"]) .card-delete:hover {
-			background: #3a231b;
-			color: #e8a583;
-		}
-		:root:not([data-theme="light"]) .empty-state {
-			border-color: var(--app-line-strong);
-		}
-		:root:not([data-theme="light"]) .toast {
-			background: var(--app-dark);
-			color: var(--app-dark-ink);
-		}
-		:root:not([data-theme="light"]) .toast button {
-			color: var(--app-dark-muted);
-		}
-		:root:not([data-theme="light"]) .modal {
-			border-color: var(--app-line-strong);
-			background: var(--app-modal);
-		}
-		:root:not([data-theme="light"]) .modal input,
-		:root:not([data-theme="light"]) .modal select,
-		:root:not([data-theme="light"]) .ingredient-row input,
-		:root:not([data-theme="light"]) .ingredient-row select {
-			border-color: var(--app-line-strong);
-			background: var(--app-input);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .ingredient-head {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .times-field legend {
-			color: var(--app-muted);
-		}
-		:root:not([data-theme="light"]) .time-options label {
-			border-color: var(--app-line-strong);
-			background: var(--app-input);
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .form-error {
-			color: #e8a583;
-		}
-	}
-
-	:root[data-theme="dark"] :global(body) {
-		background: var(--app-canvas);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .eyebrow,
-	:root[data-theme="dark"] .meal-card p,
-	:root[data-theme="dark"] .ingredient-count,
-	:root[data-theme="dark"] .empty-state,
-	:root[data-theme="dark"] .modal label,
-	:root[data-theme="dark"] .ingredient-label {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] h2,
-	:root[data-theme="dark"] h3 {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .primary {
-		background: #2b3330;
-		color: var(--app-dark-ink);
-	}
-	:root[data-theme="dark"] .ghost {
-		border-color: var(--app-line-strong);
-		background: var(--app-surface-soft);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .icon-button {
-		border-color: var(--app-line-strong);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .panel {
-		border-color: var(--app-line);
-		background: var(--app-surface-soft);
-	}
-	:root[data-theme="dark"] .filters button {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .filters button.active {
-		background: var(--app-dark-ink);
-		color: #141a17;
-	}
-	:root[data-theme="dark"] .search-box {
-		border-color: var(--app-line-strong);
-		background: var(--app-surface-soft);
-		color: var(--app-faint);
-	}
-	:root[data-theme="dark"] .search-box input {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .meal-card {
-		border-color: var(--app-line);
-		background: var(--app-surface-soft);
-	}
-	:root[data-theme="dark"] .tag {
-		background: var(--app-line);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .card-foot {
-		border-top-color: var(--app-line);
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .card-delete {
-		color: var(--app-faint);
-	}
-	:root[data-theme="dark"] .card-delete:hover {
-		background: #3a231b;
-		color: #e8a583;
-	}
-	:root[data-theme="dark"] .empty-state {
-		border-color: var(--app-line-strong);
-	}
-	:root[data-theme="dark"] .toast {
-		background: var(--app-dark);
-		color: var(--app-dark-ink);
-	}
-	:root[data-theme="dark"] .toast button {
-		color: var(--app-dark-muted);
-	}
-	:root[data-theme="dark"] .modal {
-		border-color: var(--app-line-strong);
-		background: var(--app-modal);
-	}
-	:root[data-theme="dark"] .modal input,
-	:root[data-theme="dark"] .modal select,
-	:root[data-theme="dark"] .ingredient-row input,
-	:root[data-theme="dark"] .ingredient-row select {
-		border-color: var(--app-line-strong);
-		background: var(--app-input);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .ingredient-head {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .times-field legend {
-		color: var(--app-muted);
-	}
-	:root[data-theme="dark"] .time-options label {
-		border-color: var(--app-line-strong);
-		background: var(--app-input);
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .form-error {
-		color: #e8a583;
 	}
 </style>

@@ -127,67 +127,12 @@
 	}
 }
 
-/* App theme tokens. Light is the default; dark applies via the saved
-   preference (`data-theme="dark"`) or automatically from the OS setting. */
+/* Dark mode follows the `.dark` class on <html>, toggled from the saved
+   appearance preference (System follows the OS setting). */
 :root {
-	color-scheme: light dark;
-	--app-canvas: #f7f5ef;
-	--app-ink: #17221f;
-	--app-surface: #fffdf9;
-	--app-surface-soft: rgba(255, 255, 255, 0.55);
-	--app-line: #e3dfd5;
-	--app-line-strong: #d9d5ca;
-	--app-muted: #66746b;
-	--app-faint: #87938a;
-	--app-accent: #bf6c51;
-	--app-accent-strong: #e47d5f;
-	--app-hero: #e8ddd0;
-	--app-shop: #dce9db;
-	--app-dark: #17221f;
-	--app-dark-ink: #f7f5ef;
-	--app-dark-muted: #9db0a3;
-	--app-modal: #fbfaf6;
-	--app-input: #ffffff;
+	color-scheme: light;
 }
 
-:root[data-theme="dark"] {
-	--app-canvas: #131915;
-	--app-ink: #e9ece5;
-	--app-surface: #1d2420;
-	--app-surface-soft: rgba(29, 36, 32, 0.72);
-	--app-line: #2b332e;
-	--app-line-strong: #3b4440;
-	--app-muted: #a3afa7;
-	--app-faint: #7f8c83;
-	--app-accent: #e89a7e;
-	--app-accent-strong: #e47d5f;
-	--app-hero: #202723;
-	--app-shop: #1c2620;
-	--app-dark: #0c100d;
-	--app-dark-ink: #e9ece5;
-	--app-dark-muted: #8fa197;
-	--app-modal: #1d2420;
-	--app-input: #232b26;
-}
-
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme="light"]) {
-		--app-canvas: #131915;
-		--app-ink: #e9ece5;
-		--app-surface: #1d2420;
-		--app-surface-soft: rgba(29, 36, 32, 0.72);
-		--app-line: #2b332e;
-		--app-line-strong: #3b4440;
-		--app-muted: #a3afa7;
-		--app-faint: #7f8c83;
-		--app-accent: #e89a7e;
-		--app-accent-strong: #e47d5f;
-		--app-hero: #202723;
-		--app-shop: #1c2620;
-		--app-dark: #0c100d;
-		--app-dark-ink: #e9ece5;
-		--app-dark-muted: #8fa197;
-		--app-modal: #1d2420;
-		--app-input: #232b26;
-	}
+.dark {
+	color-scheme: dark;
 }

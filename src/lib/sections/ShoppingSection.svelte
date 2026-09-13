@@ -1,8 +1,16 @@
 <script lang="ts">
+	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import { useMutation, useQuery } from "convex-svelte";
+	import { toast } from "svelte-sonner";
 	import Icon from "$lib/components/Icon.svelte";
+	import { Button } from "$lib/components/ui/button";
+	import * as Card from "$lib/components/ui/card";
+	import { Checkbox } from "$lib/components/ui/checkbox";
+	import * as Empty from "$lib/components/ui/empty";
+	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { todayISO, weekDates } from "$lib/dates.js";
 	import { session } from "$lib/session.svelte.js";
+	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -19,8 +27,6 @@
 		"Pantry",
 		"Dairy",
 	];
-
-	let toast = $state("");
 
 	let householdId = $derived(session.session?.householdId ?? null);
 	// The unified list covers everyone's plans for the current week.
@@ -60,16 +66,21 @@
 	let dataLoading = $derived(shoppingQuery.isLoading);
 	let dataError = $derived(shoppingQuery.error);
 
-	let errorToast = $state("");
+	let lastErrorToasted = "";
 
-	// Surface database errors as a dismissible toast instead of a permanent
-	// inline note. Dismissing sticks until the error itself changes.
+	// Surface database errors as a toast. Each distinct error toasts once
+	// until it resolves.
 	$effect(() => {
 		const error = dataError;
 		if (error) {
-			errorToast = `Couldn't reach the database (${error.message}). Check your connection and reload.`;
+			if (error.message !== lastErrorToasted) {
+				lastErrorToasted = error.message;
+				toast.error(
+					`Couldn't reach the database (${error.message}). Check your connection and reload.`,
+				);
+			}
 		} else {
-			errorToast = "";
+			lastErrorToasted = "";
 		}
 	});
 
@@ -133,89 +144,87 @@
 
 	async function copyList(): Promise<void> {
 		const ok = await copyText(formatList());
-		toast = ok
-			? "Shopping list copied to clipboard"
-			: "Copy was blocked by the browser";
+		if (ok) toast.success("Shopping list copied to clipboard");
+		else toast.error("Copy was blocked by the browser");
 	}
 </script>
 
 <main>
-	<section class="panel shopping-panel" aria-labelledby="shopping-title">
-		<div class="section-head">
-			<div>
-				<h2 id="shopping-title">Shopping list</h2>
-			</div>
-			<span class="round-icon"><Icon name="cart" size={17} /></span>
-		</div>
-		{#if dataLoading}
-			<p class="sync-note">Syncing…</p>
-		{/if}
-		{#if listItems.length > 0}
-			<div class="export-row">
-				<button type="button" class="ghost compact" onclick={copyList}
-					>Export to clipboard</button
+	<Card.Root>
+		<Card.Header>
+			<Card.Title id="shopping-title">Shopping list</Card.Title>
+			<Card.Description>Generated from the plan</Card.Description>
+			<Card.Action>
+				<span class="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground"
+					><Icon name="cart" size={17} /></span
 				>
-			</div>
-		{/if}
-		<div class="list-progress">
-			<strong>{doneCount}<small>/{listItems.length}</small></strong><span
-				>{listPct}%</span
-			>
-			<div class="meter">
-				<span style={`width: ${listPct}%`}></span>
-			</div>
-		</div>
-		{#each groupedList as group (group.group)}
-			{#if group.items.length}
-				<div class="grocery-group">
-					<h3>
-						{group.group}<span>{group.items.length}</span>
-					</h3>
-					{#each group.items as item (item.key)}
-						<label class="grocery-item">
-							<input
-								type="checkbox"
-								checked={item.checked}
-								onchange={() => toggleItem(item)}
-							/>
-							<span class:done={item.checked}>{item.name}</span>
-							{#if item.amount}<small>{item.amount}</small>{/if}
-						</label>
-					{/each}
+			</Card.Action>
+		</Card.Header>
+		<Card.Content>
+			{#if dataLoading}
+				<div class="grid gap-2" role="status">
+					<span class="sr-only">Syncing shopping list</span>
+					<Skeleton class="h-4 w-1/3" />
+					<Skeleton class="h-4 w-full" />
+					<Skeleton class="h-4 w-2/3" />
 				</div>
 			{/if}
-		{/each}
-		{#if !dataLoading && listItems.length === 0}
-			<div class="empty-state">
-				<strong>No items yet</strong>
+			{#if listItems.length > 0}
+				<div class="export-row">
+					<Button variant="outline" size="sm" onclick={copyList}
+						>Export to clipboard</Button
+					>
+				</div>
+			{/if}
+			<div class="list-progress">
+				<strong>{doneCount}<small>/{listItems.length}</small></strong><span
+					>{listPct}%</span
+				>
+				<div class="meter">
+					<span style={`width: ${listPct}%`}></span>
+				</div>
 			</div>
-		{/if}
-		<p class="hint">Meals without ingredients are skipped automatically.</p>
-	</section>
+			{#each groupedList as group (group.group)}
+				{#if group.items.length}
+					<div class="grocery-group">
+						<h3>
+							{group.group}<span>{group.items.length}</span>
+						</h3>
+						{#each group.items as item (item.key)}
+							<div class="grocery-item">
+								<Checkbox
+									checked={item.checked}
+									onCheckedChange={() => toggleItem(item)}
+									aria-label={item.name}
+								/>
+								<button
+									type="button"
+									class="grocery-text"
+									onclick={() => toggleItem(item)}
+								>
+									<span class={cn(item.checked && "done")}>{item.name}</span>
+									{#if item.amount}<small>{item.amount}</small>{/if}
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{/each}
+			{#if !dataLoading && listItems.length === 0}
+				<Empty.Root>
+					<Empty.Header>
+						<Empty.Media><ShoppingCartIcon /></Empty.Media>
+						<Empty.Title>No items yet</Empty.Title>
+						<Empty.Description>
+							Meals without ingredients are skipped automatically.
+						</Empty.Description>
+					</Empty.Header>
+				</Empty.Root>
+			{/if}
+			<p class="hint">Meals without ingredients are skipped automatically.</p>
+		</Card.Content>
+	</Card.Root>
 </main>
-
-{#if toast}
-	<div class="toast" role="status">
-		<Icon name="check" size={13} />
-		{toast}
-		<button type="button" aria-label="Dismiss" onclick={() => (toast = "")}
-			><Icon name="close" size={12} /></button
-		>
-	</div>
-{/if}
-
-{#if errorToast}
-	<div class="toast error" role="alert">
-		<Icon name="bell" size={13} />
-		{errorToast}
-		<button
-			type="button"
-			aria-label="Dismiss error"
-			onclick={() => (errorToast = "")}
-			><Icon name="close" size={12} /></button
-		>
-	</div>
-{/if}
 
 <style>
 	:global(html) {
@@ -223,69 +232,14 @@
 	}
 	:global(body) {
 		min-width: 320px;
-		background: var(--app-canvas);
-		color: var(--app-ink);
+	}
+	button {
+		cursor: pointer;
 	}
 	main {
 		max-width: 1180px;
 		margin: 0 auto;
 		padding: 20px 18px 72px;
-	}
-	h2,
-	p {
-		margin-top: 0;
-	}
-	h2 {
-		font-family: Georgia, "Times New Roman", serif;
-		letter-spacing: -0.045em;
-		margin-bottom: 0;
-		font-size: 26px;
-		color: var(--app-ink);
-	}
-	button,
-	input {
-		font: inherit;
-	}
-	button {
-		cursor: pointer;
-	}
-	button:disabled {
-		opacity: 0.55;
-		cursor: default;
-	}
-	.ghost {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		border: 1px solid var(--app-line-strong);
-		border-radius: 12px;
-		padding: 11px 14px;
-		background: var(--app-surface-soft);
-		color: var(--app-ink);
-		font-size: 12px;
-		font-weight: 800;
-	}
-	.ghost.compact {
-		padding: 9px 11px;
-	}
-	.panel {
-		margin-top: 22px;
-		padding: 20px 16px;
-		border: 1px solid var(--app-line);
-		border-radius: 22px;
-		background: var(--app-surface-soft);
-	}
-	.section-head {
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 16px;
-	}
-	.sync-note {
-		font-size: 11px;
-		color: var(--app-muted);
 	}
 	.export-row {
 		display: flex;
@@ -293,29 +247,6 @@
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 16px;
-	}
-	.shopping-panel {
-		background: var(--app-shop);
-		border-color: var(--app-line);
-	}
-	.round-icon {
-		display: grid;
-		width: 38px;
-		height: 38px;
-		place-items: center;
-		border-radius: 12px;
-		background: #c8ddcb;
-		color: #416b55;
-	}
-	@media (prefers-color-scheme: dark) {
-		:root:not([data-theme="light"]) .round-icon {
-			background: #2b3a31;
-			color: #93c39f;
-		}
-	}
-	:root[data-theme="dark"] .round-icon {
-		background: #2b3a31;
-		color: #93c39f;
 	}
 	.list-progress {
 		display: grid;
@@ -327,45 +258,31 @@
 	.list-progress strong {
 		font-family: Georgia, serif;
 		font-size: 30px;
-		color: var(--app-ink);
+		color: var(--foreground);
 	}
 	.list-progress small {
 		font-family: inherit;
 		font-size: 12px;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 	}
 	.list-progress > span {
 		font-size: 11px;
 		font-weight: 800;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 	}
 	.meter {
 		grid-column: 1 / -1;
 		height: 8px;
 		overflow: hidden;
 		border-radius: 999px;
-		background: #bdd2c1;
+		background: var(--muted);
 	}
 	.meter span {
 		display: block;
 		height: 100%;
 		border-radius: inherit;
-		background: #507b62;
+		background: var(--primary);
 		transition: width 0.3s ease;
-	}
-	@media (prefers-color-scheme: dark) {
-		:root:not([data-theme="light"]) .meter {
-			background: #2b3a31;
-		}
-		:root:not([data-theme="light"]) .meter span {
-			background: #7ba889;
-		}
-	}
-	:root[data-theme="dark"] .meter {
-		background: #2b3a31;
-	}
-	:root[data-theme="dark"] .meter span {
-		background: #7ba889;
 	}
 	.grocery-group {
 		margin-top: 16px;
@@ -374,14 +291,14 @@
 		display: flex;
 		justify-content: space-between;
 		margin-bottom: 6px;
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 		font-size: 10px;
 		font-weight: 800;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 	}
 	.grocery-group h3 span {
-		color: var(--app-muted);
+		color: var(--muted-foreground);
 	}
 	.grocery-item {
 		display: flex;
@@ -391,82 +308,42 @@
 		gap: 9px;
 		padding: 7px 6px;
 		border-radius: 9px;
-		cursor: pointer;
 		font-size: 12px;
-		color: var(--app-ink);
+		color: var(--foreground);
 	}
 	.grocery-item:hover {
-		background: color-mix(in srgb, var(--app-surface) 65%, transparent);
+		background: color-mix(in srgb, var(--muted) 45%, transparent);
 	}
-	.grocery-item input {
-		width: 16px;
-		height: 16px;
-		accent-color: #507b62;
+	.grocery-text {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		min-width: 0;
+		gap: 8px;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
 	}
-	.grocery-item span {
+	.grocery-text span {
 		flex: 1;
 		min-width: 0;
 	}
-	.grocery-item span.done {
-		color: #96a39a;
+	.grocery-text span.done {
+		color: var(--muted-foreground);
 		text-decoration: line-through;
 	}
-	.grocery-item small {
-		color: var(--app-muted);
+	.grocery-text small {
+		color: var(--muted-foreground);
 		font-size: 10px;
 	}
 	.hint {
 		margin: 12px 0 0;
 		font-size: 11px;
-		color: var(--app-muted);
-	}
-	.empty-state {
-		padding: 34px 16px;
-		border: 1px dashed var(--app-line-strong);
-		border-radius: 16px;
-		text-align: center;
-		color: var(--app-muted);
-	}
-	.toast {
-		position: fixed;
-		left: 50%;
-		bottom: 18px;
-		z-index: 40;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		transform: translateX(-50%);
-		padding: 11px 13px;
-		border-radius: 12px;
-		background: var(--app-dark);
-		color: var(--app-dark-ink);
-		font-size: 12px;
-		font-weight: 700;
-		box-shadow: 0 12px 30px rgba(23, 34, 31, 0.22);
-	}
-	.toast button {
-		display: grid;
-		place-items: center;
-		border: 0;
-		background: transparent;
-		color: var(--app-dark-muted);
-	}
-	.toast.error {
-		bottom: 70px;
-		max-width: min(480px, calc(100vw - 32px));
-		background: #9a4b32;
-		color: #fbf6ef;
-	}
-	.toast.error button {
-		color: #f3d9cd;
-	}
-	@media (max-width: 1023px) {
-		.toast {
-			bottom: 78px;
-		}
-		.toast.error {
-			bottom: 134px;
-		}
+		color: var(--muted-foreground);
 	}
 
 	@media (min-width: 560px) {

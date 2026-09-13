@@ -11,6 +11,15 @@
 	import favicon from "$lib/assets/favicon.svg";
 	import Icon, { type IconName } from "$lib/components/Icon.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
+	import * as Avatar from "$lib/components/ui/avatar";
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button } from "$lib/components/ui/button";
+	import { Input } from "$lib/components/ui/input";
+	import * as Popover from "$lib/components/ui/popover";
+	import { Separator } from "$lib/components/ui/separator";
+	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { Toaster } from "$lib/components/ui/sonner";
+	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import { plannerView } from "$lib/planner-view.svelte.js";
 	import { prefs } from "$lib/prefs.svelte.js";
 	import {
@@ -65,13 +74,13 @@
 		if (browser) localStorage.setItem(THEME_KEY, value);
 	}
 
+	const systemDark = new MediaQuery("(prefers-color-scheme: dark)", false);
+
 	$effect(() => {
 		if (!browser) return;
-		if (theme === "system") {
-			delete document.documentElement.dataset.theme;
-		} else {
-			document.documentElement.dataset.theme = theme;
-		}
+		const dark =
+			theme === "dark" || (theme === "system" && systemDark.current);
+		document.documentElement.classList.toggle("dark", dark);
 	});
 
 	let activeSection = $derived(
@@ -91,8 +100,8 @@
 	let confirmingLeave = $state(false);
 	let leaving = $state(false);
 	let leaveError = $state("");
-	let profileMenu = $state<HTMLDivElement | undefined>(undefined);
-	let profileTrigger = $state<HTMLButtonElement | undefined>(undefined);
+	let profileMenu = $state<HTMLDivElement | null>(null);
+	let profileTrigger = $state<HTMLElement | null>(null);
 	let swipeState = $state<{
 		pointerId: number;
 		startX: number;
@@ -101,7 +110,7 @@
 	let swipeNavigating = false;
 	let swipeDirection = $state<-1 | 0 | 1>(0);
 	let swipeTargetPath = $state<string | null>(null);
-	let profileBackTrigger = $state<HTMLButtonElement | undefined>(undefined);
+	let profileBackTrigger = $state<HTMLButtonElement | null>(null);
 	const reducedMotion = new MediaQuery("(prefers-reduced-motion: reduce)", false);
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
 
@@ -258,9 +267,22 @@
 		'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 	async function focusProfileMenu(): Promise<void> {
+		// Only called when the menu is open or opening; no open-state guard
+		// so focus can't be skipped by bind:open propagation timing.
 		await tick();
-		if (!profileOpen) return;
 		profileMenu?.querySelector<HTMLElement>(profileFocusableSelector)?.focus();
+	}
+
+	function handleProfileOpenChange(open: boolean): void {
+		// bits-ui owns the open state (the trigger toggles it natively), so
+		// this is the single place that reacts to opens and closes.
+		if (open) {
+			profileView = "profile";
+		} else {
+			closeProfileMenu();
+			return;
+		}
+		void focusProfileMenu();
 	}
 
 	async function focusPreferences(): Promise<void> {
@@ -276,16 +298,6 @@
 		confirmingLeave = false;
 		leaveError = "";
 		profileTrigger?.focus();
-	}
-
-	function toggleProfileMenu(): void {
-		if (profileOpen) {
-			closeProfileMenu();
-		} else {
-			profileView = "profile";
-			profileOpen = true;
-			void focusProfileMenu();
-		}
 	}
 
 	function openPreferences(): void {
@@ -343,6 +355,15 @@
 		}
 	}
 
+	function swipeBlockedByOverlay(): boolean {
+		if (typeof document === "undefined") return false;
+		return Boolean(
+			document.querySelector(
+				'[data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="alert-dialog-content"]',
+			),
+		);
+	}
+
 	function shouldIgnoreSwipe(target: EventTarget | null): boolean {
 		if (!(target instanceof Element)) return true;
 		return Boolean(
@@ -356,6 +377,7 @@
 		if (
 			window.innerWidth >= 1024 ||
 			!event.isPrimary ||
+			swipeBlockedByOverlay() ||
 			shouldIgnoreSwipe(event.target)
 		) {
 			swipeState = null;
@@ -487,14 +509,20 @@
 {#if session.session && householdQuery.data === undefined && !householdQuery.error}
 	<div class="app">
 		<div class="content">
-			<main class="splash"><p>Loading your kitchen…</p></main>
+			<main class="splash">
+				<div class="flex w-full max-w-xs flex-col gap-3">
+					<Skeleton class="h-4 w-3/4" />
+					<Skeleton class="h-4 w-full" />
+					<Skeleton class="h-4 w-5/6" />
+				</div>
+			</main>
 		</div>
 	</div>
 {:else if householdQuery.error}
 	<div class="app">
 		<div class="content">
 			<main class="splash"
-				><p role="alert">
+				><p role="alert" class="text-sm text-destructive">
 					Couldn't reach the database. Check your connection and
 					reload.
 				</p></main
@@ -504,11 +532,21 @@
 {:else}
 	<div class="app">
 		<div class="content">
+			<Popover.Root
+				bind:open={profileOpen}
+				onOpenChange={handleProfileOpenChange}
+			>
 			<header class="top-bar">
 			<a
 				class="top-bar-brand"
-				href={resolve("/#planner")}
-				aria-label="Go to planner"
+				href={resolve(
+					prefs.desktopDashboard && wideScreen.current
+						? "/dashboard"
+						: "/#planner",
+				)}
+				aria-label={prefs.desktopDashboard && wideScreen.current
+					? "Go to dashboard"
+					: "Go to planner"}
 			>
 				<span class="mobile-mark"><Icon name="utensils" size={15} /></span>
 				<strong>Meal Planner</strong>
@@ -516,110 +554,117 @@
 			{#if !(prefs.desktopDashboard && wideScreen.current)}
 				<nav class="primary-nav" aria-label="Primary">
 					{#each navItems as item (item.id)}
-						<a
+						<Button
+							variant={activeSection === item.id ? "secondary" : "ghost"}
+							size="sm"
 							href={resolve(item.href)}
-							class:active={activeSection === item.id}
 							aria-current={activeSection === item.id ? "page" : undefined}
 						>
-							<Icon name={item.icon} size={16} /><span>{item.label}</span>
-						</a>
+							<Icon name={item.icon} size={16} dataIcon="inline-start" /><span
+								>{item.label}</span
+							>
+						</Button>
 					{/each}
 				</nav>
 			{/if}
 			<div class="top-bar-actions">
-				<button
-					type="button"
-					class="profile-trigger"
-					bind:this={profileTrigger}
-					aria-label={
-						profileOpen ? "Close profile menu" : `Open profile menu for ${selfName()}`
-					}
-					title={`Profile: ${selfName()}`}
-					aria-haspopup="dialog"
-					aria-controls="profile-menu"
-					aria-expanded={profileOpen}
-					onclick={toggleProfileMenu}
-				>
-					<Icon name="user" size={17} />
-					<span class="profile-trigger-name">{selfName()}</span>
-				</button>
+				<Popover.Trigger>
+					{#snippet child({ props })}
+						<Button
+							variant="outline"
+							{...props}
+							bind:ref={profileTrigger}
+							class="max-w-[min(170px,20vw)] gap-[7px] rounded-full py-0 pr-2.5 pl-2 max-[360px]:size-[34px] max-[360px]:justify-center max-[360px]:p-0"
+							aria-label={
+								profileOpen ? "Close profile menu" : `Open profile menu for ${selfName()}`
+							}
+							title={`Profile: ${selfName()}`}
+							aria-haspopup="dialog"
+							aria-controls="profile-menu"
+							aria-expanded={profileOpen}
+						>
+							<Avatar.Root class="size-6">
+								<Avatar.Fallback class="text-[10px]">
+									{selfName().charAt(0).toUpperCase() || "M"}
+								</Avatar.Fallback>
+							</Avatar.Root>
+							<span class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden">{selfName()}</span>
+						</Button>
+					{/snippet}
+				</Popover.Trigger>
 			</div>
 		</header>
-		{#if profileOpen}
-			<button
-				type="button"
-				class="profile-backdrop"
-				data-no-swipe
-				aria-label="Close profile menu"
-				tabindex="-1"
-				onclick={closeProfileMenu}
-			></button>
-			<div
+			<Popover.Content
 				id="profile-menu"
-				bind:this={profileMenu}
-				class="profile-menu"
+				bind:ref={profileMenu}
 				data-no-swipe
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby={profileView === "profile" ? "profile-heading" : "preferences-heading"}
+				align="end"
+				sideOffset={8}
+				aria-label={profileView === "profile" ? "Profile menu" : "Preferences"}
+				class="max-h-[calc(100vh-70px)] w-[min(320px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
 			>
 				{#if profileView === "profile"}
-					<h2 id="profile-heading" class="profile-heading">Profile</h2>
+					<h2 id="profile-heading" class="font-serif text-[18px] tracking-[-0.03em]">
+						Profile
+					</h2>
 					{#if householdQuery.data}
-					<div class="profile-section">
-						<div class="section-heading">
-							<span class="setting-title">Household</span>
-							<strong class="household-name">{householdQuery.data.household.name}</strong>
+					<div class="grid gap-2">
+						<div class="grid gap-0.5">
+							<span class="text-[10px] font-bold text-muted-foreground">Household</span>
+							<strong class="text-[13px] [overflow-wrap:anywhere]">{householdQuery.data.household.name}</strong>
 						</div>
-						<button
-							type="button"
-							class="invite-row"
+						<Button
+							variant="outline"
+							class="h-auto w-full justify-between py-2"
 							aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
 							onclick={() =>
 								copyInviteCode(
 									householdQuery.data?.household.inviteCode ?? "",
 								)}
 						>
-							<span class="invite-code"
+							<span class="font-mono text-sm font-extrabold tracking-[0.2em]"
 								>{householdQuery.data.household.inviteCode}</span
 							>
-							<span class="invite-action"
+							<span class="text-[11px] font-extrabold text-primary"
 								>{copied ? "Copied!" : "Copy invite"}</span
 							>
-						</button>
-						<ul class="member-list">
+						</Button>
+						<ul class="m-0 grid list-none gap-1.5 p-0">
 							{#each householdQuery.data.members as member, i (member._id)}
-								<li>
+								<li class="flex min-w-0 items-center gap-2 text-xs font-semibold">
 									<span
-										class="member-dot"
+										class="size-2.5 shrink-0 rounded-full"
 										style={`background: ${memberColors[i % memberColors.length]}`}
 									></span>
-									<span class="member-name">{member.name}</span>
+									<span class="min-w-0 flex-1 truncate">{member.name}</span>
 									{#if member._id === session.session?.memberId}
-										<span class="you-tag">You</span>
+										<Badge variant="secondary">You</Badge>
 									{/if}
 								</li>
 							{/each}
 						</ul>
-						<div class="household-switch">
+						<div class="grid gap-2">
 							{#if householdForm === null}
-								<button
-									type="button"
-									class="switch-button"
+								<Button
+									variant="outline"
+									class="w-full"
 									onclick={() => openHouseholdForm("create")}
-								>New family group</button
+								>New family group</Button
 								>
-								<button
-									type="button"
-									class="switch-button"
+								<Button
+									variant="outline"
+									class="w-full"
 									onclick={() => openHouseholdForm("join")}
-									>Join with code</button
+								>Join with code</Button
 								>
 							{:else}
-								<form onsubmit={submitHouseholdForm}>
+								<form onsubmit={submitHouseholdForm} class="grid gap-2.5">
 									{#if householdForm === "create"}
 										<label
-											>Group name<input
+											for="profile-group-name"
+											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
+											>Group name<Input
+												id="profile-group-name"
 												bind:value={newHouseholdName}
 												required
 												maxlength={40}
@@ -629,18 +674,24 @@
 										>
 									{:else}
 										<label
-											>Invite code<input
+											for="profile-join-code"
+											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
+											>Invite code<Input
+												id="profile-join-code"
 												bind:value={joinCode}
 												required
 												maxlength={6}
 												placeholder="ABC123"
 												autocomplete="off"
 												autocapitalize="characters"
-												class="code-input"
+												class="uppercase [letter-spacing:0.2em]"
 											/></label
 										>
 										<label
-											>Your name<input
+											for="profile-join-name"
+											class="grid gap-1 text-[10px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
+											>Your name<Input
+												id="profile-join-name"
 												bind:value={joinName}
 												maxlength={40}
 												placeholder={selfName()}
@@ -649,166 +700,163 @@
 										>
 									{/if}
 									{#if householdError}
-										<p class="form-error" role="alert">
+										<p class="m-0 text-[11px] font-semibold text-destructive" role="alert">
 											{householdError}
 										</p>
 									{/if}
-									<div class="household-form-actions">
-										<button type="submit" class="primary-button">
+									<div class="flex gap-2">
+										<Button type="submit" class="flex-1">
 											{householdForm === "create"
 												? "Create & switch"
 												: "Join"}
-										</button>
-										<button
-											type="button"
-											class="switch-button"
+										</Button>
+										<Button
+											variant="outline"
 											onclick={() => (householdForm = null)}
-											>Cancel</button
+										>Cancel</Button
 										>
 									</div>
 								</form>
 							{/if}
 						</div>
 						{#if confirmingLeave}
-							<div class="leave-confirmation" role="alert">
-								<p>
+							<div class="grid gap-2 pt-1" role="alert">
+								<p class="m-0 text-[11px] leading-relaxed text-muted-foreground">
 									Leaving removes your meal plan. If you're the last member, this
 									household and its data will be deleted.
 								</p>
 								{#if leaveError}
-									<p class="form-error">{leaveError}</p>
+									<p class="m-0 text-[11px] font-semibold text-destructive">{leaveError}</p>
 								{/if}
-								<div class="leave-actions">
-									<button
-										type="button"
-										class="switch-button"
+								<div class="grid grid-cols-2 gap-2">
+									<Button
+										variant="outline"
 										disabled={leaving}
 										onclick={() => {
 											confirmingLeave = false;
 											leaveError = "";
-										}}>Keep household</button
+										}}>Keep household</Button
 									>
-									<button
-										type="button"
-										class="leave-confirm-button"
+									<Button
+										variant="destructive"
 										disabled={leaving}
-										onclick={leave}>{leaving ? "Leaving…" : "Leave"}</button
+										onclick={leave}>{leaving ? "Leaving…" : "Leave"}</Button
 									>
 								</div>
 							</div>
 						{:else}
-							<button
-								type="button"
-								class="leave-button"
+							<Button
+								variant="ghost"
+								size="sm"
+								class="justify-start px-0 text-[11px] text-muted-foreground"
 								onclick={() => {
 									confirmingLeave = true;
 									leaveError = "";
-								}}>Leave household</button
+								}}>Leave household</Button
 							>
 						{/if}
 					</div>
 					{/if}
-					<div class="profile-section profile-actions">
-						<button type="button" class="profile-action-row" onclick={openPreferences}>
-							<Icon name="spark" size={15} />
-							<span class="profile-action-label">Preferences</span>
-							<span class="profile-action-icon"
-								><Icon name="chevron-down" size={14} /></span
-							>
-						</button>
-					</div>
-				{:else}
-					<button
-						type="button"
-						class="profile-back"
-						bind:this={profileBackTrigger}
-						onclick={showProfileView}
+					<Separator />
+					<Button
+						variant="outline"
+						class="w-full justify-between"
+						onclick={openPreferences}
 					>
-						<span class="profile-back-icon"
+						<Icon name="spark" size={15} dataIcon="inline-start" />
+						<span class="flex-1 text-left">Preferences</span>
+						<span class="grid -rotate-90 text-muted-foreground"
 							><Icon name="chevron-down" size={14} /></span
 						>
+					</Button>
+				{:else}
+					<Button
+						variant="ghost"
+						size="sm"
+						bind:ref={profileBackTrigger}
+						class="justify-start px-1"
+						onclick={showProfileView}
+					>
+						<span class="grid rotate-90"><Icon name="chevron-down" size={14} /></span>
 						<span>Back to profile</span>
-					</button>
-					<h2 id="preferences-heading" class="profile-heading">Preferences</h2>
-					<div class="profile-section preferences-section">
-						<span class="setting-title" id="preferences-appearance-label"
-							>Appearance</span
-						>
-						<fieldset
-							class="theme-switch"
-							aria-labelledby="preferences-appearance-label"
-						>
-							{#each themeOptions as option (option.id)}
-								<button
-									type="button"
-									class:active={theme === option.id}
-									aria-pressed={theme === option.id}
-									onclick={() => setTheme(option.id)}
-								>{option.label}</button
+					</Button>
+					<h2 id="preferences-heading" class="font-serif text-[18px] tracking-[-0.03em]">
+						Preferences
+					</h2>
+					<div class="flex flex-col gap-4">
+						<div class="grid gap-2">
+							<span class="text-[10px] font-bold text-muted-foreground" id="preferences-appearance-label"
+								>Appearance</span
+							>
+							<ToggleGroup.Root
+								type="single"
+								variant="outline"
+								value={theme}
+								aria-label="Appearance"
+								onValueChange={(value) => {
+									if (value === "system" || value === "light" || value === "dark") {
+										setTheme(value);
+									}
+								}}
+							>
+								{#each themeOptions as option (option.id)}
+									<ToggleGroup.Item value={option.id} aria-label={option.label}>
+										{option.label}
+									</ToggleGroup.Item>
+								{/each}
+							</ToggleGroup.Root>
+						</div>
+						{#if !wideScreen.current}
+							<div class="grid gap-2">
+								<span class="text-[10px] font-bold text-muted-foreground" id="preferences-planner-label"
+									>Mobile planner view</span
 								>
-							{/each}
-						</fieldset>
+								<ToggleGroup.Root
+									type="single"
+									variant="outline"
+									value={plannerView.view}
+									aria-label="Mobile planner view"
+									onValueChange={(value) => {
+										if (value === "day" || value === "week") {
+											plannerView.set(value);
+										}
+									}}
+								>
+									<ToggleGroup.Item value="day" aria-label="Day">Day</ToggleGroup.Item>
+									<ToggleGroup.Item value="week" aria-label="Week">Week</ToggleGroup.Item>
+								</ToggleGroup.Root>
+							</div>
+						{/if}
+						{#if wideScreen.current}
+							<div class="grid gap-2">
+								<span class="text-[10px] font-bold text-muted-foreground" id="preferences-layout-label"
+									>Desktop layout</span
+								>
+								<ToggleGroup.Root
+									type="single"
+									variant="outline"
+									value={prefs.desktopDashboard ? "dashboard" : "pages"}
+									aria-label="Desktop layout"
+									onValueChange={(value) => {
+										if (value === "dashboard") void setDesktopLayout(true);
+										else if (value === "pages") void setDesktopLayout(false);
+									}}
+								>
+									<ToggleGroup.Item value="pages" aria-label="Pages">Pages</ToggleGroup.Item>
+									<ToggleGroup.Item value="dashboard" aria-label="Dashboard">Dashboard</ToggleGroup.Item>
+								</ToggleGroup.Root>
+							</div>
+						{/if}
 					</div>
-					{#if !wideScreen.current}
-						<div class="profile-section preferences-section">
-							<span class="setting-title" id="preferences-planner-label"
-								>Mobile planner view</span
-							>
-							<fieldset
-								class="theme-switch two-options"
-								aria-labelledby="preferences-planner-label"
-							>
-								<button
-									type="button"
-									class:active={plannerView.view === "day"}
-									aria-pressed={plannerView.view === "day"}
-									onclick={() => plannerView.set("day")}
-								>Day</button
-								>
-								<button
-									type="button"
-									class:active={plannerView.view === "week"}
-									aria-pressed={plannerView.view === "week"}
-									onclick={() => plannerView.set("week")}
-								>Week</button
-								>
-							</fieldset>
-						</div>
-					{/if}
-					{#if wideScreen.current}
-						<div class="profile-section preferences-section">
-							<span class="setting-title" id="preferences-layout-label"
-								>Desktop layout</span
-							>
-							<fieldset
-								class="theme-switch two-options"
-								aria-labelledby="preferences-layout-label"
-							>
-								<button
-									type="button"
-									class:active={!prefs.desktopDashboard}
-									aria-pressed={!prefs.desktopDashboard}
-									onclick={() => setDesktopLayout(false)}
-								>Pages</button
-								>
-								<button
-									type="button"
-									class:active={prefs.desktopDashboard}
-									aria-pressed={prefs.desktopDashboard}
-									onclick={() => setDesktopLayout(true)}
-								>Dashboard</button
-								>
-							</fieldset>
-						</div>
-					{/if}
 				{/if}
-			</div>
-		{/if}
+			</Popover.Content>
+		</Popover.Root>
 
 		<div class="page-transition-shell">
 			{@render children()}
 		</div>
 		<TabBar active={activeSection} />
+		<Toaster position="bottom-center" offset={{ bottom: "84px" }} theme={theme} />
 	</div>
 	</div>
 {/if}
@@ -818,13 +866,10 @@
 		display: grid;
 		place-items: center;
 		min-height: 60vh;
-		color: var(--app-muted);
-		font-size: 13px;
 	}
 	.app {
 		min-height: 100vh;
 		--mobile-tab-bar-height: 64px;
-		color: #17221f;
 	}
 	.content {
 		min-width: 0;
@@ -871,9 +916,6 @@
 			opacity: 0;
 		}
 	}
-	a {
-		font: inherit;
-	}
 	.top-bar {
 		position: sticky;
 		top: 0;
@@ -883,8 +925,8 @@
 		justify-content: flex-start;
 		gap: 10px;
 		padding: 12px 16px;
-		border-bottom: 1px solid #e3dfd5;
-		background: rgba(247, 245, 239, 0.96);
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--background) 96%, transparent);
 		backdrop-filter: blur(10px);
 	}
 	.top-bar-actions {
@@ -910,125 +952,12 @@
 		width: 32px;
 		height: 32px;
 		place-items: center;
-		color: #17221f;
 	}
 	.primary-nav {
 		display: none;
 		align-items: center;
 		gap: 4px;
 		margin-left: 18px;
-	}
-	.primary-nav a {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		border-radius: 10px;
-		padding: 9px 11px;
-		color: var(--app-muted);
-		text-decoration: none;
-		font-size: 12px;
-		font-weight: 700;
-	}
-	.primary-nav a:hover {
-		background: color-mix(in srgb, var(--app-ink) 7%, transparent);
-	}
-	.primary-nav a.active {
-		background: var(--app-accent-strong);
-		color: #17221f;
-	}
-	.setting-title {
-		font-size: 10px;
-		font-weight: 700;
-		color: var(--app-muted);
-	}
-	.profile-heading {
-		margin: 4px 4px 2px;
-		font-family: Georgia, "Times New Roman", serif;
-		font-size: 18px;
-		letter-spacing: -0.03em;
-	}
-	.profile-back {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		justify-self: start;
-		border: 0;
-		padding: 4px;
-		background: transparent;
-		color: var(--app-muted);
-		font: inherit;
-		font-size: 11px;
-		font-weight: 700;
-		cursor: pointer;
-	}
-	.profile-back:hover {
-		color: var(--app-ink);
-	}
-	.profile-back-icon {
-		display: grid;
-		transform: rotate(90deg);
-	}
-	.profile-actions {
-		gap: 4px;
-	}
-	.profile-action-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		width: 100%;
-		border: 1px solid var(--app-line-strong);
-		border-radius: 10px;
-		padding: 9px 10px;
-		background: color-mix(in srgb, var(--app-ink) 3%, transparent);
-		color: var(--app-ink);
-		font: inherit;
-		font-size: 12px;
-		font-weight: 700;
-		text-align: left;
-		cursor: pointer;
-	}
-	.profile-action-row:hover {
-		border-color: var(--app-accent-strong);
-		color: var(--app-accent);
-	}
-	.profile-action-label {
-		flex: 1;
-	}
-	.profile-action-icon {
-		display: grid;
-		transform: rotate(-90deg);
-		color: var(--app-muted);
-	}
-	.theme-switch {
-		display: flex;
-		gap: 4px;
-		margin: 0;
-		padding: 4px;
-		border: 0;
-		border-radius: 12px;
-		background: color-mix(in srgb, var(--app-ink) 8%, transparent);
-	}
-	/* Two buttons spanning ~2/3 of the full width so all buttons
-	   match the Appearance widths. */
-	.theme-switch.two-options {
-		max-width: 66.666%;
-	}
-	.theme-switch button {
-		flex: 1 1 0;
-		min-width: 0;
-		border: 0;
-		border-radius: 8px;
-		padding: 7px 0;
-		background: transparent;
-		color: var(--app-muted);
-		font-family: inherit;
-		font-size: 11px;
-		font-weight: 800;
-		cursor: pointer;
-	}
-	.theme-switch button.active {
-		background: var(--app-accent-strong);
-		color: #17221f;
 	}
 	@media (min-width: 1024px) {
 		.content {
@@ -1045,329 +974,5 @@
 		.content {
 			touch-action: pan-y;
 		}
-	}
-	@media (prefers-color-scheme: dark) {
-		:root:not([data-theme="light"]) .app {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .top-bar {
-			border-bottom-color: var(--app-line);
-			background: color-mix(in srgb, var(--app-canvas) 96%, transparent);
-		}
-		:root:not([data-theme="light"]) .top-bar-brand strong,
-		:root:not([data-theme="light"]) .mobile-mark {
-			color: var(--app-ink);
-		}
-		:root:not([data-theme="light"]) .primary-nav a {
-			color: var(--app-dark-muted);
-		}
-	}
-
-	:root[data-theme="dark"] .app {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .top-bar {
-		border-bottom-color: var(--app-line);
-		background: color-mix(in srgb, var(--app-canvas) 96%, transparent);
-	}
-	:root[data-theme="dark"] .top-bar-brand strong,
-	:root[data-theme="dark"] .mobile-mark {
-		color: var(--app-ink);
-	}
-	:root[data-theme="dark"] .primary-nav a {
-		color: var(--app-dark-muted);
-	}
-	.profile-trigger {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		flex: 0 0 auto;
-		min-width: 0;
-		max-width: min(170px, 20vw);
-		min-height: 34px;
-		margin-left: 0;
-		border: 1px solid var(--app-line-strong);
-		border-radius: 999px;
-		padding: 0 10px 0 8px;
-		background: var(--app-surface);
-		color: var(--app-muted);
-		font: inherit;
-		cursor: pointer;
-	}
-	.profile-trigger-name {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 11px;
-		font-weight: 700;
-	}
-	@media (max-width: 360px) {
-		.profile-trigger {
-			justify-content: center;
-			width: 34px;
-			padding: 0;
-			border-radius: 50%;
-		}
-		.profile-trigger-name {
-			display: none;
-		}
-	}
-	.profile-trigger:focus-visible,
-	.primary-nav a:focus-visible,
-	.profile-menu button:focus-visible,
-	.profile-menu input:focus-visible {
-		outline: 2px solid var(--app-accent);
-		outline-offset: 2px;
-	}
-	.profile-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 60;
-		border: 0;
-		background: transparent;
-		cursor: default;
-	}
-	.profile-menu {
-		position: fixed;
-		top: 58px;
-		right: 12px;
-		z-index: 70;
-		display: grid;
-		gap: 4px;
-		width: min(320px, calc(100vw - 24px));
-		max-height: calc(100vh - 70px);
-		box-sizing: border-box;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		scrollbar-gutter: stable;
-		padding: 8px;
-		border: 1px solid var(--app-line);
-		border-radius: 16px;
-		background: var(--app-surface);
-		color: var(--app-ink);
-		box-shadow: 0 16px 48px rgba(23, 34, 31, 0.18);
-	}
-	@supports (height: 100dvh) {
-		.profile-menu {
-			max-height: calc(100dvh - 70px);
-		}
-	}
-	.profile-section {
-		display: grid;
-		gap: 8px;
-		margin-top: 4px;
-		padding: 10px 4px 4px;
-		border-top: 1px solid var(--app-line);
-	}
-	.profile-section:first-of-type {
-		margin-top: 0;
-		padding-top: 4px;
-		border-top: 0;
-	}
-	.preferences-section {
-		margin-top: 8px;
-		padding-top: 12px;
-		border-top: 1px solid var(--app-line);
-	}
-	.preferences-section + .preferences-section {
-		margin-top: 0;
-		padding-top: 8px;
-		border-top: 0;
-	}
-	.section-heading {
-		display: grid;
-		gap: 2px;
-	}
-	.household-name {
-		overflow-wrap: anywhere;
-		font-size: 13px;
-	}
-	.invite-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		border: 1px dashed var(--app-line-strong);
-		border-radius: 10px;
-		padding: 8px 12px;
-		background: transparent;
-		color: var(--app-ink);
-		font: inherit;
-		text-align: left;
-		cursor: pointer;
-	}
-	.invite-code {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 14px;
-		font-weight: 800;
-		letter-spacing: 0.2em;
-		color: var(--app-ink);
-	}
-	.invite-action {
-		flex: 0 0 auto;
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--app-accent);
-	}
-	.member-list {
-		display: grid;
-		gap: 6px;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-	.member-list li {
-		display: flex;
-		align-items: center;
-		min-width: 0;
-		gap: 8px;
-		font-size: 12px;
-		font-weight: 600;
-		color: var(--app-ink);
-	}
-	.member-name {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.member-dot {
-		flex: 0 0 auto;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-	}
-	.you-tag {
-		padding: 1px 7px;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--app-ink) 8%, transparent);
-		color: var(--app-muted);
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-	.leave-button {
-		justify-self: start;
-		border: 0;
-		background: transparent;
-		padding: 7px 0;
-		color: var(--app-muted);
-		font: inherit;
-		font-size: 11px;
-		font-weight: 700;
-		cursor: pointer;
-	}
-	.leave-button:hover {
-		color: #9a4b32;
-	}
-	.leave-confirmation {
-		display: grid;
-		gap: 8px;
-		padding-top: 4px;
-	}
-	.leave-confirmation p {
-		margin: 0;
-		font-size: 11px;
-		line-height: 1.45;
-		color: var(--app-muted);
-	}
-	.leave-confirmation .form-error {
-		color: #9a4b32;
-	}
-	.leave-actions {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-	}
-	.leave-confirm-button {
-		border: 1px solid color-mix(in srgb, #9a4b32 55%, var(--app-line-strong));
-		border-radius: 10px;
-		padding: 8px 12px;
-		background: color-mix(in srgb, #9a4b32 10%, transparent);
-		color: #9a4b32;
-		font: inherit;
-		font-size: 12px;
-		font-weight: 800;
-		cursor: pointer;
-	}
-	.profile-menu button:disabled {
-		cursor: not-allowed;
-		opacity: 0.6;
-	}
-	.household-switch {
-		display: grid;
-		gap: 8px;
-	}
-	.switch-button {
-		border: 1px solid var(--app-line-strong);
-		border-radius: 10px;
-		padding: 8px 12px;
-		background: transparent;
-		color: var(--app-ink);
-		font-family: inherit;
-		font-size: 12px;
-		font-weight: 700;
-		cursor: pointer;
-	}
-	.switch-button:hover {
-		border-color: var(--app-accent-strong);
-		color: var(--app-accent);
-	}
-	.household-switch form {
-		display: grid;
-		gap: 10px;
-	}
-	.household-switch label {
-		display: grid;
-		gap: 5px;
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--app-muted);
-	}
-	.household-switch input {
-		width: 100%;
-		box-sizing: border-box;
-		border: 1px solid var(--app-line-strong);
-		border-radius: 10px;
-		padding: 9px 11px;
-		background: var(--app-input);
-		outline: 0;
-		font-size: 13px;
-		color: var(--app-ink);
-	}
-	.household-switch input:focus {
-		border-color: var(--app-accent-strong);
-	}
-	.code-input {
-		text-transform: uppercase;
-		letter-spacing: 0.2em;
-	}
-	.household-switch .form-error {
-		margin: 0;
-		font-size: 11px;
-		font-weight: 600;
-		color: #9a4b32;
-	}
-	.household-form-actions {
-		display: flex;
-		gap: 8px;
-	}
-	.primary-button {
-		flex: 1;
-		border: 0;
-		border-radius: 10px;
-		padding: 9px 12px;
-		background: var(--app-dark);
-		color: var(--app-dark-ink);
-		font-size: 12px;
-		font-weight: 800;
-		cursor: pointer;
 	}
 </style>
