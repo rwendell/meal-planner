@@ -111,8 +111,7 @@
 		return (
 			a.length === b.length &&
 			a.every(
-				(meal, i) =>
-					meal.id === b[i]?.id && meal.count === b[i]?.count,
+				(meal, i) => meal.id === b[i]?.id && meal.count === b[i]?.count,
 			)
 		);
 	}
@@ -120,8 +119,7 @@
 	let dirty = $derived(
 		editing &&
 			MEAL_TYPES.some(
-				(slot) =>
-					!sameMeals(plannedMeals(slot.id), drafts[slot.id]),
+				(slot) => !sameMeals(plannedMeals(slot.id), drafts[slot.id]),
 			),
 	);
 
@@ -249,8 +247,11 @@
 			const items = [...counts.entries()]
 				.map(([id, days]) => ({ id, days, meal: mealsById.get(id) }))
 				.filter(
-					(entry): entry is typeof entry & { meal: NonNullable<typeof entry.meal> } =>
-						Boolean(entry.meal),
+					(
+						entry,
+					): entry is typeof entry & {
+						meal: NonNullable<typeof entry.meal>;
+					} => Boolean(entry.meal),
 				)
 				.sort((a, b) => b.days - a.days);
 			return {
@@ -263,67 +264,88 @@
 	});
 </script>
 
-		<Card.Content class="grid min-w-0 gap-x-6 gap-y-6 lg:grid-cols-[repeat(4,minmax(0,max-content))] lg:justify-start lg:gap-x-10">
-		{#each MEAL_TYPES as slot (slot.id)}
-			{@const rows = editing ? drafts[slot.id] : plannedMeals(slot.id)}
-			{@const planned = rows.reduce((sum, entry) => sum + entry.count, 0)}
-			<section aria-label={`${slot.label} meals`} class="min-w-0 max-w-full gap-2">
-				<h3
-					class="m-0 max-w-full text-[11px] font-semibold tracking-[0.08em] break-words text-muted-foreground uppercase"
-				>
-					{slot.label} · {planned} of {week.length} days
-				</h3>
-				{#if rows.length === 0}
-					<p class="m-0 text-sm text-muted-foreground">
-						Nothing here yet — {canEdit && editing ? "add a meal below." : "no meals planned."}
-					</p>
-				{:else}
-					<ul class="m-0 grid list-none gap-y-1.5 p-0">
-						{#each rows as entry (entry.id)}
-							{@const meal = mealsById.get(entry.id)}
-							{#if meal}
-							<li class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-0 text-sm font-medium">
-								<span class="min-w-0 truncate">{meal.name}</span>
+<Card.Content
+	class="grid min-w-0 gap-x-6 gap-y-6 lg:grid-cols-[repeat(4,minmax(0,max-content))] lg:justify-start lg:gap-x-30"
+>
+	{#each MEAL_TYPES as slot (slot.id)}
+		{@const rows = editing ? drafts[slot.id] : plannedMeals(slot.id)}
+		{@const planned = rows.reduce((sum, entry) => sum + entry.count, 0)}
+		<section aria-label={`${slot.label} meals`}>
+			<h3
+				class="m-0 max-w-full text-[11px] font-semibold tracking-[0.08em] break-words text-muted-foreground uppercase"
+			>
+				{slot.label} · {planned} of {week.length} days
+			</h3>
+			{#if rows.length === 0}
+				<p class="m-0 text-sm text-muted-foreground">
+					Nothing here yet — {canEdit && editing
+						? "add a meal below."
+						: "no meals planned."}
+				</p>
+			{:else}
+				<ul class="m-0 grid list-none gap-y-1.5 p-0">
+					{#each rows as entry (entry.id)}
+						{@const meal = mealsById.get(entry.id)}
+						{#if meal}
+							<li class="flex place-content-between">
+								<span class="min-w-0 truncate">{meal.name}</span
+								>
 								{#if canEdit && editing}
-										<span class="flex w-20 shrink-0 items-center justify-end gap-0">
-											<input
-												type="number"
-												min={0}
-												max={week.length - (planned - entry.count)}
-												value={entry.count}
-												aria-label={`${meal.name} days this week`}
-												title="Days this week"
-												class="border-input dark:bg-input/30 h-8 w-12 shrink-0 rounded-md border bg-transparent px-1 text-center text-sm font-bold shadow-xs tabular-nums outline-none"
-												onchange={(event) =>
-													updateDraftCount(slot.id, entry, event.currentTarget)}
-												onkeydown={(event) => {
-													if (event.key === "Enter") event.currentTarget.blur();
-													else if (event.key === "Escape") {
-														event.currentTarget.value = String(entry.count);
-														event.currentTarget.blur();
-													}
-												}}
-											/>
-											<button
-												type="button"
-												class="shrink-0 rounded p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
-												aria-label={`Remove ${meal.name} from ${slot.label}`}
-												title="Remove"
-												onclick={() => removeDraftMeal(slot.id, entry.id)}
-											>
-												<Icon name="close" size={14} />
-											</button>
-										</span>
-									{:else}
-										<span class="w-20 min-w-20 shrink-0 text-right text-sm font-bold tabular-nums"
-											>×{entry.count}</span
+									<span
+										class="flex w-20 shrink-0 items-center justify-end gap-0"
+									>
+										<input
+											type="number"
+											min={0}
+											max={week.length -
+												(planned - entry.count)}
+											value={entry.count}
+											aria-label={`${meal.name} days this week`}
+											title="Days this week"
+											class="border-input dark:bg-input/30 h-8 w-12 shrink-0 rounded-md border bg-transparent px-1 text-center text-sm font-bold shadow-xs tabular-nums outline-none"
+											onchange={(event) =>
+												updateDraftCount(
+													slot.id,
+													entry,
+													event.currentTarget,
+												)}
+											onkeydown={(event) => {
+												if (event.key === "Enter")
+													event.currentTarget.blur();
+												else if (
+													event.key === "Escape"
+												) {
+													event.currentTarget.value =
+														String(entry.count);
+													event.currentTarget.blur();
+												}
+											}}
+										/>
+										<button
+											type="button"
+											class="shrink-0 rounded p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
+											aria-label={`Remove ${meal.name} from ${slot.label}`}
+											title="Remove"
+											onclick={() =>
+												removeDraftMeal(
+													slot.id,
+													entry.id,
+												)}
 										>
-									{/if}
-								</li>
-							{/if}
-						{/each}
-					</ul>
-				{/if}
+											<Icon name="close" size={14} />
+										</button>
+									</span>
+								{:else}
+									<span
+										class="w-20 min-w-20 shrink-0 text-right text-sm font-bold tabular-nums"
+										>×{entry.count}</span
+									>
+								{/if}
+							</li>
+						{/if}
+					{/each}
+				</ul>
+			{/if}
 			{#if canEdit && editing}
 				<Button
 					variant="outline"
@@ -334,21 +356,21 @@
 					<Icon name="plus" size={11} /> Add meal
 				</Button>
 			{/if}
-			</section>
-		{/each}
-		{#if canEdit}
-			<EditActions
-				editing={editing}
-				disabled={saving}
-				saveDisabled={!dirty || saving}
-				saving={saving}
-				class="justify-start lg:col-span-full"
-				onEdit={startEdit}
-				onCancel={cancelEdit}
-				onSave={() => void saveEdits()}
-			/>
-		{/if}
-	</Card.Content>
+		</section>
+	{/each}
+	{#if canEdit}
+		<EditActions
+			{editing}
+			disabled={saving}
+			saveDisabled={!dirty || saving}
+			{saving}
+			class="justify-start lg:col-span-full"
+			onEdit={startEdit}
+			onCancel={cancelEdit}
+			onSave={() => void saveEdits()}
+		/>
+	{/if}
+</Card.Content>
 
 <MealPicker
 	open={pickerSlot !== null}
