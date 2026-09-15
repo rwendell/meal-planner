@@ -10,16 +10,20 @@
 	import { PUBLIC_CONVEX_URL } from "$env/static/public";
 	import favicon from "$lib/assets/favicon.svg";
 	import Icon, { type IconName } from "$lib/components/Icon.svelte";
+	import InviteCode from "$lib/components/InviteCode.svelte";
+	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
-	import * as Avatar from "$lib/components/ui/avatar";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
+	import * as NavigationMenu from "$lib/components/ui/navigation-menu";
+	import { navigationMenuTriggerStyle } from "$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte";
 	import * as Popover from "$lib/components/ui/popover";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import { roster } from "$lib/households.svelte.js";
+	import { memberColor } from "$lib/members.js";
 	import { plannerView } from "$lib/planner-view.svelte.js";
 	import { prefs } from "$lib/prefs.svelte.js";
 	import {
@@ -29,6 +33,7 @@
 		session,
 		setProvisioningLock,
 	} from "$lib/session.svelte.js";
+	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
 
@@ -109,7 +114,6 @@
 	let profileOpen = $state(false);
 	type ProfileView = "profile" | "preferences";
 	let profileView = $state<ProfileView>("profile");
-	let copied = $state(false);
 	let profileMenu = $state<HTMLDivElement | null>(null);
 	let profileTrigger = $state<HTMLElement | null>(null);
 	let swipeState = $state<{
@@ -126,15 +130,6 @@
 		false,
 	);
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
-
-	const memberColors = [
-		"#e47d5f",
-		"#507b62",
-		"#686c87",
-		"#887647",
-		"#b86b51",
-		"#4f7d8c",
-	];
 
 	const householdQuery = useQuery(api.households.get, () =>
 		session.session
@@ -193,18 +188,6 @@
 			(member) => member._id === session.session?.memberId,
 		);
 		return self?.name ?? "Me";
-	}
-
-	async function copyInviteCode(code: string): Promise<void> {
-		try {
-			await navigator.clipboard.writeText(code);
-			copied = true;
-			setTimeout(() => {
-				copied = false;
-			}, 2000);
-		} catch {
-			copied = false;
-		}
 	}
 
 	const profileFocusableSelector =
@@ -502,26 +485,33 @@
 						<strong>Meal Planner</strong>
 					</a>
 					{#if !(prefs.desktopDashboard && wideScreen.current)}
-						<nav class="primary-nav" aria-label="Primary">
-							{#each navItems as item (item.id)}
-								<Button
-									variant={activeSection === item.id
-										? "secondary"
-										: "ghost"}
-									size="sm"
-									href={resolve(item.href)}
-									aria-current={activeSection === item.id
-										? "page"
-										: undefined}
-								>
-									<Icon
-										name={item.icon}
-										size={16}
-										dataIcon="inline-start"
-									/><span>{item.label}</span>
-								</Button>
-							{/each}
-						</nav>
+						<NavigationMenu.Root
+							class="ml-4 hidden lg:flex"
+							viewport={false}
+							aria-label="Primary"
+						>
+							<NavigationMenu.List class="justify-start gap-1">
+								{#each navItems as item (item.id)}
+									<NavigationMenu.Item>
+										<NavigationMenu.Link
+											class={cn(
+												navigationMenuTriggerStyle(),
+												activeSection === item.id &&
+													"bg-muted/50",
+											)}
+											href={resolve(item.href)}
+											active={activeSection === item.id}
+										>
+											<Icon
+												name={item.icon}
+												size={16}
+												dataIcon="inline-start"
+											/><span>{item.label}</span>
+										</NavigationMenu.Link>
+									</NavigationMenu.Item>
+								{/each}
+							</NavigationMenu.List>
+						</NavigationMenu.Root>
 					{/if}
 					<div class="top-bar-actions">
 						<Popover.Trigger>
@@ -539,16 +529,7 @@
 									aria-controls="profile-menu"
 									aria-expanded={profileOpen}
 								>
-									<Avatar.Root class="size-6">
-										<Avatar.Fallback class="text-[10px]">
-											{(
-												selfName().charAt(0) +
-												selfName().charAt(
-													selfName().search(" ") + 1,
-												)
-											).toUpperCase()}
-										</Avatar.Fallback>
-									</Avatar.Root>
+									<MemberAvatar name={selfName()} size="sm" />
 									<span
 										class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden"
 										>{selfName()}</span
@@ -594,37 +575,17 @@
 										{/if}
 									</p>
 								</div>
-								<section
-									aria-label="Invite code"
-									class="grid gap-2"
-								>
-									<div
-										class="flex flex-wrap items-center gap-2"
+								{#if householdQuery.data}
+									<section
+										aria-label="Invite code"
+										class="grid gap-2"
 									>
-										<Button
-											variant="outline"
-											class="h-auto w-fit max-w-full justify-start gap-2 py-1.5"
-											aria-label={`Copy invite code ${householdQuery.data.household.inviteCode}`}
-											onclick={() =>
-												copyInviteCode(
-													householdQuery.data
-														?.household
-														.inviteCode ?? "",
-												)}
-										>
-											<Icon
-												name={copied ? "check" : "copy"}
-												size={13}
-												dataIcon="inline-start"
-											/>
-											<span
-												class="font-mono text-sm font-extrabold tracking-[0.2em]"
-												>{householdQuery.data.household
-													.inviteCode}</span
-											>
-										</Button>
-									</div>
-								</section>
+										<InviteCode
+											code={householdQuery.data.household
+												.inviteCode}
+										/>
+									</section>
+								{/if}
 							</div>
 							{#if householdQuery.data}
 								<section
@@ -637,13 +598,13 @@
 										Members
 									</h3>
 									<ul class="m-0 grid list-none gap-1.5 p-0">
-										{#each householdQuery.data.members as member, i (member._id)}
+										{#each householdQuery.data.members as member (member._id)}
 											<li
 												class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
 											>
 												<span
 													class="size-2.5 shrink-0 rounded-full"
-													style={`background: ${memberColors[i % memberColors.length]}`}
+													style={`background: ${memberColor(householdQuery.data.members, member._id)}`}
 													aria-hidden="true"
 												></span>
 												<span
@@ -878,8 +839,10 @@
 			</div>
 			<TabBar active={activeSection} />
 			<Toaster
-				position="bottom-center"
-				offset={{ bottom: "84px" }}
+				position={wideScreen.current ? "bottom-center" : "top-center"}
+				offset={wideScreen.current
+					? { bottom: "32px" }
+					: { top: "calc(env(safe-area-inset-top) + 68px)" }}
 				{theme}
 			/>
 		</div>
@@ -994,18 +957,9 @@
 		height: 32px;
 		place-items: center;
 	}
-	.primary-nav {
-		display: none;
-		align-items: center;
-		gap: 4px;
-		margin-left: 18px;
-	}
 	@media (min-width: 1024px) {
 		.content {
 			padding-bottom: 0;
-		}
-		.primary-nav {
-			display: flex;
 		}
 	}
 	@media (max-width: 1023px) {

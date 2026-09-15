@@ -1,15 +1,12 @@
 <script lang="ts">
-	import SearchXIcon from "@lucide/svelte/icons/search-x";
-	import { useMutation, useQuery } from "convex-svelte";
+		import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
-	import { resolve } from "$app/paths";
+	import Icon from "$lib/components/Icon.svelte";
+	import MealPicker from "$lib/components/MealPicker.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import * as Dialog from "$lib/components/ui/dialog";
-	import * as Empty from "$lib/components/ui/empty";
-	import { Input } from "$lib/components/ui/input";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import {
 		addDays,
@@ -21,35 +18,21 @@
 		weekLabel,
 		weekLabelShort,
 	} from "$lib/dates.js";
+	import { errorMessage } from "$lib/errors.js";
+	import {
+		displayMealTime,
+		fallbackMealTimes,
+		MEAL_TYPES,
+		type MealCategory,
+		type MealType,
+	} from "$lib/meal-types.js";
+	import { memberColor } from "$lib/members.js";
 	import { plannerView } from "$lib/planner-view.svelte.js";
+	import { plannerWeek } from "$lib/planner-week.svelte.js";
 	import { session } from "$lib/session.svelte.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
-	import AutoPlanSection from "./AutoPlanSection.svelte";
-
-	type MealCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack";
-	type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-
-	function fallbackMealTimes(category: MealCategory): MealType[] {
-		if (category === "Breakfast") return ["breakfast"];
-		if (category === "Lunch") return ["lunch"];
-		if (category === "Snack") return ["snack"];
-		return ["dinner"];
-	}
-	type IconName =
-		| "plus"
-		| "search"
-		| "bell"
-		| "calendar"
-		| "book"
-		| "cart"
-		| "check"
-		| "close"
-		| "leaf"
-		| "utensils"
-		| "spark"
-		| "user"
-		| "menu";
+	import ListPlanSection from "./ListPlanSection.svelte";
 
 	interface Meal {
 		id: string;
@@ -62,27 +45,10 @@
 		mealTimes: MealType[];
 	}
 
-	const mealTypes: { id: MealType; label: string }[] = [
-		{ id: "breakfast", label: "Breakfast" },
-		{ id: "lunch", label: "Lunch" },
-		{ id: "dinner", label: "Dinner" },
-		{ id: "snack", label: "Snack" },
-	];
-
 	const today = todayISO();
 	const wideScreen = new MediaQuery("(min-width: 1024px)", true);
 
-	const memberColors = [
-		"#e47d5f",
-		"#507b62",
-		"#686c87",
-		"#887647",
-		"#b86b51",
-		"#4f7d8c",
-	];
-
-	let anchorDate = $state(today);
-	let search = $state("");
+	let anchorDate = $derived(plannerWeek.anchor);
 	let pickerTarget = $state<{
 		date: string;
 		dayLabel: string;
@@ -130,21 +96,11 @@
 	// Each member owns their own planner view: the mode shown follows
 	// whoever you're viewing, and the toggle only ever writes your own
 	// row, so other members' views are respected.
-	let mode = $derived(
-		(viewingMember?.plannerMode ?? "planner") as "planner" | "list",
-	);
+	let mode = $derived(viewingMember?.plannerMode ?? "planner");
 	let isSelfView = $derived(
 		viewingMember !== null && viewingMember._id === selfMemberId,
 	);
 	let savingMode = $state(false);
-
-	function memberColor(id: string): string {
-		const index = members.findIndex((m) => m._id === id);
-		return (
-			memberColors[(index < 0 ? 0 : index) % memberColors.length] ??
-			"#e47d5f"
-		);
-	}
 
 	const mealsQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
@@ -162,7 +118,6 @@
 
 	const setSlot = useMutation(api.plan.setSlot);
 	const clearDayMutation = useMutation(api.plan.clearDay);
-	const createMeal = useMutation(api.meals.create);
 	const setPlannerMode = useMutation(api.households.setPlannerMode);
 
 	async function setMode(next: "planner" | "list"): Promise<void> {
@@ -183,11 +138,7 @@
 				mode: next,
 			});
 		} catch (error) {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Couldn't change your view.",
-			);
+			toast.error(errorMessage(error, "Couldn't change your view."));
 		} finally {
 			savingMode = false;
 		}
@@ -256,18 +207,6 @@
 		}
 	});
 
-	let pickerMeals = $derived.by(() => {
-		const query = search.trim().toLowerCase();
-		const slot = pickerTarget?.slot;
-		return meals.filter((meal) => {
-			const fitsSlot = !slot || meal.mealTimes.includes(slot);
-			const matchesQuery =
-				!query ||
-				`${meal.name} ${meal.note}`.toLowerCase().includes(query);
-			return fitsSlot && matchesQuery;
-		});
-	});
-
 	// Whole-household rows for the picker's date, so meals other
 	// members picked for the same slot get an indicator.
 	const pickerDayQuery = useQuery(api.plan.getDays, () =>
@@ -329,17 +268,16 @@
 			mode === "list" || effectiveView !== "day"
 				? direction * 7
 				: direction;
-		anchorDate = addDays(anchorDate, step);
+		plannerWeek.set(addDays(anchorDate, step));
 	}
 
 	function goToday(): void {
-		anchorDate = today;
+		plannerWeek.set(today);
 	}
 
 	function openPicker(date: string, slot: MealType): void {
 		const slotLabel =
-			mealTypes.find((type) => type.id === slot)?.label ?? slot;
-		search = "";
+			MEAL_TYPES.find((type) => type.id === slot)?.label ?? slot;
 		pickerTarget = { date, dayLabel: dayLabel(date), slot, slotLabel };
 	}
 
@@ -374,9 +312,7 @@
 			toast.success(successMessage());
 			return true;
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Couldn't update the plan.",
-			);
+			toast.error(errorMessage(error, "Couldn't update the plan."));
 			return false;
 		}
 	}
@@ -400,36 +336,19 @@
 		if (ok) closePicker();
 	}
 
-	async function addSearchedMeal(): Promise<void> {
-		if (!pickerTarget || !householdId) return;
+	async function assignCreatedMeal(
+		mealId: string,
+		name: string,
+	): Promise<void> {
+		if (!pickerTarget) return;
 		const target = planTarget();
 		if (!target) return;
 		const { date, slot, dayLabel: label } = pickerTarget;
-		const name = search.trim();
-		if (!name) return;
-		const category =
-			slot === "breakfast"
-				? "Breakfast"
-				: slot === "lunch"
-					? "Lunch"
-					: slot === "snack"
-						? "Snack"
-						: "Dinner";
-		const id = await createMeal({
-			householdId: householdId as Id<"households">,
-			name,
-			category,
-			ingredients: [],
-			mealTimes: [slot],
-		});
 		const ok = await runPlanMutation(
-			() => setSlot({ ...target, date, slot, mealId: id }),
+			() => setSlot({ ...target, date, slot, mealId: mealId as Id<"meals"> }),
 			() => `${name} added to ${label}${ownerSuffix()}`,
 		);
-		if (ok) {
-			search = "";
-			closePicker();
-		}
+		if (ok) closePicker();
 	}
 
 	async function skipSlot(): Promise<void> {
@@ -448,7 +367,7 @@
 		const target = planTarget();
 		if (!target) return;
 		const label =
-			mealTypes.find((type) => type.id === slot)?.label ?? slot;
+			MEAL_TYPES.find((type) => type.id === slot)?.label ?? slot;
 		await runPlanMutation(
 			() => setSlot({ ...target, date, slot, mealId: null }),
 			() => `${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`,
@@ -501,7 +420,7 @@
 			<ToggleGroup.Item value={member._id} aria-label={member.name}>
 				<span
 					class="member-dot"
-					style={`background: ${memberColor(member._id)}`}
+					style={`background: ${memberColor(members, member._id)}`}
 				></span>{member.name}</ToggleGroup.Item
 			>
 		{/each}
@@ -516,36 +435,25 @@
 					{@render familySelector()}
 				{/if}
 				{#if isSelfView}
-					<div
-						class="mode-switch"
-						role="radiogroup"
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						size="sm"
+						value={mode}
 						aria-label="Planner view"
+						onValueChange={(value) => {
+							if (value === "planner" || value === "list") {
+								void setMode(value);
+							}
+						}}
 					>
-						<label class="mode-option" class:active={mode === "planner"}>
-							<input
-								type="radio"
-								name="planner-mode"
-								value="planner"
-								checked={mode === "planner"}
-								disabled={savingMode}
-								class="sr-only"
-								onchange={() => void setMode("planner")}
-							/>
+						<ToggleGroup.Item value="planner" disabled={savingMode}>
 							Planner
-						</label>
-						<label class="mode-option" class:active={mode === "list"}>
-							<input
-								type="radio"
-								name="planner-mode"
-								value="list"
-								checked={mode === "list"}
-								disabled={savingMode}
-								class="sr-only"
-								onchange={() => void setMode("list")}
-							/>
+						</ToggleGroup.Item>
+						<ToggleGroup.Item value="list" disabled={savingMode}>
 							List
-						</label>
-					</div>
+						</ToggleGroup.Item>
+					</ToggleGroup.Root>
 				{/if}
 			</div>
 		</Card.Header>
@@ -553,64 +461,6 @@
 {/snippet}
 
 <svelte:window onkeydown={onKeydown} />
-
-{#snippet icon(name: IconName, size = 16)}
-	<svg
-		width={size}
-		height={size}
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke="currentColor"
-		stroke-width="1.8"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		aria-hidden="true"
-	>
-		{#if name === "plus"}
-			<path d="M12 5v14M5 12h14" />
-		{:else if name === "search"}
-			<circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" />
-		{:else if name === "bell"}
-			<path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4" />
-		{:else if name === "calendar"}
-			<rect x="3" y="4.5" width="18" height="17" rx="2" /><path
-				d="M16 2.5v4M8 2.5v4M3 9.5h18"
-			/>
-		{:else if name === "book"}
-			<path d="M4 5.5a2 2 0 0 1 2-2h12v17H6a2 2 0 0 0-2 2z" /><path
-				d="M4 20.5a2 2 0 0 1 2-2h12M8 8h6M8 12h6"
-			/>
-		{:else if name === "cart"}
-			<path d="M5 8h14l-1 12H6L5 8Z" /><path
-				d="M9 8a3 3 0 0 1 6 0M9 12v2M15 12v2"
-			/>
-		{:else if name === "check"}
-			<path d="m5 12 4 4L19 6" />
-		{:else if name === "close"}
-			<path d="m6 6 12 12M18 6 6 18" />
-		{:else if name === "leaf"}
-			<path d="M20 4C11 4 5 8 5 14c0 3.3 2.7 6 6 6 6 0 9-7 9-16Z" /><path
-				d="M4 20c3-4 6-6 11-8"
-			/>
-		{:else if name === "utensils"}
-			<path
-				d="M7 3v7M4 3v4a3 3 0 0 0 6 0V3M7 14v7M17 3v18M17 3c2 1 3 3 3 5 0 2-1 3-3 3"
-			/>
-		{:else if name === "menu"}
-			<path d="M4 6h16M4 12h16M4 18h16" />
-		{:else if name === "user"}
-			<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle
-				cx="12"
-				cy="7"
-				r="4"
-			/>
-		{:else}
-			<path
-				d="m12 3-1.3 5.7L5 10l5.7 1.3L12 17l1.3-5.7L19 10l-5.7-1.3L12 3Z"
-			/>
-		{/if}
-	</svg>
-{/snippet}
 
 <main>
 	<Card.Root id="planner" class="bg-muted">
@@ -664,7 +514,7 @@
 							<Badge>Today</Badge>
 						{/if}
 					</div>
-					{#each mealTypes as type (type.id)}
+					{#each MEAL_TYPES as type (type.id)}
 						{@const meal = slotMeal(anchorDate, type.id)}
 						<div class="day-slot">
 							<h3>{type.label}</h3>
@@ -677,7 +527,7 @@
 											class="empty-slot"
 											onclick={() =>
 												openPicker(anchorDate, type.id)}
-											>{@render icon("plus", 11)} Change</button
+											><Icon name="plus" size={11} /> Change</button
 										>
 										<button
 											type="button"
@@ -686,11 +536,12 @@
 											title="Back to unplanned"
 											onclick={() =>
 												unskipSlot(anchorDate, type.id)}
-											>{@render icon("close", 11)}</button
+											><Icon name="close" size={11} /></button
 										>
 									{/if}
 								</div>
 							{:else if meal}
+								{@const prepTime = displayMealTime(meal.time)}
 								<div
 									class="day-meal-card"
 									style={`--meal-color: ${meal.color}`}
@@ -701,7 +552,7 @@
 											{meal.note || "No note added"}
 										</p>
 										<div class="day-meal-meta">
-											<Badge variant="secondary">{meal.time}</Badge>
+											{#if prepTime}<Badge variant="secondary">{prepTime}</Badge>{/if}
 											<Badge variant="outline">
 												{meal.ingredientCount > 0
 													? `${meal.ingredientCount} ingredient${meal.ingredientCount === 1 ? "" : "s"}`
@@ -717,7 +568,7 @@
 											title={`Remove ${meal.name}`}
 											onclick={() =>
 												removeMeal(anchorDate, type.id)}
-											>{@render icon("close", 11)}</Button
+											><Icon name="close" size={11} /></Button
 										>
 									{/if}
 								</div>
@@ -730,7 +581,7 @@
 											size="sm"
 											onclick={() =>
 												openPicker(anchorDate, type.id)}
-											>{@render icon("plus", 11)} Add meal</Button
+											><Icon name="plus" size={11} /> Add meal</Button
 										>
 									{/if}
 								</div>
@@ -750,7 +601,7 @@
 									<span>{weekdayLabel(date)}</span>
 									{#if date === today}<em>Today</em>{/if}
 								</div>
-								{#each mealTypes as type (type.id)}
+								{#each MEAL_TYPES as type (type.id)}
 									{@const meal = slotMeal(date, type.id)}
 									<div class="slot">
 										<small>{type.label}</small>
@@ -762,7 +613,7 @@
 														class="empty-slot"
 														onclick={() =>
 															openPicker(date, type.id)}
-														>{@render icon("plus", 11)} Skipped</button
+														><Icon name="plus" size={11} /> Skipped</button
 													>
 													<button
 														type="button"
@@ -771,10 +622,7 @@
 														title="Back to unplanned"
 														onclick={() =>
 															unskipSlot(date, type.id)}
-														>{@render icon(
-															"close",
-															11,
-														)}</button
+														><Icon name="close" size={11} /></button
 													>
 												</div>
 											{:else}
@@ -802,10 +650,7 @@
 																date,
 																type.id,
 															)}
-														>{@render icon(
-															"close",
-															11,
-														)}</button
+														><Icon name="close" size={11} /></button
 													>
 												{/if}
 											</div>
@@ -816,7 +661,7 @@
 													class="empty-slot"
 													onclick={() =>
 														openPicker(date, type.id)}
-													>{@render icon("plus", 11)} Add</button
+													><Icon name="plus" size={11} /> Add</button
 												>
 											{:else}
 												<span class="text-xs text-muted-foreground">Empty</span>
@@ -843,7 +688,7 @@
 	{:else if householdId && viewingMember && selfMemberId}
 		<Card.Root>
 			{@render viewControls()}
-		<AutoPlanSection
+		<ListPlanSection
 			{householdId}
 			memberId={viewingMember._id}
 			callerMemberId={selfMemberId}
@@ -854,88 +699,22 @@
 	{/if}
 </main>
 
-<Dialog.Root
+<MealPicker
 	open={pickerTarget !== null}
-	onOpenChange={(open) => {
-		if (!open) closePicker();
-	}}
->
-	<Dialog.Content data-no-swipe interactOutsideBehavior="ignore">
-		<Dialog.Header>
-			<Dialog.Title id="picker-title">Choose a meal</Dialog.Title>
-			<Dialog.Description>
-				{pickerTarget?.dayLabel} · {pickerTarget?.slotLabel}
-			</Dialog.Description>
-		</Dialog.Header>
-		<Input
-			bind:value={search}
-			placeholder="Search meals"
-			aria-label="Search meals"
-		/>
-		<Button
-			variant="outline"
-			class="w-full justify-start gap-2.5"
-			onclick={skipSlot}
-		>
-			<span class="picker-dot skip-dot"></span>
-			<span class="picker-name"
-				>Skip this meal<small>No cooking, no groceries</small></span
-			>
-		</Button>
-		{#if pickerMeals.length}
-			<div class="picker-list">
-				{#each pickerMeals as meal (meal.id)}
-					<Button
-						variant="ghost"
-						class="h-auto w-full justify-start gap-2.5 px-3 py-2.5 text-left"
-						onclick={() => assignToSlot(meal.id)}
-					>
-						<span
-							class="picker-dot"
-							style={`background: ${meal.color}`}
-						></span>
-						<span class="picker-name"
-							>{meal.name}<small>{meal.category}</small></span
-						>
-						{@const others = othersByMeal.get(meal.id)}
-						{#if others?.length}
-							<span
-								class="picker-others"
-								title={`Picked by ${others.join(", ")}`}
-							>
-								{@render icon("user", 13)}
-								<span>{others.join(", ")}</span>
-							</span>
-						{/if}
-						{@render icon("plus", 13)}
-					</Button>
-				{/each}
-			</div>
-		{:else}
-			<Empty.Root>
-				<Empty.Header>
-					<Empty.Media><SearchXIcon /></Empty.Media>
-					<Empty.Title>No meals found</Empty.Title>
-					<Empty.Description>
-						{#if search.trim()}
-							No match for "{search.trim()}".
-						{:else}
-							Add meals in the
-							<a href={resolve("/meals")}>meal database</a> first.
-						{/if}
-					</Empty.Description>
-				</Empty.Header>
-				{#if search.trim()}
-					<Empty.Content>
-						<Button onclick={addSearchedMeal}
-							>Add "{search.trim()}" to the database</Button
-						>
-					</Empty.Content>
-				{/if}
-			</Empty.Root>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+	slot={pickerTarget?.slot ?? null}
+	{householdId}
+	meals={meals}
+	othersByMeal={othersByMeal}
+	showSkip={true}
+	title="Choose a meal"
+	description={pickerTarget
+		? `${pickerTarget.dayLabel} · ${pickerTarget.slotLabel}`
+		: ""}
+	onClose={closePicker}
+	onSelect={assignToSlot}
+	onSkip={skipSlot}
+	onCreate={assignCreatedMeal}
+/>
 
 <style>
 	:global(html) {
@@ -967,39 +746,6 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-	}
-	.mode-switch {
-		display: inline-flex;
-		align-items: baseline;
-	}
-	.mode-option {
-		display: inline-flex;
-		align-items: baseline;
-		border-bottom: 2px solid transparent;
-		padding: 6px 2px;
-		margin: 0;
-		color: var(--muted-foreground);
-		font-size: 13px;
-		font-weight: 600;
-		cursor: pointer;
-	}
-	.mode-option + .mode-option {
-		margin-left: 14px;
-	}
-	.mode-option.active {
-		color: var(--foreground);
-		border-bottom-color: var(--foreground);
-	}
-	.mode-option:not(.active):hover {
-		color: var(--foreground);
-	}
-	.mode-option:has(input:disabled) {
-		opacity: 0.6;
-		cursor: default;
-	}
-	.mode-option:has(input:focus-visible) {
-		outline: 2px solid var(--ring);
-		outline-offset: 2px;
 	}
 	.day-detail {
 		display: grid;
@@ -1083,10 +829,6 @@
 	}
 	.empty-day-slot.skipped {
 		border-style: solid;
-	}
-	.skip-dot {
-		border: 1px dashed var(--border);
-		background: transparent;
 	}
 	.member-dot {
 		flex: 0 0 auto;
@@ -1242,47 +984,6 @@
 		flex: 1;
 		min-width: 0;
 	}
-	.picker-list {
-		display: grid;
-		gap: 8px;
-		max-height: 320px;
-		margin-top: 14px;
-		overflow-y: auto;
-	}
-	.picker-dot {
-		flex: 0 0 auto;
-		width: 12px;
-		height: 12px;
-		border-radius: 4px;
-	}
-	.picker-name {
-		flex: 1;
-		min-width: 0;
-	}
-	.picker-name small {
-		display: block;
-		color: var(--muted-foreground);
-		font-size: 10px;
-		font-weight: 600;
-	}
-	.picker-others {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		min-width: 0;
-		max-width: 38%;
-		overflow: hidden;
-		color: var(--muted-foreground);
-		font-size: 11px;
-		font-weight: 600;
-		white-space: nowrap;
-	}
-	.picker-others span {
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-
 	@media (max-width: 1023px) {
 		.week-scroll {
 			overflow-x: visible;

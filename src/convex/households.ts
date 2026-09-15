@@ -4,6 +4,7 @@ import { type MutationCtx, mutation, query } from "./_generated/server";
 import schema from "./schema";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const INVITE_CODE_PATTERN = /^[A-FHJ-KM-NP-TVX-Z2-9]{6}$/;
 
 function randomCode(): string {
 	let code = "";
@@ -11,6 +12,16 @@ function randomCode(): string {
 		code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
 	}
 	return code;
+}
+
+function cleanInviteCode(raw: string): string {
+	const normalized = raw.trim().toUpperCase();
+	if (!INVITE_CODE_PATTERN.test(normalized)) {
+		throw new Error(
+			"Invite codes must use exactly 6 supported letters or digits.",
+		);
+	}
+	return normalized;
 }
 
 function cleanName(name: string): string {
@@ -217,6 +228,33 @@ export const renameHousehold = mutation({
 		return null;
 	},
 	returns: v.null(),
+});
+
+export const setInviteCode = mutation({
+	args: {
+		householdId: v.id("households"),
+		memberId: v.id("householdMembers"),
+		inviteCode: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const household = await ctx.db.get("households", args.householdId);
+		const member = await ctx.db.get("householdMembers", args.memberId);
+		if (!household || !member || member.householdId !== args.householdId) {
+			throw new Error("Household member not found.");
+		}
+		const inviteCode = cleanInviteCode(args.inviteCode);
+		const existing = await ctx.db
+			.query("households")
+			.withIndex("by_inviteCode", (q) => q.eq("inviteCode", inviteCode))
+			.collect();
+		if (existing.some((row) => row._id !== args.householdId)) {
+			throw new Error("That invite code is already taken.");
+		}
+		if (household.inviteCode === inviteCode) return inviteCode;
+		await ctx.db.patch("households", args.householdId, { inviteCode });
+		return inviteCode;
+	},
+	returns: v.string(),
 });
 
 export const renameMember = mutation({

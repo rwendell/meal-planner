@@ -26,13 +26,6 @@ export const mealSlot = v.union(
 	v.literal("snack"),
 );
 
-// One auto-plan option: a meal plus how many days of the week it
-// covers. Counts across a slot's list always sum to the week's days.
-export const autoPlanOption = v.object({
-	mealId: v.id("meals"),
-	count: v.number(),
-});
-
 // A planner slot holds a meal, is unplanned (null), or is deliberately
 // skipped ("skip"). Skips are first-class values — never meal rows — so
 // they need no database entry and stay out of the meal list and groceries.
@@ -66,15 +59,7 @@ export default defineSchema({
 		name: v.string(),
 		// Each member's own planner view. Unset means "planner".
 		// Only the member themselves may change it.
-		// TODO: drop the "manual"/"auto" literals once old rows are migrated.
-		plannerMode: v.optional(
-			v.union(
-				v.literal("planner"),
-				v.literal("list"),
-				v.literal("manual"),
-				v.literal("auto"),
-			),
-		),
+		plannerMode: v.optional(v.union(v.literal("planner"), v.literal("list"))),
 	}).index("by_household", ["householdId"]),
 	// Step 1 of the workflow: the meal database, shared household-wide.
 	meals: defineTable({
@@ -106,21 +91,6 @@ export default defineSchema({
 		.index("by_household_and_date", ["householdId", "date"])
 		.index("by_household", ["householdId"])
 		.index("by_member", ["memberId"]),
-	// Auto-planning option lists, one row per member. Each slot's array
-	// is ordered — earlier options win ties when spreading days.
-	// An empty array (or all-zero counts) means "leave alone". The
-	// union accepts rows saved before counts existed (bare meal ids);
-	// autoPlans.ts upgrades those on read and saves always write the
-	// new shape.
-	autoPlans: defineTable({
-		householdId: v.id("households"),
-		memberId: v.id("householdMembers"),
-		breakfast: v.array(v.union(v.id("meals"), autoPlanOption)),
-		lunch: v.array(v.union(v.id("meals"), autoPlanOption)),
-		dinner: v.array(v.union(v.id("meals"), autoPlanOption)),
-		// Added later; older rows lack it and read as "leave alone".
-		snack: v.optional(v.array(v.union(v.id("meals"), autoPlanOption))),
-	}).index("by_member", ["memberId"]),
 	// Community cookbook: snapshots published from a household's database.
 	// Snapshots are frozen at publish time so later edits or deletes never
 	// change (or remove) what others already adopted.

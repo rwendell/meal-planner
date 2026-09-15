@@ -2,12 +2,16 @@
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
+	import { copyText } from "$lib/clipboard.js";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Empty from "$lib/components/ui/empty";
+	import { Progress } from "$lib/components/ui/progress";
 	import { Skeleton } from "$lib/components/ui/skeleton";
-	import { todayISO, weekDates } from "$lib/dates.js";
+	import { weekDates } from "$lib/dates.js";
+	import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
+	import { plannerWeek } from "$lib/planner-week.svelte.js";
 	import { session } from "$lib/session.svelte.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
@@ -17,32 +21,14 @@
 		key: string;
 		name: string;
 		amount: string;
-		group:
-			| "Produce"
-			| "Bakery & Deli"
-			| "Meat & Seafood"
-			| "Dairy & Eggs"
-			| "Frozen"
-			| "Beverages"
-			| "Pantry Staples"
-			| "Other";
+		group: GroceryGroup;
 		checked: boolean;
 	}
 
-	const groceryGroups: GroceryItem["group"][] = [
-		"Produce",
-		"Bakery & Deli",
-		"Meat & Seafood",
-		"Dairy & Eggs",
-		"Frozen",
-		"Beverages",
-		"Pantry Staples",
-		"Other",
-	];
-
 	let householdId = $derived(session.session?.householdId ?? null);
-	// The unified list covers everyone's plans for the current week.
-	let listDates = $derived(weekDates(todayISO()));
+	// The unified list covers everyone's plans for the week the planner is
+	// on, so planning next week shows next week's groceries.
+	let listDates = $derived(weekDates(plannerWeek.anchor));
 
 	const shoppingQuery = useQuery(api.shopping.list, () =>
 		householdId
@@ -127,33 +113,6 @@
 		return lines.join("\n").trimEnd();
 	}
 
-	async function copyText(text: string): Promise<boolean> {
-		try {
-			if (navigator.clipboard && window.isSecureContext) {
-				await navigator.clipboard.writeText(text);
-				return true;
-			}
-			throw new Error("clipboard unavailable");
-		} catch {
-			try {
-				const area = document.createElement("textarea");
-				area.value = text;
-				area.setAttribute("readonly", "");
-				area.style.position = "fixed";
-				area.style.opacity = "0";
-				document.body.appendChild(area);
-				area.focus();
-				area.select();
-				area.setSelectionRange(0, area.value.length);
-				const ok = document.execCommand("copy");
-				area.remove();
-				return ok;
-			} catch {
-				return false;
-			}
-		}
-	}
-
 	async function copyList(): Promise<void> {
 		const ok = await copyText(formatList());
 		if (ok) toast.success("Shopping list copied to clipboard");
@@ -184,9 +143,7 @@
 			{/if}
 			<div class="list-progress">
 				<strong>{doneCount}<small>/{listItems.length}</small></strong>
-				<div class="meter">
-					<span style={`width: ${listPct}%`}></span>
-				</div>
+				<Progress value={listPct} class="h-2" />
 			</div>
 			{#each groupedList as group (group.group)}
 				{#if group.items.length}
@@ -259,19 +216,6 @@
 		font-size: 12px;
 		color: var(--muted-foreground);
 	}
-	.meter {
-		height: 8px;
-		overflow: hidden;
-		border-radius: 999px;
-		background: var(--muted);
-	}
-	.meter span {
-		display: block;
-		height: 100%;
-		border-radius: inherit;
-		background: var(--primary);
-		transition: width 0.3s ease;
-	}
 	.grocery-group {
 		margin-top: 16px;
 	}
@@ -282,9 +226,6 @@
 		font-weight: 800;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-	}
-	.grocery-group h3 span {
-		color: var(--muted-foreground);
 	}
 	.grocery-item {
 		display: flex;

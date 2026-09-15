@@ -5,52 +5,28 @@
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import Icon from "$lib/components/Icon.svelte";
+	import MealEditor from "$lib/components/MealEditor.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Input } from "$lib/components/ui/input";
-	import * as Select from "$lib/components/ui/select";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import * as Tabs from "$lib/components/ui/tabs";
+	import * as ToggleGroup from "$lib/components/ui/toggle-group";
+	import type { GroceryGroup } from "$lib/grocery.js";
+	import {
+		displayMealTime,
+		fallbackMealTimes,
+		type MealCategory,
+		type MealType,
+	} from "$lib/meal-types.js";
 	import { session } from "$lib/session.svelte.js";
-	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
-	type MealCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack";
-	type MealTime = "breakfast" | "lunch" | "dinner" | "snack";
-
-	const ALL_MEAL_TIMES: MealTime[] = ["breakfast", "lunch", "dinner", "snack"];
-
-	function fallbackMealTimes(category: MealCategory): MealTime[] {
-		if (category === "Breakfast") return ["breakfast"];
-		if (category === "Lunch") return ["lunch"];
-		if (category === "Snack") return ["snack"];
-		return ["dinner"];
-	}
-	type GroceryGroup =
-		| "Produce"
-		| "Bakery & Deli"
-		| "Meat & Seafood"
-		| "Dairy & Eggs"
-		| "Frozen"
-		| "Beverages"
-		| "Pantry Staples"
-		| "Other";
-
-	const groceryGroups: GroceryGroup[] = [
-		"Produce",
-		"Bakery & Deli",
-		"Meat & Seafood",
-		"Dairy & Eggs",
-		"Frozen",
-		"Beverages",
-		"Pantry Staples",
-		"Other",
-	];
+	type MealTime = MealType;
 
 	interface Ingredient {
 		name: string;
@@ -70,13 +46,6 @@
 		mealTimes: MealTime[];
 	}
 
-	interface IngredientRow {
-		key: number;
-		name: string;
-		amount: string;
-		group: GroceryGroup;
-	}
-
 	const categoryFilters: ("All" | MealCategory)[] = [
 		"All",
 		"Breakfast",
@@ -91,13 +60,7 @@
 	let discoverSearch = $state("");
 	let showMealDialog = $state(false);
 	let editingMeal = $state<Meal | null>(null);
-	let newName = $state("");
-	let newCategory = $state<MealCategory>("Dinner");
-	let newNote = $state("");
-	let newTimes = $state<MealTime[]>(["dinner"]);
-	let formError = $state("");
-	let editIngredients = $state<IngredientRow[]>([]);
-	let rowKey = 0;
+	let mealDialogKey = $state(0);
 
 	let householdId = $derived(session.session?.householdId ?? null);
 	let selfMemberId = $derived(session.session?.memberId ?? null);
@@ -107,7 +70,6 @@
 	);
 
 	const createMeal = useMutation(api.meals.create);
-	const updateMeal = useMutation(api.meals.update);
 	const deleteMeal = useMutation(api.meals.remove);
 	const seedDatabase = useMutation(api.seed.ensureSeed);
 	const publishRecipe = useMutation(api.recipes.publish);
@@ -230,55 +192,27 @@
 		});
 	});
 
-	function blankRow(): IngredientRow {
-		rowKey += 1;
-		return { key: rowKey, name: "", amount: "", group: "Produce" };
-	}
-
 	function openAddMeal(): void {
 		editingMeal = null;
-		newName = "";
-		newCategory = "Dinner";
-		newNote = "";
-		newTimes = ["dinner"];
-		formError = "";
-		editIngredients = [blankRow()];
+		mealDialogKey += 1;
 		showMealDialog = true;
 	}
 
 	function openEditMeal(meal: Meal): void {
 		editingMeal = meal;
-		newName = meal.name;
-		newCategory = meal.category;
-		newNote = meal.note;
-		newTimes = [...meal.mealTimes];
-		formError = "";
-		editIngredients = meal.ingredients.map((ingredient) => ({
-			...blankRow(),
-			name: ingredient.name,
-			amount: ingredient.amount ?? "",
-			group: ingredient.group,
-		}));
-		if (editIngredients.length === 0) editIngredients = [blankRow()];
+		mealDialogKey += 1;
 		showMealDialog = true;
 	}
 
 	function closeMealDialog(): void {
 		showMealDialog = false;
 		editingMeal = null;
-		newName = "";
-		newNote = "";
-		editIngredients = [];
 	}
 
-	function toggleMealTime(time: MealTime): void {
-		if (newTimes.includes(time)) {
-			if (newTimes.length > 1) {
-				newTimes = newTimes.filter((t) => t !== time);
-			}
-		} else {
-			newTimes = [...newTimes, time];
-		}
+	function handleMealSaved(_mealId: string, name: string): void {
+		const wasEditing = editingMeal !== null;
+		toast.success(wasEditing ? `${name} updated` : `${name} added to the database`);
+		closeMealDialog();
 	}
 
 	function copyName(base: string): string {
@@ -302,7 +236,7 @@
 			name,
 			category: meal.category,
 			note: meal.note,
-			time: meal.time,
+			time: displayMealTime(meal.time) ?? "",
 			color: meal.color,
 			ingredients: meal.ingredients.map((ingredient) => ({
 				...ingredient,
@@ -311,68 +245,6 @@
 		});
 		toast.success(`Duplicated as "${name}"`);
 		openEditMeal({ ...meal, id, name });
-	}
-
-	function addIngredientRow(): void {
-		editIngredients.push(blankRow());
-	}
-
-	function removeIngredientRow(key: number): void {
-		editIngredients = editIngredients.filter((row) => row.key !== key);
-	}
-
-	async function saveMeal(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		const name = newName.trim();
-		if (!name) return;
-		const clash = meals.some(
-			(meal) =>
-				meal.id !== editingMeal?.id &&
-				meal.name.trim().toLowerCase() === name.toLowerCase(),
-		);
-		if (clash) {
-			formError = "A meal with this name already exists.";
-			return;
-		}
-		const ingredients = editIngredients
-			.map((row) => ({
-				name: row.name.trim(),
-				amount: row.amount.trim() || undefined,
-				group: row.group,
-			}))
-			.filter((ingredient) => ingredient.name);
-		if (!householdId) return;
-		const household = householdId as Id<"households">;
-		try {
-			if (editingMeal) {
-				await updateMeal({
-					id: editingMeal.id as Id<"meals">,
-					name,
-					category: newCategory,
-					note: newNote.trim() || undefined,
-					ingredients,
-					mealTimes: newTimes,
-				});
-				toast.success(`${name} updated`);
-			} else {
-				await createMeal({
-					householdId: household,
-					name,
-					category: newCategory,
-					note: newNote.trim() || undefined,
-					ingredients,
-					mealTimes: newTimes,
-				});
-				toast.success(`${name} added to the database`);
-			}
-		} catch (error) {
-			formError =
-				error instanceof Error
-					? error.message
-					: "Couldn't save the meal.";
-			return;
-		}
-		closeMealDialog();
 	}
 
 	async function deleteMealFromDatabase(
@@ -421,15 +293,22 @@
 					<Tabs.Trigger value="discover">Discover</Tabs.Trigger>
 				</Tabs.List>
 				<div class="toolbar">
-					<div class="filters" data-no-swipe>
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						size="sm"
+						value={category}
+						class="max-w-full touch-pan-x overflow-x-auto"
+						data-no-swipe
+						aria-label="Filter by category"
+						onValueChange={(value) => {
+							if (value) category = value as "All" | MealCategory;
+						}}
+					>
 						{#each categoryFilters as filter (filter)}
-							<button
-								type="button"
-								class={cn(category === filter && "active")}
-								onclick={() => (category = filter)}>{filter}</button
-							>
+							<ToggleGroup.Item value={filter}>{filter}</ToggleGroup.Item>
 						{/each}
-					</div>
+					</ToggleGroup.Root>
 					<Input
 						value={dbTab === "mine" ? search : discoverSearch}
 						placeholder={dbTab === "mine"
@@ -448,26 +327,12 @@
 					{#if visibleMeals.length}
 						<div class="meal-grid">
 							{#each visibleMeals as meal (meal.id)}
+								{@const prepTime = displayMealTime(meal.time)}
 								<Card.Root>
 									<Card.Header>
-										<div class="flex items-center gap-3">
-											<div
-												class="meal-icon"
-												style={`background: ${meal.color}`}
-											>
-												<Icon
-													name={meal.category === "Breakfast"
-														? "spark"
-														: meal.category === "Lunch"
-															? "leaf"
-															: "utensils"}
-													size={18}
-												/>
-											</div>
-											<div class="min-w-0 flex-1">
-												<Card.Title>{meal.name}</Card.Title>
-												<Card.Description>{meal.note}</Card.Description>
-											</div>
+										<div class="min-w-0 flex-1">
+											<Card.Title>{meal.name}</Card.Title>
+											<Card.Description>{meal.note}</Card.Description>
 										</div>
 										<Card.Action>
 											<Badge variant="secondary">{meal.category}</Badge>
@@ -475,11 +340,10 @@
 									</Card.Header>
 									<Card.Content>
 										<div class="flex items-center justify-between gap-2">
-											<span class="text-[10px] text-muted-foreground">{meal.time}</span>
+											<span class="text-[10px] text-muted-foreground"
+												>{#if prepTime}{prepTime} · {/if}{meal.ingredientCount} ingredients</span
+											>
 											<div class="flex items-center gap-1">
-												<Badge variant="outline"
-													>{meal.ingredientCount} ingredients</Badge
-												>
 												<Button
 													variant="ghost"
 													size="icon-sm"
@@ -572,24 +436,9 @@
 							{#each visibleRecipes as recipe (recipe._id)}
 								<Card.Root>
 									<Card.Header>
-										<div class="flex items-center gap-3">
-											<div
-												class="meal-icon"
-												style={`background: ${recipe.color}`}
-											>
-												<Icon
-													name={recipe.category === "Breakfast"
-														? "spark"
-														: recipe.category === "Lunch"
-															? "leaf"
-															: "utensils"}
-													size={18}
-												/>
-											</div>
-											<div class="min-w-0 flex-1">
-												<Card.Title>{recipe.name}</Card.Title>
-												<Card.Description>{recipe.note}</Card.Description>
-											</div>
+										<div class="min-w-0 flex-1">
+											<Card.Title>{recipe.name}</Card.Title>
+											<Card.Description>{recipe.note}</Card.Description>
 										</div>
 										<Card.Action>
 											<Badge variant="secondary">{recipe.category}</Badge>
@@ -598,12 +447,9 @@
 									<Card.Content>
 										<div class="flex items-center justify-between gap-2">
 											<span class="text-[10px] text-muted-foreground"
-												>by {recipe.householdName}</span
+												>by {recipe.householdName} · {recipe.ingredients.length} ingredients</span
 											>
 											<div class="flex items-center gap-1">
-												<Badge variant="outline"
-													>{recipe.ingredients.length} ingredients</Badge
-												>
 												<Button
 													variant="outline"
 													size="icon-sm"
@@ -650,130 +496,27 @@
 				{editingMeal ? "Edit meal" : "New meal"}
 			</Dialog.Description>
 		</Dialog.Header>
-		<form onsubmit={saveMeal} class="grid gap-3.5">
-			<label
-				for="meal-name"
-				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
-				>Meal name<Input
-					id="meal-name"
-					bind:value={newName}
-					required
-					placeholder="Crispy chickpea salad"
-				/></label
-			>
-			<label
-				for="meal-category"
-				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
-				>Category
-				<Select.Root
-					type="single"
-					value={newCategory}
-					onValueChange={(value) => {
-						if (value) newCategory = value as MealCategory;
-					}}
-				>
-					<Select.Trigger id="meal-category">
-						<Select.Value placeholder="Select category" />
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Group>
-							{#each categoryFilters.slice(1) as option (option)}<Select.Item
-									value={option}
-									label={option}
-								/>{/each}
-						</Select.Group>
-					</Select.Content>
-				</Select.Root>
-			</label>
-			<fieldset class="times-field">
-				<legend>Meal times</legend>
-				<div class="time-options">
-					{#each ALL_MEAL_TIMES as time (time)}
-						<span class="time-pick">
-							<Checkbox
-								checked={newTimes.includes(time)}
-								onCheckedChange={() => toggleMealTime(time)}
-								aria-label={time}
-							/>
-							<button type="button" onclick={() => toggleMealTime(time)}>
-								{time}
-							</button>
-						</span>
-					{/each}
-				</div>
-			</fieldset>
-			<label
-				for="meal-note"
-				class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
-				>Short description<Input
-					id="meal-note"
-					bind:value={newNote}
-					placeholder="A few words to jog your memory"
-				/></label
-			>
-			<div class="ingredient-editor">
-				<span class="ingredient-label" id="ingredients-label"
-					>Ingredients</span
-				>
-				<div class="ingredient-head" aria-hidden="true">
-					<span>Name</span><span>Amount</span><span>Group</span><span></span>
-				</div>
-				{#each editIngredients as row, i (row.key)}
-					<div class="ingredient-row">
-						<Input
-							bind:value={row.name}
-							placeholder="Flour"
-							aria-label={`Ingredient ${i + 1} name`}
-						/>
-						<Input
-							bind:value={row.amount}
-							placeholder="1 bag"
-							aria-label={`Ingredient ${i + 1} amount`}
-						/>
-						<Select.Root
-							type="single"
-							value={row.group}
-							onValueChange={(value) => {
-								if (value) row.group = value as GroceryGroup;
-							}}
-						>
-							<Select.Trigger aria-label={`Ingredient ${i + 1} group`}>
-								<Select.Value placeholder="Group" />
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									{#each groceryGroups as group (group)}<Select.Item
-											value={group}
-											label={group}
-										/>{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							aria-label={`Remove ingredient ${i + 1}`}
-							onclick={() => removeIngredientRow(row.key)}
-							><Icon name="close" size={12} /></Button
-						>
-					</div>
-				{/each}
-				<Button
-					variant="outline"
-					size="sm"
-					class="justify-self-start"
-					onclick={addIngredientRow}
-					><Icon name="plus" size={12} dataIcon="inline-start" /> Add ingredient</Button
-				>
-			</div>
-			{#if formError}
-				<p class="m-0 text-xs font-semibold text-destructive" role="alert">{formError}</p>
-			{/if}
-			<Dialog.Footer>
-				<Button variant="outline" onclick={closeMealDialog}>Cancel</Button>
-				<Button type="submit">{editingMeal ? "Save changes" : "Add meal"}</Button>
-			</Dialog.Footer>
-		</form>
+		{#key mealDialogKey}
+			<MealEditor
+				{householdId}
+				initialName={editingMeal?.name ?? ""}
+				initialNote={editingMeal?.note ?? ""}
+				initialTime={editingMeal ? (displayMealTime(editingMeal.time) ?? "") : ""}
+				initialMealTimes={editingMeal ? [...editingMeal.mealTimes] : ["dinner"]}
+				initialIngredients={editingMeal?.ingredients ?? []}
+				editingMeal={editingMeal
+					? {
+							id: editingMeal.id,
+							category: editingMeal.category,
+							mealTimes: [...editingMeal.mealTimes],
+						}
+					: null}
+				existingMeals={meals.map((meal) => ({ id: meal.id, name: meal.name }))}
+				idPrefix="meal-dialog"
+				onSaved={handleMealSaved}
+				onCancel={closeMealDialog}
+			/>
+		{/key}
 	</Dialog.Content>
 </Dialog.Root>
 
@@ -783,9 +526,6 @@
 	}
 	:global(body) {
 		min-width: 320px;
-	}
-	button {
-		cursor: pointer;
 	}
 	main {
 		max-width: 1180px;
@@ -798,103 +538,9 @@
 		gap: 10px;
 		margin-bottom: 16px;
 	}
-	.filters {
-		display: flex;
-		gap: 6px;
-		overflow-x: auto;
-		padding-bottom: 4px;
-	}
-	.filters button {
-		flex: 0 0 auto;
-		border: 0;
-		border-radius: 9px;
-		padding: 8px 11px;
-		background: transparent;
-		color: var(--muted-foreground);
-		font-size: 11px;
-		font-weight: 800;
-	}
-	.filters button.active {
-		background: var(--foreground);
-		color: var(--background);
-	}
 	.meal-grid {
 		display: grid;
 		gap: 10px;
-	}
-	/* Icon tiles use meal data colors (pastels in both modes), so the glyph
-	   stays a fixed dark tone for contrast in light and dark mode. */
-	.meal-icon {
-		display: grid;
-		width: 42px;
-		height: 42px;
-		place-items: center;
-		border-radius: 13px;
-		color: #41574b;
-	}
-	.times-field {
-		display: grid;
-		gap: 8px;
-		margin: 0;
-		padding: 0;
-		border: 0;
-	}
-	.times-field legend {
-		padding: 0;
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--muted-foreground);
-	}
-	.time-options {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-	}
-	.time-pick {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.time-pick button {
-		border: 0;
-		padding: 0;
-		background: transparent;
-		color: var(--foreground);
-		font-size: 12px;
-		font-weight: 700;
-		text-transform: capitalize;
-		cursor: pointer;
-	}
-	.ingredient-editor {
-		display: grid;
-		gap: 8px;
-	}
-	.ingredient-label {
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--muted-foreground);
-	}
-	.ingredient-head {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--muted-foreground);
-	}
-	.ingredient-row {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		align-items: center;
-	}
-
-	@media (max-width: 1023px) {
-		.filters {
-			touch-action: pan-x;
-		}
 	}
 
 	@media (min-width: 560px) {

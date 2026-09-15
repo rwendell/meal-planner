@@ -4,7 +4,10 @@
 	import { tick } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { resolve } from "$app/paths";
+	import EditActions from "$lib/components/EditActions.svelte";
 	import Icon from "$lib/components/Icon.svelte";
+	import InviteCode from "$lib/components/InviteCode.svelte";
+	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -14,6 +17,7 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { errorMessage } from "$lib/errors.js";
 	import { refKey, roster } from "$lib/households.svelte.js";
 	import { session } from "$lib/session.svelte.js";
 	import { cn } from "$lib/utils.js";
@@ -40,6 +44,7 @@
 	);
 
 	const renameHousehold = useMutation(api.households.renameHousehold);
+	const setInviteCode = useMutation(api.households.setInviteCode);
 	const setOwnerManagesPlans = useMutation(
 		api.households.setOwnerManagesPlans,
 	);
@@ -48,6 +53,8 @@
 	const createHousehold = useMutation(api.households.create);
 	const joinHousehold = useMutation(api.households.join);
 	const leaveHousehold = useMutation(api.households.leave);
+
+	const INVITE_CODE_PATTERN = /^[A-FHJ-KM-NP-TVX-Z2-9]{6}$/;
 
 	let entries = $derived(
 		(rosterQuery.data ?? []).filter(
@@ -91,24 +98,37 @@
 		roster.pruneToAlive(alive);
 	});
 
+	let editingProfile = $state(false);
+	let savingProfile = $state(false);
 	let myNameEdit = $state("");
 	let myNameEditKey = $state<string | null>(null);
-	let editingName = $state(false);
 	let nameInput = $state<HTMLInputElement | null>(null);
+	let householdNameInput = $state<HTMLInputElement | null>(null);
 	let householdNameEdit = $state("");
 	let householdNameEditKey = $state<string | null>(null);
+	let ownerManagesPlansDraft = $state<boolean | null>(null);
+	let inviteCodeEdit = $state("");
 	let joinCode = $state("");
 	let newHouseholdName = $state("");
 	let joinError = $state("");
 	let createError = $state("");
 
-	// Prefill the always-visible rename inputs from loaded data, resetting
-	// only when a different entity is shown so typing is never clobbered.
+	// Prefill the rename inputs from loaded data, resetting only when a
+	// different entity is shown so typing is never clobbered.
 	$effect(() => {
 		const member = activeEntry?.member;
 		if (member && myNameEditKey !== member._id) {
+			const house = activeEntry?.household;
 			myNameEditKey = member._id;
 			myNameEdit = member.name;
+			if (house) {
+				householdNameEditKey = house._id;
+				householdNameEdit = house.name;
+				inviteCodeEdit = house.inviteCode;
+				ownerManagesPlansDraft = null;
+			}
+			editingProfile = false;
+			savingProfile = false;
 		}
 	});
 
@@ -117,82 +137,167 @@
 		if (house && householdNameEditKey !== house._id) {
 			householdNameEditKey = house._id;
 			householdNameEdit = house.name;
+			inviteCodeEdit = house.inviteCode;
+			ownerManagesPlansDraft = null;
+			editingProfile = false;
+			savingProfile = false;
 		}
 	});
 
-	function errorMessage(error: unknown, fallback: string): string {
-		return error instanceof Error ? error.message : fallback;
-	}
+	let pendingOwnerManagesPlans = $derived(
+		ownerManagesPlansDraft ?? household?.ownerManagesPlans ?? false,
+	);
+	let pendingInviteCode = $derived(inviteCodeEdit.trim().toUpperCase());
+	let inviteCodeError = $derived(
+		!pendingInviteCode
+			? "Invite code is required."
+			: !INVITE_CODE_PATTERN.test(pendingInviteCode)
+				? "Use exactly 6 supported letters or digits."
+				: "",
+	);
+	let profileSaveDisabled = $derived(
+		!myNameEdit.trim() ||
+			!householdNameEdit.trim() ||
+			inviteCodeError !== "" ||
+			!activeEntry ||
+			!(
+				myNameEdit.trim() !== activeEntry.member.name ||
+				householdNameEdit.trim() !== activeEntry.household.name ||
+				pendingInviteCode !== activeEntry.household.inviteCode ||
+				(isManager &&
+					ownerManagesPlansDraft !== null &&
+					ownerManagesPlansDraft !==
+						(household?.ownerManagesPlans ?? false))
+			) ||
+			savingProfile,
+	);
 
-	async function startEditingName(): Promise<void> {
-		editingName = true;
+	async function startEditingProfile(): Promise<void> {
+		if (!activeEntry) return;
+		editingProfile = true;
 		await tick();
 		nameInput?.focus();
 		nameInput?.select();
 	}
 
-	function cancelEditingName(): void {
-		if (activeEntry) myNameEdit = activeEntry.member.name;
-		editingName = false;
-	}
-
-	async function saveMyName(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		const current = session.session;
-		if (!current || !myNameEdit.trim()) return;
-		try {
-			await renameMember({
-				householdId: current.householdId as Id<"households">,
-				memberId: current.memberId as Id<"householdMembers">,
-				name: myNameEdit.trim(),
-				callerMemberId: current.memberId as Id<"householdMembers">,
-			});
-			editingName = false;
-			toast.success("Name updated");
-		} catch (error) {
-			toast.error(errorMessage(error, "Couldn't update your name."));
+	function cancelEditingProfile(): void {
+		if (activeEntry) {
+			myNameEdit = activeEntry.member.name;
+			householdNameEdit = activeEntry.household.name;
+			inviteCodeEdit = activeEntry.household.inviteCode;
 		}
+		ownerManagesPlansDraft = null;
+		editingProfile = false;
 	}
 
-	async function saveHouseholdName(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
+	async function saveProfileEdits(event?: SubmitEvent): Promise<void> {
+		event?.preventDefault();
 		const current = session.session;
-		if (!current || !householdNameEdit.trim()) return;
-		try {
-			await renameHousehold({
-				householdId: current.householdId as Id<"households">,
-				memberId: current.memberId as Id<"householdMembers">,
-				name: householdNameEdit.trim(),
-			});
-			toast.success("Household name updated");
-		} catch (error) {
-			toast.error(errorMessage(error, "Couldn't update the household name."));
+		const entry = activeEntry;
+		const memberName = myNameEdit.trim();
+		const householdName = householdNameEdit.trim();
+		const pendingInviteCode = inviteCodeEdit.trim().toUpperCase();
+		if (
+			!current ||
+			!entry ||
+			!editingProfile ||
+			savingProfile ||
+			!memberName ||
+			!householdName ||
+			!pendingInviteCode
+		) {
+			return;
 		}
-	}
-
-	async function copyInviteCode(code: string): Promise<void> {
-		try {
-			await navigator.clipboard.writeText(code);
-			toast.success("Invite code copied");
-		} catch {
-			toast.error("Copy was blocked by the browser");
+		if (!INVITE_CODE_PATTERN.test(pendingInviteCode)) {
+			toast.error("Use exactly 6 supported letters or digits.");
+			return;
 		}
-	}
-
-	async function saveOwnerManagesPlans(enabled: boolean): Promise<void> {
-		const current = session.session;
-		if (!current) return;
+		const baselineOwnerPlans = household?.ownerManagesPlans ?? false;
+		const pendingOwnerPlans = ownerManagesPlansDraft;
+		const memberChanged = memberName !== entry.member.name;
+		const householdChanged = householdName !== entry.household.name;
+		const inviteCodeChanged = pendingInviteCode !== entry.household.inviteCode;
+		const ownerPlansChanged =
+			isManager &&
+			pendingOwnerPlans !== null &&
+			pendingOwnerPlans !== baselineOwnerPlans;
+		if (
+			!memberChanged &&
+			!householdChanged &&
+			!inviteCodeChanged &&
+			!ownerPlansChanged
+		) {
+			editingProfile = false;
+			return;
+		}
+		savingProfile = true;
+		let failed = false;
 		try {
-			await setOwnerManagesPlans({
-				householdId: current.householdId as Id<"households">,
-				callerMemberId: current.memberId as Id<"householdMembers">,
-				enabled,
-			});
-			toast.success(
-				enabled ? "Owner planning turned on" : "Owner planning turned off",
-			);
-		} catch (error) {
-			toast.error(errorMessage(error, "Couldn't update the setting."));
+			if (memberChanged) {
+				try {
+					await renameMember({
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+						name: memberName,
+						callerMemberId: current.memberId as Id<"householdMembers">,
+					});
+					toast.success("Name updated");
+				} catch (error) {
+					failed = true;
+					toast.error(errorMessage(error, "Couldn't update your name."));
+				}
+			}
+			if (householdChanged) {
+				try {
+					await renameHousehold({
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+						name: householdName,
+					});
+					toast.success("Household name updated");
+				} catch (error) {
+					failed = true;
+					toast.error(
+						errorMessage(error, "Couldn't update the household name."),
+					);
+				}
+			}
+			if (inviteCodeChanged) {
+				try {
+					await setInviteCode({
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+						inviteCode: pendingInviteCode,
+					});
+					toast.success("Invite code updated");
+				} catch (error) {
+					failed = true;
+					toast.error(errorMessage(error, "Couldn't update the invite code."));
+				}
+			}
+			if (ownerPlansChanged) {
+				try {
+					await setOwnerManagesPlans({
+						householdId: current.householdId as Id<"households">,
+						callerMemberId: current.memberId as Id<"householdMembers">,
+						enabled: pendingOwnerPlans,
+					});
+					toast.success(
+						pendingOwnerPlans
+							? "Owner planning turned on"
+							: "Owner planning turned off",
+					);
+				} catch (error) {
+					failed = true;
+					toast.error(errorMessage(error, "Couldn't update the setting."));
+				}
+			}
+			if (!failed) {
+				ownerManagesPlansDraft = null;
+				editingProfile = false;
+			}
+		} finally {
+			savingProfile = false;
 		}
 	}
 
@@ -305,40 +410,43 @@
 		</div>
 	{:else}
 		<div class="profile-grid">
-			<div class="grid gap-1">
-				<h1 class="m-0 font-serif text-[26px] leading-tight tracking-[-0.02em]">
-					Profile
-				</h1>
-				<p class="m-0 text-sm text-muted-foreground">
-					Your name, households, and members.
-				</p>
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div class="grid min-w-0 flex-1 gap-1">
+					<h1 class="m-0 font-serif text-[26px] leading-tight tracking-[-0.02em]">
+						Profile
+					</h1>
+					<p class="m-0 text-sm text-muted-foreground">
+						Your name, households, and members.
+					</p>
+				</div>
+				{#if activeEntry}
+					<EditActions
+						editing={editingProfile}
+						disabled={savingProfile}
+						saveDisabled={profileSaveDisabled}
+						saving={savingProfile}
+						class="shrink-0"
+						onEdit={() => void startEditingProfile()}
+						onCancel={cancelEditingProfile}
+						onSave={() => void saveProfileEdits()}
+					/>
+				{/if}
 			</div>
 			{#if activeEntry}
 				<div class="flex items-center gap-3 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs">
-					<span
-						aria-hidden="true"
-						class="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-sm font-bold"
-					>
-						{myName.charAt(0).toUpperCase() || "M"}
-					</span>
-					{#if !editingName}
+					<MemberAvatar name={myName} size="lg" />
+					{#if !editingProfile}
 						<div class="min-w-0 flex-1">
 							<p class="m-0 truncate font-semibold">{myName}</p>
 							<p class="m-0 truncate text-xs text-muted-foreground">
 								{activeEntry.isOwner ? "Owner" : "Member"} · Member of {activeEntry.household.name}
 							</p>
 						</div>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							aria-label="Edit display name"
-							title="Edit name"
-							onclick={() => void startEditingName()}
-						>
-							<Icon name="pencil" size={14} />
-						</Button>
 					{:else}
-						<form class="flex min-w-0 flex-1 items-center gap-1.5" onsubmit={saveMyName}>
+						<form
+							class="flex min-w-0 flex-1 items-center gap-1.5"
+							onsubmit={(event) => void saveProfileEdits(event)}
+						>
 							<Input
 								bind:ref={nameInput}
 								id="my-name"
@@ -349,28 +457,11 @@
 								autocomplete="given-name"
 								aria-label="Display name"
 								class="h-8"
+								disabled={savingProfile}
 								onkeydown={(event) => {
-									if (event.key === "Escape") cancelEditingName();
+									if (event.key === "Escape") cancelEditingProfile();
 								}}
 							/>
-							<Button
-								type="submit"
-								size="icon-sm"
-								disabled={!myNameEdit.trim()}
-								aria-label="Save name"
-								title="Save"
-							>
-								<Icon name="check" size={14} />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Cancel editing name"
-								title="Cancel"
-								onclick={cancelEditingName}
-							>
-								<Icon name="close" size={14} />
-							</Button>
 						</form>
 					{/if}
 				</div>
@@ -385,39 +476,67 @@
 						</Card.Description>
 					</Card.Header>
 					<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
-						<form class="grid gap-2" onsubmit={saveHouseholdName}>
-							<label
-								for="household-name"
-								class="grid flex-1 gap-1.5 text-xs font-semibold text-muted-foreground"
-								>Household name<Input
-									id="household-name"
-									bind:value={householdNameEdit}
-									required
-									maxlength={40}
-									placeholder="Household name"
-									autocomplete="off"
-								/></label
-							>
-							<Button type="submit" disabled={!householdNameEdit.trim()}>Save</Button>
-						</form>
 						<div class="grid content-start gap-1.5">
-							<span class="text-xs font-semibold text-muted-foreground">Invite code</span>
-							<div class="flex flex-wrap items-center gap-2">
-								<span class="font-mono text-sm font-extrabold tracking-[0.2em]">
-									{activeEntry.household.inviteCode}
-								</span>
-								<Button
-									variant="outline"
-									size="sm"
-									onclick={() =>
-										copyInviteCode(activeEntry.household.inviteCode)}
+							<span class="text-xs font-semibold text-muted-foreground">Household name</span>
+							{#if editingProfile}
+								<form
+									class="grid gap-2"
+									onsubmit={(event) => void saveProfileEdits(event)}
 								>
-									<Icon name="copy" size={14} dataIcon="inline-start" /> Copy
-								</Button>
+									<Input
+										id="household-name"
+										bind:ref={householdNameInput}
+										bind:value={householdNameEdit}
+										required
+										maxlength={40}
+										placeholder="Household name"
+										autocomplete="off"
+										aria-label="Household name"
+										disabled={savingProfile}
+										onkeydown={(event) => {
+											if (event.key === "Escape") cancelEditingProfile();
+										}}
+									/>
+								</form>
+							{:else}
+								<p class="m-0 truncate text-sm font-semibold">
+									{activeEntry.household.name}
+								</p>
+							{/if}
+						</div>
+						<div class="grid content-start gap-1.5">
+							<span
+								id="household-invite-code-label"
+								class="text-xs font-semibold text-muted-foreground"
+							>
+								Invite code
+							</span>
+							<div class="flex flex-wrap items-center gap-2">
+								{#if editingProfile}
+									<Input
+										id="household-invite-code"
+										bind:value={inviteCodeEdit}
+										required
+										maxlength={6}
+										placeholder="ABC123"
+										autocomplete="off"
+										autocapitalize="characters"
+										aria-labelledby="household-invite-code-label"
+										class="uppercase tracking-[0.2em]"
+										disabled={savingProfile}
+										onkeydown={(event) => {
+											if (event.key === "Escape") cancelEditingProfile();
+										}}
+									/>
+								{:else}
+									<InviteCode code={activeEntry.household.inviteCode} />
+								{/if}
 							</div>
-							<p class="m-0 text-xs text-muted-foreground">
-								Share this code to invite others.
-							</p>
+							{#if editingProfile && inviteCodeError !== ""}
+								<p class="m-0 text-xs font-semibold text-destructive" role="alert">
+									{inviteCodeError}
+								</p>
+							{/if}
 						</div>
 						<Separator class="sm:col-span-2" />
 						<div class="grid gap-2 sm:col-span-2">
@@ -495,12 +614,13 @@
 								<div class="flex items-start gap-2.5">
 									<Checkbox
 										id="owner-manages-plans"
-										checked={household?.ownerManagesPlans ?? false}
+										checked={pendingOwnerManagesPlans}
 										onCheckedChange={(value) => {
 											if (typeof value === "boolean") {
-												void saveOwnerManagesPlans(value);
+												ownerManagesPlansDraft = value;
 											}
 										}}
+										disabled={!editingProfile || savingProfile}
 										class="mt-0.5"
 									/>
 									<span class="grid gap-0.5">
@@ -512,7 +632,8 @@
 										<span class="text-xs text-muted-foreground">
 											When on, the owner can switch between members'
 											plans and pick meals for them. Everyone else only
-											ever sees and edits their own plan.
+											ever sees and edits their own plan. Changes apply
+											when profile edits are saved.
 										</span>
 									</span>
 								</div>
@@ -652,16 +773,16 @@
 							<label
 								for="new-household-name"
 								class="grid gap-1.5 text-xs font-semibold text-muted-foreground"
-								>Household name<Input
-									id="new-household-name"
-									bind:value={newHouseholdName}
-									required
-									maxlength={40}
-									placeholder="e.g. Smith Kitchen"
-									autocomplete="off"
-								/></label
-							>
-							{#if createError}
+							>Household name<Input
+								id="new-household-name"
+								bind:value={newHouseholdName}
+								required
+								maxlength={40}
+								placeholder="e.g. Smith Kitchen"
+								autocomplete="off"
+							/></label
+						>
+						{#if createError}
 								<p class="m-0 text-xs font-semibold text-destructive" role="alert">
 									{createError}
 								</p>
