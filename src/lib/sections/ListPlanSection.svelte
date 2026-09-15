@@ -270,7 +270,12 @@
 	{#each MEAL_TYPES as slot (slot.id)}
 		{@const rows = editing ? drafts[slot.id] : plannedMeals(slot.id)}
 		{@const planned = rows.reduce((sum, entry) => sum + entry.count, 0)}
-		<section aria-label={`${slot.label} meals`}>
+		<section
+			aria-label={`${slot.label} meals`}
+			class="flex flex-col"
+			class:gap-y-4={editing}
+			class:gap-y-1.5={!editing}
+		>
 			<h3
 				class="m-0 max-w-full text-[11px] font-semibold tracking-[0.08em] break-words text-muted-foreground uppercase"
 			>
@@ -283,11 +288,29 @@
 						: "no meals planned."}
 				</p>
 			{:else}
-				<ul class="m-0 grid list-none gap-y-1.5 p-0">
+				<ul
+					class="m-0 grid w-fit list-none p-0"
+					class:gap-y-4={editing}
+					class:gap-y-1.5={!editing}
+				>
 					{#each rows as entry (entry.id)}
 						{@const meal = mealsById.get(entry.id)}
 						{#if meal}
-							<li class="flex place-content-between">
+							<li
+								class="flex space-x-1 place-items-center place-content-between"
+							>
+								{#if canEdit && editing}
+									<button
+										type="button"
+										class="shrink-0 rounded p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
+										aria-label={`Remove ${meal.name} from ${slot.label}`}
+										title="Remove"
+										onclick={() =>
+											removeDraftMeal(slot.id, entry.id)}
+									>
+										<Icon name="close" size={14} />
+									</button>
+								{/if}
 								<span class="min-w-0 truncate">{meal.name}</span
 								>
 								{#if canEdit && editing}
@@ -321,23 +344,10 @@
 												}
 											}}
 										/>
-										<button
-											type="button"
-											class="shrink-0 rounded p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
-											aria-label={`Remove ${meal.name} from ${slot.label}`}
-											title="Remove"
-											onclick={() =>
-												removeDraftMeal(
-													slot.id,
-													entry.id,
-												)}
-										>
-											<Icon name="close" size={14} />
-										</button>
 									</span>
 								{:else}
 									<span
-										class="w-20 min-w-20 shrink-0 text-right text-sm font-bold tabular-nums"
+										class="w-12 shrink-0 text-right text-sm font-bold tabular-nums"
 										>×{entry.count}</span
 									>
 								{/if}
