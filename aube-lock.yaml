@@ -15,7 +15,7 @@ importers:
         specifier: ^1.46.0
         version: 1.46.0(svelte@5.56.10)
       bits-ui:
-        specifier: ^2.19.2
+        specifier: 2.19.2
         version: 2.19.2(@internationalized/date@3.12.4)(svelte@5.56.10)
       clsx:
         specifier: ^2.1.1

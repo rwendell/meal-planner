@@ -5,6 +5,7 @@
 - **Add-ons**: tailwindcss, ai-tools
 - **Lint/Format**: Biome (`aube run lint`, `aube run lint:fix`) including `.svelte` files via `html.experimentalFullSupportEnabled`; `src/convex/_generated` is excluded (Convex codegen output). Keep using `svelte-check` too — Biome lints Svelte, svelte-check type-checks it.
 - **Verify**: `aube run check` (biome + svelte-check) and `aube run build`
+- **Pinned: bits-ui @ 2.19.2 exact (no caret) — do not upgrade or run `shadcn-svelte update`.** The registry's current component classes use `data-active:` / `data-horizontal:` shorthand selectors, but bits-ui stable (latest: 2.19.2) still emits `data-state="active"` / `data-orientation` attributes, so regenerated tabs/toggle/toggle-group/separator styles silently stop matching. Revisit only after a bits-ui stable release emits the new `data-active` / `data-horizontal` attributes.
 
 ---
 
