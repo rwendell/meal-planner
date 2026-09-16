@@ -12,7 +12,9 @@
 	/>
 </svelte:head>
 
-<div class="dashboard">
+<div
+	class="mx-auto grid max-w-[1180px] gap-7 px-7 pt-7 pb-20 [&>section>main]:m-0 [&>section>main]:max-w-none [&>section>main]:p-0 [&>section>main>.panel:first-child]:mt-0"
+>
 	<section id="dashboard-planner" aria-label="Weekly planner">
 		<PlannerSection />
 	</section>
@@ -23,23 +25,3 @@
 		<ShoppingSection />
 	</section>
 </div>
-
-<style>
-	.dashboard {
-		display: grid;
-		gap: 28px;
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 28px 28px 80px;
-	}
-	/* Sections bring their own page-level <main> spacing; neutralize it so
-	   the dashboard owns the vertical rhythm instead of triple-stacking it. */
-	.dashboard > section > :global(main) {
-		max-width: none;
-		margin: 0;
-		padding: 0;
-	}
-	.dashboard > section > :global(main > .panel:first-child) {
-		margin-top: 0;
-	}
-</style>

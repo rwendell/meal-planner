@@ -168,14 +168,19 @@
 					class="w-full justify-start gap-2.5"
 					onclick={handleSkip}
 				>
-					<span class="picker-dot skip-dot"></span>
-					<span class="picker-name"
-						>Skip this meal<small>No cooking, no groceries</small></span
+					<span
+						class="size-3 shrink-0 rounded-[4px] border border-dashed border-border bg-transparent"
+					></span>
+					<span class="min-w-0 flex-1"
+						>Skip this meal<small
+							class="block text-[10px] font-semibold text-muted-foreground"
+							>No cooking, no groceries</small
+						></span
 					>
 				</Button>
 			{/if}
 			{#if pickerMeals.length}
-				<div class="picker-list">
+				<div class="mt-3.5 grid max-h-80 gap-2 overflow-y-auto">
 					{#each pickerMeals as meal (meal.id)}
 						<Button
 							variant="ghost"
@@ -183,20 +188,25 @@
 							onclick={() => handleSelect(meal.id)}
 						>
 							<span
-								class="picker-dot"
+								class="size-3 shrink-0 rounded-[4px]"
 								style={`background: ${meal.color}`}
 							></span>
-							<span class="picker-name"
-								>{meal.name}<small>{meal.category}</small></span
+							<span class="min-w-0 flex-1"
+								>{meal.name}<small
+									class="block text-[10px] font-semibold text-muted-foreground"
+									>{meal.category}</small
+								></span
 							>
 							{@const others = othersByMeal?.get(meal.id)}
 							{#if others?.length}
 								<span
-									class="picker-others"
+									class="inline-flex max-w-[38%] min-w-0 items-center gap-1 overflow-hidden text-[11px] font-semibold whitespace-nowrap text-muted-foreground"
 									title={`Picked by ${others.join(", ")}`}
 								>
 									<UserIcon size={13} />
-									<span>{others.join(", ")}</span>
+									<span class="overflow-hidden text-ellipsis"
+										>{others.join(", ")}</span
+									>
 								</span>
 							{/if}
 							<PlusIcon />
@@ -229,49 +239,3 @@
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
-
-<style>
-	.picker-list {
-		display: grid;
-		gap: 8px;
-		max-height: 320px;
-		margin-top: 14px;
-		overflow-y: auto;
-	}
-	.picker-dot {
-		flex: 0 0 auto;
-		width: 12px;
-		height: 12px;
-		border-radius: 4px;
-	}
-	.skip-dot {
-		border: 1px dashed var(--border);
-		background: transparent;
-	}
-	.picker-name {
-		flex: 1;
-		min-width: 0;
-	}
-	.picker-name small {
-		display: block;
-		color: var(--muted-foreground);
-		font-size: 10px;
-		font-weight: 600;
-	}
-	.picker-others {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		min-width: 0;
-		max-width: 38%;
-		overflow: hidden;
-		color: var(--muted-foreground);
-		font-size: 11px;
-		font-weight: 600;
-		white-space: nowrap;
-	}
-	.picker-others span {
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-</style>

@@ -120,7 +120,9 @@
 	}
 </script>
 
-<main>
+<main
+	class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
+>
 	<Card.Root>
 		<Card.Header>
 			<Card.Title id="shopping-title">Shopping list</Card.Title>
@@ -141,18 +143,26 @@
 					<Skeleton class="h-4 w-2/3" />
 				</div>
 			{/if}
-			<div class="list-progress">
-				<strong>{doneCount}<small>/{listItems.length}</small></strong>
+			<div class="mb-[18px] grid">
+				<strong class="font-serif text-[30px] text-foreground"
+					>{doneCount}<small class="text-xs text-muted-foreground"
+						>/{listItems.length}</small
+					></strong
+				>
 				<Progress value={listPct} class="h-2" />
 			</div>
 			{#each groupedList as group (group.group)}
 				{#if group.items.length}
-					<div class="grocery-group">
-						<h3>
+					<div class="mt-4">
+						<h3
+							class="m-0 mb-1.5 text-[10px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"
+						>
 							{group.group} <span>{group.items.filter((item) => item.checked).length}/{group.items.length}</span>
 						</h3>
 						{#each group.items as item (item.key)}
-							<div class="grocery-item">
+							<div
+								class="flex min-w-0 flex-1 items-center gap-[9px] rounded-[9px] px-1.5 py-[7px] text-xs text-foreground hover:bg-[color-mix(in_srgb,var(--muted)_45%,transparent)]"
+							>
 								<Checkbox
 									checked={item.checked}
 									onCheckedChange={() => toggleItem(item)}
@@ -160,11 +170,19 @@
 								/>
 								<button
 									type="button"
-									class="grocery-text"
+									class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit"
 									onclick={() => toggleItem(item)}
 								>
-									<span class={cn(item.checked && "done")}>{item.name}</span>
-									{#if item.amount}<small>{item.amount}</small>{/if}
+									<span
+										class={cn(
+											"min-w-0 flex-[0_1_auto]",
+											item.checked && "text-muted-foreground line-through",
+										)}>{item.name}</span
+									>
+									{#if item.amount}<small
+											class="text-[10px] text-muted-foreground"
+											>{item.amount}</small
+										>{/if}
 								</button>
 							</div>
 						{/each}
@@ -182,106 +200,9 @@
 					</Empty.Header>
 				</Empty.Root>
 			{/if}
-			<p class="hint">Meals without ingredients are skipped automatically.</p>
+			<p class="m-0 mt-3 text-[11px] text-muted-foreground">
+				Meals without ingredients are skipped automatically.
+			</p>
 		</Card.Content>
 	</Card.Root>
 </main>
-
-<style>
-	:global(html) {
-		scroll-behavior: smooth;
-	}
-	:global(body) {
-		min-width: 320px;
-	}
-	button {
-		cursor: pointer;
-	}
-	main {
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 20px 18px 72px;
-	}
-	.list-progress {
-		display: grid;
-		margin-bottom: 18px;
-	}
-	.list-progress strong {
-		font-family: Georgia, serif;
-		font-size: 30px;
-		color: var(--foreground);
-	}
-	.list-progress small {
-		font-family: inherit;
-		font-size: 12px;
-		color: var(--muted-foreground);
-	}
-	.grocery-group {
-		margin-top: 16px;
-	}
-	.grocery-group h3 {
-		margin-bottom: 6px;
-		color: var(--muted-foreground);
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
-	.grocery-item {
-		display: flex;
-		flex: 1;
-		align-items: center;
-		min-width: 0;
-		gap: 9px;
-		padding: 7px 6px;
-		border-radius: 9px;
-		font-size: 12px;
-		color: var(--foreground);
-	}
-	.grocery-item:hover {
-		background: color-mix(in srgb, var(--muted) 45%, transparent);
-	}
-	.grocery-text {
-		display: flex;
-		flex: 1;
-		align-items: center;
-		min-width: 0;
-		gap: 8px;
-		border: 0;
-		padding: 0;
-		background: transparent;
-		color: inherit;
-		font: inherit;
-		text-align: left;
-		cursor: pointer;
-	}
-	.grocery-text span {
-		flex: 0 1 auto;
-		min-width: 0;
-	}
-	.grocery-text span.done {
-		color: var(--muted-foreground);
-		text-decoration: line-through;
-	}
-	.grocery-text small {
-		color: var(--muted-foreground);
-		font-size: 10px;
-	}
-	.hint {
-		margin: 12px 0 0;
-		font-size: 11px;
-		color: var(--muted-foreground);
-	}
-
-	@media (min-width: 560px) {
-		main {
-			padding: 24px 28px 80px;
-		}
-	}
-
-	@media (min-width: 1024px) {
-		main {
-			padding: 34px 40px 80px;
-		}
-	}
-</style>

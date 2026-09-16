@@ -136,3 +136,71 @@
 .dark {
 	color-scheme: dark;
 }
+
+/* Document defaults consolidated here so no Svelte file needs its own
+   <style> block for them. (Tailwind utilities can't express these.) */
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	min-width: 320px;
+}
+
+button {
+	cursor: pointer;
+}
+
+/* Swipe-driven route transitions. Keyframes and view-transition
+   pseudo-elements have no Tailwind equivalent, so they live here. */
+html[data-view-transition-direction="next"]::view-transition-old(
+	route-content
+) {
+	animation: route-content-old-next 200ms ease both;
+}
+
+html[data-view-transition-direction="next"]::view-transition-new(
+	route-content
+) {
+	animation: route-content-new-next 200ms ease both;
+}
+
+html[data-view-transition-direction="previous"]::view-transition-old(
+	route-content
+) {
+	animation: route-content-old-previous 200ms ease both;
+}
+
+html[data-view-transition-direction="previous"]::view-transition-new(
+	route-content
+) {
+	animation: route-content-new-previous 200ms ease both;
+}
+
+@keyframes route-content-old-next {
+	to {
+		transform: translateX(-64px);
+		opacity: 0;
+	}
+}
+
+@keyframes route-content-new-next {
+	from {
+		transform: translateX(64px);
+		opacity: 0;
+	}
+}
+
+@keyframes route-content-old-previous {
+	to {
+		transform: translateX(64px);
+		opacity: 0;
+	}
+}
+
+@keyframes route-content-new-previous {
+	from {
+		transform: translateX(-64px);
+		opacity: 0;
+	}
+}

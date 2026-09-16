@@ -456,7 +456,7 @@
 		{#each members as member (member._id)}
 			<ToggleGroup.Item value={member._id} aria-label={member.name}>
 				<span
-					class="member-dot"
+					class="size-2.5 flex-none rounded-full"
 					style={`background: ${memberColor(members, member._id)}`}
 				></span>{member.name}</ToggleGroup.Item
 			>
@@ -467,7 +467,7 @@
 {#snippet viewControls()}
 	{#if showMemberToggle || isSelfView}
 		<Card.Header>
-			<div class="view-controls">
+			<div class="flex flex-wrap items-center justify-between gap-2.5">
 				{#if showMemberToggle}
 					{@render familySelector()}
 				{/if}
@@ -499,7 +499,9 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<main>
+<main
+	class="mx-auto flex max-w-[1180px] flex-col gap-4 px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-7 lg:pt-7 lg:pb-20"
+>
 	<Card.Root id="planner" class="bg-muted">
 		<Card.Header>
 			<Card.Title
@@ -509,7 +511,7 @@
 			</Card.Title>
 		</Card.Header>
 		<Card.Content>
-			<div class="date-nav">
+			<div class="flex items-center gap-2">
 				<Button
 					variant="outline"
 					size="icon"
@@ -542,8 +544,12 @@
 			{@render viewControls()}
 			<Card.Content>
 				{#if effectiveView === "day"}
-					<div class="day-detail">
-						<div class="day-detail-head">
+					<div
+						class="grid max-w-[560px] gap-[14px] lg:max-w-none lg:grid-cols-3 lg:items-start"
+					>
+						<div
+							class="flex items-start justify-between gap-3 lg:col-span-full"
+						>
 							<h2 class="m-0 text-[22px]">
 								{weekdayLabel(anchorDate)}
 							</h2>
@@ -553,10 +559,12 @@
 						</div>
 						{#if dayFullyExcluded(anchorDate)}
 							<div
-								class="empty-day-slot opacity-70"
+								class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
 								title="Excluded in planner settings"
 							>
-								<p class="flex items-center gap-1.5">
+								<p
+									class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
+								>
 									<BanIcon size={13} /> No planning on {weekdayLabel(
 										anchorDate,
 									)}
@@ -565,24 +573,36 @@
 						{:else}
 							{#each daySlotTypes as type (type.id)}
 								{@const meal = slotMeal(anchorDate, type.id)}
-								<div class="day-slot">
-									<h3>{type.label}</h3>
+								<div class="grid gap-2">
+									<h3
+										class="m-0 text-[11px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"
+									>
+										{type.label}
+									</h3>
 									{#if cellExcluded(anchorDate, type.id)}
 										<div
-											class="empty-day-slot opacity-70"
+											class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
 											title="Excluded in planner settings"
 										>
-											<p class="flex items-center gap-1.5">
+											<p
+												class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
+											>
 												<BanIcon size={12} /> Excluded
 											</p>
 										</div>
 									{:else if isSkipped(anchorDate, type.id)}
-									<div class="empty-day-slot skipped">
-										<p>Skipped</p>
+									<div
+										class="flex items-center justify-between gap-3 rounded-[14px] border border-solid border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5"
+									>
+										<p
+											class="m-0 text-xs font-bold text-muted-foreground"
+										>
+											Skipped
+										</p>
 										{#if canEditViewing}
 											<button
 												type="button"
-												class="empty-slot"
+												class="flex w-auto min-h-[34px] items-center gap-[5px] rounded-[9px] border border-solid border-border bg-transparent px-2.5 py-[7px] text-[10px] font-extrabold text-muted-foreground hover:border-primary hover:bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] hover:text-primary"
 												onclick={() =>
 													openPicker(
 														anchorDate,
@@ -592,7 +612,7 @@
 											>
 											<button
 												type="button"
-												class="chip-remove"
+												class="m-[-2px_-3px_0_0] grid size-[18px] flex-none cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:text-foreground"
 												aria-label={`Unskip ${type.label}`}
 												title="Back to unplanned"
 												onclick={() =>
@@ -609,15 +629,19 @@
 										meal.time,
 									)}
 									<div
-										class="day-meal-card"
+										class="flex items-start justify-between gap-3 rounded-[14px] border border-solid px-[14px] py-[13px] text-foreground [border-color:color-mix(in_srgb,var(--meal-color)_30%,var(--border))] [border-left:4px_solid_var(--meal-color)] [background:color-mix(in_srgb,var(--meal-color)_12%,var(--card))]"
 										style={`--meal-color: ${meal.color}`}
 									>
-										<div class="day-meal-content">
-											<strong>{meal.name}</strong>
-											<p class="day-meal-note">
+										<div class="min-w-0">
+											<strong class="block text-sm leading-[1.2]"
+												>{meal.name}</strong
+											>
+											<p
+												class="m-0 mt-[5px] mb-[10px] text-xs leading-[1.4] text-muted-foreground [overflow-wrap:anywhere]"
+											>
 												{meal.note || "No note added"}
 											</p>
-											<div class="day-meal-meta">
+											<div class="flex flex-wrap gap-1.5">
 												{#if prepTime}<Badge
 														variant="secondary"
 														>{prepTime}</Badge
@@ -644,8 +668,14 @@
 										{/if}
 									</div>
 								{:else}
-									<div class="empty-day-slot">
-										<p>No meal planned</p>
+									<div
+										class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5"
+									>
+										<p
+											class="m-0 text-xs font-bold text-muted-foreground"
+										>
+											No meal planned
+										</p>
 										{#if canEditViewing}
 											<Button
 												variant="outline"
@@ -667,47 +697,63 @@
 						{/if}
 					</div>
 				{:else}
-					<div class="week-scroll">
+					<div class="overflow-x-auto pb-2 [scrollbar-width:thin] max-lg:overflow-visible max-lg:pb-0">
 						{#if displayWeekDates.length === 0}
 							<div
-								class="empty-day-slot opacity-70"
+								class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
 								title="Excluded in planner settings"
 							>
-								<p class="flex items-center gap-1.5">
+								<p
+									class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
+								>
 									<BanIcon size={13} /> This whole week is excluded
 								</p>
 							</div>
 						{:else}
 							<div
-								class="week-track"
-								style={`grid-template-columns: repeat(${displayWeekDates.length}, 148px)`}
+								class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 lg:gap-2.5 lg:[grid-template-columns:repeat(var(--day-count),minmax(0,1fr))]"
+								style={`--day-count: ${displayWeekDates.length}`}
 							>
 								{#each displayWeekDates as date (date)}
 								<article
-									class="day"
-									class:selected={date === today}
+									class={date === today
+										? "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border border-primary bg-card p-3 shadow-[0_8px_24px_rgba(23,34,31,0.06)] lg:block lg:p-2"
+										: "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-2xl border border-border bg-[color-mix(in_srgb,var(--card)_50%,transparent)] p-3 lg:block lg:p-2"}
 								>
-									<div class="day-head">
-										<span>{weekdayLabel(date)}</span>
-										{#if date === today}<em>Today</em>{/if}
+									<div
+										class="flex w-full flex-row items-baseline justify-between gap-2 border-0 bg-transparent text-left text-muted-foreground lg:grid lg:grid-cols-[1fr_auto]"
+									>
+										<span
+											class={date === today
+												? "text-[10px] font-extrabold tracking-[0.14em] text-foreground uppercase"
+												: "text-[10px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"}
+											>{weekdayLabel(date)}</span
+										>
+										{#if date === today}<em
+												class="self-start text-[9px] font-extrabold text-destructive not-italic lg:col-start-2 lg:row-start-1"
+												>Today</em
+											>{/if}
 									</div>
 									{#each weekSlotTypes as type (type.id)}
 										{@const meal = slotMeal(date, type.id)}
-										<div class="slot">
-											<small>{type.label}</small>
+										<div class="mt-0 min-w-0 lg:mt-2.5">
+											<small
+												class="mx-0.5 mt-0 mb-1 block text-[9px] font-extrabold tracking-[0.1em] text-muted-foreground uppercase"
+												>{type.label}</small
+											>
 											{#if cellExcluded(date, type.id)}
 												<span
-													class="empty-slot opacity-70"
+													class="flex min-h-[46px] w-full cursor-default items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground opacity-70"
 													title="Excluded in planner settings"
 													aria-disabled="true"
 													><BanIcon size={11} /> Excluded</span
 												>
 											{:else if isSkipped(date, type.id)}
 												{#if canEditViewing}
-													<div class="skipped-wrap">
+													<div class="flex items-center gap-1.5">
 														<button
 															type="button"
-															class="empty-slot"
+															class="flex min-h-[46px] min-w-0 flex-1 items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground hover:border-primary hover:bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] hover:text-primary"
 															onclick={() =>
 																openPicker(
 																	date,
@@ -719,7 +765,7 @@
 														>
 														<button
 															type="button"
-															class="chip-remove"
+															class="m-[-2px_-3px_0_0] grid size-[18px] flex-none cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:text-foreground"
 															aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
 															title="Back to unplanned"
 															onclick={() =>
@@ -740,19 +786,19 @@
 												{/if}
 											{:else if meal}
 												<div
-													class="meal-chip"
+													class="group flex min-h-[46px] items-start justify-between gap-1.5 rounded-[11px] p-2 text-[10px] leading-[1.25] font-extrabold text-[#32433b]"
 													style={`background: ${meal.color}`}
 												>
-													<span class="chip-name"
+													<span class="min-w-0"
 														>{meal.name}{#if meal.ingredientCount === 0}<span
-																class="chip-note"
+																class="mt-[3px] block text-[8px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
 																>No list</span
 															>{/if}</span
 													>
 													{#if canEditViewing}
 														<button
 															type="button"
-															class="chip-remove"
+															class="m-[-2px_-3px_0_0] grid size-[18px] flex-none cursor-pointer place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_12%,transparent)] hover:text-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
 															aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
 															title={`Remove ${meal.name}`}
 															onclick={() =>
@@ -769,7 +815,7 @@
 											{:else if canEditViewing}
 												<button
 													type="button"
-													class="empty-slot"
+													class="flex min-h-[46px] w-full items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground hover:border-primary hover:bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] hover:text-primary"
 													onclick={() =>
 														openPicker(
 															date,
@@ -833,339 +879,3 @@
 	onSkip={skipSlot}
 	onCreate={assignCreatedMeal}
 />
-
-<style>
-	:global(html) {
-		scroll-behavior: smooth;
-	}
-	:global(body) {
-		min-width: 320px;
-	}
-	button {
-		cursor: pointer;
-	}
-
-	main {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 20px 18px 72px;
-	}
-	.date-nav {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.view-controls {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
-	.day-detail {
-		display: grid;
-		gap: 14px;
-		max-width: 560px;
-	}
-	.day-detail-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	.day-detail-head h2 {
-		margin: 0;
-		font-size: 22px;
-	}
-	.day-slot {
-		display: grid;
-		gap: 8px;
-	}
-	.day-slot h3 {
-		margin: 0;
-		font-size: 11px;
-		font-weight: 800;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--muted-foreground);
-	}
-	.day-meal-card {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 13px 14px;
-		border: 1px solid
-			color-mix(in srgb, var(--meal-color) 30%, var(--border));
-		border-left: 4px solid var(--meal-color);
-		border-radius: 14px;
-		background: color-mix(in srgb, var(--meal-color) 12%, var(--card));
-		color: var(--foreground);
-	}
-	.day-meal-content {
-		min-width: 0;
-	}
-	.day-meal-content strong {
-		display: block;
-		font-size: 14px;
-		line-height: 1.2;
-	}
-	.day-meal-note {
-		margin: 5px 0 10px;
-		overflow-wrap: anywhere;
-		color: var(--muted-foreground);
-		font-size: 12px;
-		line-height: 1.4;
-	}
-	.day-meal-meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-	}
-	.empty-day-slot {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 10px 12px;
-		border: 1px dashed var(--border);
-		border-radius: 14px;
-		background: color-mix(in srgb, var(--foreground) 3%, transparent);
-	}
-	.empty-day-slot p {
-		margin: 0;
-		color: var(--muted-foreground);
-		font-size: 12px;
-		font-weight: 700;
-	}
-	.empty-day-slot.skipped {
-		border-style: solid;
-	}
-	.member-dot {
-		flex: 0 0 auto;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-	}
-	.week-scroll {
-		overflow-x: auto;
-		padding-bottom: 8px;
-		scrollbar-width: thin;
-	}
-	.week-track {
-		display: grid;
-		grid-template-columns: repeat(7, 148px);
-		gap: 10px;
-		min-width: max-content;
-	}
-	.day {
-		padding: 9px;
-		border: 1px solid var(--border);
-		border-radius: 16px;
-		background: color-mix(in srgb, var(--card) 50%, transparent);
-	}
-	.day.selected {
-		border-color: var(--primary);
-		background: var(--card);
-		box-shadow: 0 8px 24px rgba(23, 34, 31, 0.06);
-	}
-	.day-head {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		width: 100%;
-		border: 0;
-		background: transparent;
-		text-align: left;
-		color: var(--muted-foreground);
-	}
-	.day-head span {
-		font-size: 10px;
-		font-weight: 800;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
-	.day.selected .day-head span {
-		color: var(--foreground);
-	}
-	.day-head em {
-		grid-row: 1;
-		grid-column: 2;
-		align-self: start;
-		font-size: 9px;
-		font-style: normal;
-		font-weight: 800;
-		color: var(--destructive);
-	}
-	.slot {
-		margin-top: 10px;
-	}
-	.slot small {
-		display: block;
-		margin: 0 2px 4px;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--muted-foreground);
-	}
-	/* Chip backgrounds come from meal data (pastels in both modes), so the
-	   text stays a fixed dark tone for contrast in light and dark mode. */
-	.meal-chip {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 6px;
-		min-height: 46px;
-		padding: 8px;
-		border-radius: 11px;
-		font-size: 10px;
-		font-weight: 800;
-		line-height: 1.25;
-		color: #32433b;
-	}
-	.chip-name {
-		min-width: 0;
-	}
-	.chip-note {
-		display: block;
-		margin-top: 3px;
-		font-size: 8px;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--muted-foreground);
-	}
-	.chip-remove {
-		flex: 0 0 auto;
-		display: grid;
-		width: 18px;
-		height: 18px;
-		margin: -2px -3px 0 0;
-		place-items: center;
-		border: 0;
-		border-radius: 6px;
-		background: transparent;
-		color: var(--muted-foreground);
-	}
-	.chip-remove:hover {
-		background: color-mix(in srgb, var(--foreground) 12%, transparent);
-		color: var(--foreground);
-	}
-	@media (hover: hover) {
-		.meal-chip .chip-remove {
-			opacity: 0;
-		}
-		.meal-chip:hover .chip-remove,
-		.chip-remove:focus-visible {
-			opacity: 1;
-		}
-	}
-	.empty-slot {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-		width: 100%;
-		min-height: 46px;
-		padding: 8px;
-		border: 1px dashed var(--border);
-		border-radius: 11px;
-		background: transparent;
-		color: var(--muted-foreground);
-		font-size: 10px;
-		font-weight: 800;
-	}
-	.day-detail .empty-slot {
-		width: auto;
-		min-height: 34px;
-		padding: 7px 10px;
-		border-style: solid;
-		border-radius: 9px;
-	}
-	button.empty-slot:hover {
-		border-color: var(--primary);
-		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 8%, transparent);
-	}
-	.empty-slot[aria-disabled="true"] {
-		cursor: default;
-	}
-	.skipped-wrap {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.skipped-wrap .empty-slot {
-		flex: 1;
-		min-width: 0;
-	}
-	@media (max-width: 1023px) {
-		.week-scroll {
-			overflow-x: visible;
-			padding-bottom: 0;
-		}
-		.week-track {
-			grid-template-columns: minmax(0, 1fr);
-			min-width: 0;
-			gap: 8px;
-		}
-		.day {
-			display: grid;
-			grid-template-columns: minmax(0, 1fr);
-			gap: 8px;
-			padding: 12px;
-		}
-		.day-head {
-			grid-column: 1;
-			grid-row: auto;
-			display: flex;
-			flex-direction: row;
-			align-items: baseline;
-			justify-content: space-between;
-			gap: 8px;
-			text-align: left;
-		}
-		.day-head em {
-			grid-row: auto;
-			grid-column: auto;
-		}
-		.day > .slot {
-			grid-column: 1;
-			min-width: 0;
-			margin-top: 0;
-		}
-	}
-
-	@media (min-width: 560px) {
-		main {
-			padding: 24px 28px 80px;
-		}
-	}
-
-	@media (min-width: 1024px) {
-		main {
-			padding: 28px 28px 80px;
-		}
-		.day-detail {
-			max-width: none;
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-			align-items: start;
-		}
-		.day-detail-head {
-			grid-column: 1 / -1;
-		}
-		.week-track {
-			grid-template-columns: repeat(7, minmax(0, 1fr));
-			gap: 8px;
-			min-width: 0;
-		}
-		.week-track > article {
-			min-width: 0;
-		}
-		.day {
-			padding: 8px;
-		}
-	}
-</style>

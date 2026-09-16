@@ -547,7 +547,9 @@
 
 <svelte:head><title>Profile · Meal Planner</title></svelte:head>
 
-<main>
+<main
+	class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
+>
 	{#if !session.session}
 		<Empty.Root>
 			<Empty.Header>
@@ -562,14 +564,14 @@
 			</Empty.Content>
 		</Empty.Root>
 	{:else if rosterLoading}
-		<div class="profile-grid">
+		<div class="grid items-start gap-3 min-[560px]:gap-4">
 			<Skeleton class="h-14" />
 			<Skeleton class="h-72" />
 			<Skeleton class="h-48" />
 			<Skeleton class="h-56" />
 		</div>
 	{:else}
-		<div class="profile-grid">
+		<div class="grid items-start gap-3 min-[560px]:gap-4">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div class="grid min-w-0 flex-1 gap-1">
 					<h1
@@ -875,6 +877,15 @@
 								>
 								<div class="grid gap-3">
 									<div class="flex flex-wrap gap-2">
+										<Button
+											variant={weekendsExcluded ? "secondary" : "outline"}
+											size="sm"
+											aria-pressed={weekendsExcluded}
+											disabled={!editingProfile || savingProfile}
+											onclick={() => setCells(weekendCells, !weekendsExcluded)}
+										>
+											Weekends off
+										</Button>
 										{#if shownExclusions.length > 0}
 											<Button
 												variant="ghost"
@@ -1239,36 +1250,3 @@
 		</div>
 	{/if}
 </main>
-
-<style>
-	:global(html) {
-		scroll-behavior: smooth;
-	}
-	:global(body) {
-		min-width: 320px;
-	}
-	main {
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 20px 18px 72px;
-	}
-	.profile-grid {
-		display: grid;
-		gap: 12px;
-		align-items: start;
-	}
-	@media (min-width: 560px) {
-		main {
-			padding: 24px 28px 80px;
-		}
-		.profile-grid {
-			gap: 16px;
-		}
-	}
-
-	@media (min-width: 1024px) {
-		main {
-			padding: 34px 40px 80px;
-		}
-	}
-</style>

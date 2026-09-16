@@ -277,7 +277,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<main>
+<main class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20">
 	<Card.Root>
 		<Card.Header>
 			<Card.Title id="meals-title">Meals</Card.Title>
@@ -298,7 +298,7 @@
 					<Tabs.Trigger value="mine">My meals</Tabs.Trigger>
 					<Tabs.Trigger value="discover">Discover</Tabs.Trigger>
 				</Tabs.List>
-				<div class="toolbar">
+				<div class="mb-4 flex flex-col gap-2.5 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
 					<ToggleGroup.Root
 						type="single"
 						variant="outline"
@@ -335,7 +335,7 @@
 				</div>
 				<Tabs.Content value="mine">
 					{#if visibleMeals.length}
-						<div class="meal-grid">
+						<div class="grid gap-2.5 min-[560px]:grid-cols-2">
 							{#each visibleMeals as meal (meal.id)}
 								{@const prepTime = displayMealTime(meal.time)}
 								<Card.Root>
@@ -421,7 +421,7 @@
 							{/each}
 						</div>
 					{:else if dataLoading}
-						<div class="meal-grid">
+						<div class="grid gap-2.5 min-[560px]:grid-cols-2">
 							<Skeleton class="h-40" />
 							<Skeleton class="h-40" />
 							<Skeleton class="h-40" />
@@ -466,7 +466,7 @@
 				</Tabs.Content>
 				<Tabs.Content value="discover">
 					{#if visibleRecipes.length}
-						<div class="meal-grid">
+						<div class="grid gap-2.5 min-[560px]:grid-cols-2">
 							{#each visibleRecipes as recipe (recipe._id)}
 								<Card.Root>
 									<Card.Header>
@@ -573,47 +573,3 @@
 		{/key}
 	</Dialog.Content>
 </Dialog.Root>
-
-<style>
-	:global(html) {
-		scroll-behavior: smooth;
-	}
-	:global(body) {
-		min-width: 320px;
-	}
-	main {
-		max-width: 1180px;
-		margin: 0 auto;
-		padding: 20px 18px 72px;
-	}
-	.toolbar {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		margin-bottom: 16px;
-	}
-	.meal-grid {
-		display: grid;
-		gap: 10px;
-	}
-
-	@media (min-width: 560px) {
-		main {
-			padding: 24px 28px 80px;
-		}
-		.toolbar {
-			flex-direction: row;
-			align-items: center;
-			justify-content: space-between;
-		}
-		.meal-grid {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-	}
-
-	@media (min-width: 1024px) {
-		main {
-			padding: 34px 40px 80px;
-		}
-	}
-</style>

@@ -445,9 +445,9 @@
 />
 
 {#if session.session && householdQuery.data === undefined && !householdQuery.error}
-	<div class="app">
-		<div class="content">
-			<main class="splash">
+	<div class="min-h-screen max-lg:[touch-action:pan-y]">
+		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
+			<main class="grid min-h-[60vh] place-items-center">
 				<div class="flex w-full max-w-xs flex-col gap-3">
 					<Skeleton class="h-4 w-3/4" />
 					<Skeleton class="h-4 w-full" />
@@ -457,9 +457,9 @@
 		</div>
 	</div>
 {:else if householdQuery.error}
-	<div class="app">
-		<div class="content">
-			<main class="splash">
+	<div class="min-h-screen max-lg:[touch-action:pan-y]">
+		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
+			<main class="grid min-h-[60vh] place-items-center">
 				<p role="alert" class="text-sm text-destructive">
 					Couldn't reach the database. Check your connection and
 					reload.
@@ -468,15 +468,15 @@
 		</div>
 	</div>
 {:else}
-	<div class="app">
-		<div class="content">
+	<div class="min-h-screen max-lg:[touch-action:pan-y]">
+		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
 			<Popover.Root
 				bind:open={profileOpen}
 				onOpenChange={handleProfileOpenChange}
 			>
-				<header class="top-bar">
+				<header class="sticky top-0 z-10 flex items-center justify-start gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-4 py-3 backdrop-blur-[10px]">
 					<a
-						class="top-bar-brand"
+						class="flex items-center gap-[9px] text-inherit no-underline"
 						href={resolve(
 							prefs.desktopDashboard && wideScreen.current
 								? "/dashboard"
@@ -486,10 +486,12 @@
 							? "Go to dashboard"
 							: "Go to planner"}
 					>
-						<span class="mobile-mark"
+						<span class="grid size-8 place-items-center"
 							><UtensilsIcon size={15} /></span
 						>
-						<strong>Meal Planner</strong>
+						<strong class="font-serif text-xl tracking-[-0.04em]"
+							>Meal Planner</strong
+						>
 					</a>
 					{#if !(prefs.desktopDashboard && wideScreen.current)}
 						<NavigationMenu.Root
@@ -519,7 +521,7 @@
 							</NavigationMenu.List>
 						</NavigationMenu.Root>
 					{/if}
-					<div class="top-bar-actions">
+					<div class="ml-auto flex items-center gap-2">
 						<Popover.Trigger>
 							{#snippet child({ props })}
 								<Button
@@ -825,7 +827,7 @@
 				</Popover.Content>
 			</Popover.Root>
 
-			<div class="page-transition-shell">
+			<div class="relative overflow-x-clip [view-transition-name:route-content]">
 				{@render children()}
 			</div>
 			<TabBar active={activeSection} />
@@ -839,126 +841,3 @@
 		</div>
 	</div>
 {/if}
-
-<style>
-	.splash {
-		display: grid;
-		place-items: center;
-		min-height: 60vh;
-	}
-	.app {
-		min-height: 100vh;
-		--mobile-tab-bar-height: 64px;
-	}
-	.content {
-		min-width: 0;
-		padding-bottom: env(safe-area-inset-bottom);
-	}
-	.page-transition-shell {
-		position: relative;
-		overflow-x: clip;
-		view-transition-name: route-content;
-	}
-	:global(
-			html[data-view-transition-direction="next"]::view-transition-old(
-					route-content
-				)
-		) {
-		animation: route-content-old-next 200ms ease both;
-	}
-	:global(
-			html[data-view-transition-direction="next"]::view-transition-new(
-					route-content
-				)
-		) {
-		animation: route-content-new-next 200ms ease both;
-	}
-	:global(
-			html[data-view-transition-direction="previous"]::view-transition-old(
-					route-content
-				)
-		) {
-		animation: route-content-old-previous 200ms ease both;
-	}
-	:global(
-			html[data-view-transition-direction="previous"]::view-transition-new(
-					route-content
-				)
-		) {
-		animation: route-content-new-previous 200ms ease both;
-	}
-	@keyframes route-content-old-next {
-		to {
-			transform: translateX(-64px);
-			opacity: 0;
-		}
-	}
-	@keyframes route-content-new-next {
-		from {
-			transform: translateX(64px);
-			opacity: 0;
-		}
-	}
-	@keyframes route-content-old-previous {
-		to {
-			transform: translateX(64px);
-			opacity: 0;
-		}
-	}
-	@keyframes route-content-new-previous {
-		from {
-			transform: translateX(-64px);
-			opacity: 0;
-		}
-	}
-	.top-bar {
-		position: sticky;
-		top: 0;
-		z-index: 10;
-		display: flex;
-		align-items: center;
-		justify-content: flex-start;
-		gap: 10px;
-		padding: 12px 16px;
-		border-bottom: 1px solid var(--border);
-		background: color-mix(in srgb, var(--background) 96%, transparent);
-		backdrop-filter: blur(10px);
-	}
-	.top-bar-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-left: auto;
-	}
-	.top-bar-brand {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		color: inherit;
-		text-decoration: none;
-	}
-	.top-bar-brand strong {
-		font-family: Georgia, "Times New Roman", serif;
-		font-size: 20px;
-		letter-spacing: -0.04em;
-	}
-	.mobile-mark {
-		display: grid;
-		width: 32px;
-		height: 32px;
-		place-items: center;
-	}
-	@media (min-width: 1024px) {
-		.content {
-			padding-bottom: 0;
-		}
-	}
-	@media (max-width: 1023px) {
-		.app {
-			touch-action: pan-y;
-		}
-		.content {
-			touch-action: pan-y;
-		}
-	}
-</style>
