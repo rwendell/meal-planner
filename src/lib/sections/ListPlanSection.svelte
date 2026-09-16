@@ -9,6 +9,11 @@
 	import * as Card from "$lib/components/ui/card";
 	import { errorMessage } from "$lib/errors.js";
 	import {
+		type ExcludedCell,
+		excludedCellSet,
+		weekdayIndex,
+	} from "$lib/exclusions.js";
+	import {
 		fallbackMealTimes,
 		MEAL_TYPES,
 		type MealType,
@@ -30,13 +35,25 @@
 		callerMemberId,
 		week,
 		canEdit = true,
+		excludedCells = [],
 	}: {
 		householdId: string;
 		memberId: string;
 		callerMemberId: string;
 		week: string[];
 		canEdit?: boolean;
+		excludedCells?: ExcludedCell[];
 	} = $props();
+
+	// Cells opted out of planning never receive meals: sections for
+	// fully excluded slots are hidden, and day counts/caps use the
+	// eligible days only.
+	let exclusionSet = $derived(excludedCellSet(excludedCells));
+	function eligibleDates(slot: MealSlot): string[] {
+		return week.filter(
+			(date) => !exclusionSet.has(`${weekdayIndex(date)}:${slot}`),
+		);
+	}
 
 	const mealsQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
@@ -201,7 +218,7 @@
 		const label =
 			MEAL_TYPES.find((type) => type.id === pickerSlot)?.label ??
 			pickerSlot;
-		return `${label} · ${week.length} days`;
+		return `${label} · ${eligibleDates(pickerSlot).length} days`;
 	});
 
 	function updateDraftCount(
@@ -211,7 +228,7 @@
 	): void {
 		const current = drafts[slot];
 		const total = current.reduce((sum, meal) => sum + meal.count, 0);
-		const max = week.length - (total - draft.count);
+		const max = eligibleDates(slot).length - (total - draft.count);
 		const parsed = Number.parseInt(input.value, 10);
 		const count = Number.isNaN(parsed)
 			? draft.count
@@ -258,7 +275,10 @@
 			return {
 				slot,
 				items,
-				unplanned: week.length - filled - skipped,
+				unplanned: Math.max(
+					0,
+					eligibleDates(slot.id).length - filled - skipped,
+				),
 				skipped,
 			};
 		});
@@ -269,19 +289,21 @@
 	class="grid min-w-0 gap-x-6 gap-y-6 lg:grid-cols-[repeat(4,minmax(0,max-content))] lg:justify-start lg:gap-x-30"
 >
 	{#each MEAL_TYPES as slot (slot.id)}
-		{@const rows = editing ? drafts[slot.id] : plannedMeals(slot.id)}
-		{@const planned = rows.reduce((sum, entry) => sum + entry.count, 0)}
-		<section
-			aria-label={`${slot.label} meals`}
-			class="flex flex-col"
-			class:gap-y-4={editing}
-			class:gap-y-1.5={!editing}
-		>
-			<h3
-				class="m-0 max-w-full text-[11px] font-semibold tracking-[0.08em] break-words text-muted-foreground uppercase"
+		{@const eligible = eligibleDates(slot.id)}
+		{#if eligible.length > 0}
+			{@const rows = editing ? drafts[slot.id] : plannedMeals(slot.id)}
+			{@const planned = rows.reduce((sum, entry) => sum + entry.count, 0)}
+			<section
+				aria-label={`${slot.label} meals`}
+				class="flex flex-col"
+				class:gap-y-4={editing}
+				class:gap-y-1.5={!editing}
 			>
-				{slot.label} · {planned} of {week.length} days
-			</h3>
+				<h3
+					class="m-0 max-w-full text-[11px] font-semibold tracking-[0.08em] break-words text-muted-foreground uppercase"
+				>
+					{slot.label} · {planned} of {eligible.length} days
+				</h3>
 			{#if rows.length === 0}
 				<p class="m-0 text-sm text-muted-foreground">
 					Nothing here yet — {canEdit && editing
@@ -321,7 +343,7 @@
 										<input
 											type="number"
 											min={0}
-											max={week.length -
+											max={eligible.length -
 												(planned - entry.count)}
 											value={entry.count}
 											aria-label={`${meal.name} days this week`}
@@ -368,6 +390,7 @@
 				</Button>
 			{/if}
 		</section>
+		{/if}
 	{/each}
 	{#if canEdit}
 		<EditActions

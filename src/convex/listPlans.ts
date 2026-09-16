@@ -18,6 +18,11 @@ function assertDate(date: string): void {
 	if (!ISO_DATE.test(date)) throw new Error("Invalid date.");
 }
 
+/** 0–6 weekday index (Sunday-first, like Date#getDay) of an ISO date. */
+function weekdayOf(date: string): number {
+	return new Date(`${date}T12:00:00Z`).getUTCDay();
+}
+
 function canManage(
 	household: { ownerId?: Id<"householdMembers"> },
 	callerMemberId: Id<"householdMembers">,
@@ -146,13 +151,23 @@ export const apply = mutation({
 				throw new Error("That meal no longer exists.");
 			}
 		}
+		// Excluded cells are never written: spreading happens over the
+		// eligible dates only, and excluded positions keep their values
+		// (null after applyPlannerExclusions runs).
+		const member = await ctx.db.get("householdMembers", args.memberId);
+		const excluded = new Set(
+			(member?.excludedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+		);
+		const eligible = dates.filter(
+			(date) => !excluded.has(`${weekdayOf(date)}:${args.slot}`),
+		);
 		const surviving = meals.filter((meal) => meal.count > 0);
 		const spread: (Id<"meals"> | "skip" | null)[] =
 			surviving.length === 0
-				? Array(dates.length).fill(null)
-				: spreadWithSkips(surviving, dates.length);
-		for (let i = 0; i < dates.length; i++) {
-			const date = dates[i];
+				? eligible.map(() => null)
+				: spreadWithSkips(surviving, eligible.length);
+		for (let i = 0; i < eligible.length; i++) {
+			const date = eligible[i];
 			const value = spread[i];
 			if (!date || value === undefined) continue;
 			const existing = await ctx.db

@@ -215,7 +215,9 @@
 
 	function handleMealSaved(_mealId: string, name: string): void {
 		const wasEditing = editingMeal !== null;
-		toast.success(wasEditing ? `${name} updated` : `${name} added to the database`);
+		toast.success(
+			wasEditing ? `${name} updated` : `${name} added to the database`,
+		);
 		closeMealDialog();
 	}
 
@@ -310,7 +312,9 @@
 						}}
 					>
 						{#each categoryFilters as filter (filter)}
-							<ToggleGroup.Item value={filter}>{filter}</ToggleGroup.Item>
+							<ToggleGroup.Item value={filter}
+								>{filter}</ToggleGroup.Item
+							>
 						{/each}
 					</ToggleGroup.Root>
 					<Input
@@ -318,8 +322,10 @@
 						placeholder={dbTab === "mine"
 							? "Search meals"
 							: "Search recipes"}
-						aria-label={dbTab === "mine" ? "Search meals" : "Search recipes"}
-						class="sm:w-[220px]"
+						aria-label={dbTab === "mine"
+							? "Search meals"
+							: "Search recipes"}
+						class="sm:w-55"
 						oninput={(event) => {
 							if (dbTab === "mine")
 								search = event.currentTarget.value;
@@ -336,46 +342,66 @@
 									<Card.Header>
 										<div class="min-w-0 flex-1">
 											<Card.Title>{meal.name}</Card.Title>
-											<Card.Description>{meal.note}</Card.Description>
+											<Card.Description
+												>{meal.note}</Card.Description
+											>
 										</div>
 										<Card.Action>
-											<Badge variant="secondary">{meal.category}</Badge>
+											<Badge variant="secondary"
+												>{meal.category}</Badge
+											>
 										</Card.Action>
 									</Card.Header>
 									<Card.Content>
-										<div class="flex items-center justify-between gap-2">
-											<span class="text-[10px] text-muted-foreground"
-												>{#if prepTime}{prepTime}{" · "}{/if}{meal.ingredientCount} ingredients</span
+										<div
+											class="flex items-center justify-between gap-2"
+										>
+											<span
+												class="text-[10px] text-muted-foreground"
+												>{#if prepTime}{prepTime}{" · "}{/if}{meal.ingredientCount}
+												ingredients</span
 											>
-											<div class="flex items-center gap-1">
+											<div
+												class="flex items-center gap-1"
+											>
 												<Button
 													variant="ghost"
 													size="icon-sm"
 													aria-label={`Edit ${meal.name}`}
 													title={`Edit ${meal.name}`}
-													onclick={() => openEditMeal(meal)}><PencilIcon
-													/></Button
+													onclick={() =>
+														openEditMeal(meal)}
+													><PencilIcon /></Button
 												>
 												<Button
 													variant="ghost"
 													size="icon-sm"
 													aria-label={`Duplicate ${meal.name}`}
 													title={`Duplicate ${meal.name}`}
-													onclick={() => duplicateMeal(meal)}><CopyIcon /></Button
+													onclick={() =>
+														duplicateMeal(meal)}
+													><CopyIcon /></Button
 												>
 												<Button
-													variant={publishedMealIds.has(meal.id)
+													variant={publishedMealIds.has(
+														meal.id,
+													)
 														? "secondary"
 														: "ghost"}
 													size="icon-sm"
-													aria-label={publishedMealIds.has(meal.id)
+													aria-label={publishedMealIds.has(
+														meal.id,
+													)
 														? `Stop sharing ${meal.name}`
 														: `Share ${meal.name} with the community`}
-													title={publishedMealIds.has(meal.id)
+													title={publishedMealIds.has(
+														meal.id,
+													)
 														? `Stop sharing ${meal.name}`
 														: `Share ${meal.name}`}
-													onclick={() => toggleShare(meal)}><GlobeIcon
-													/></Button
+													onclick={() =>
+														toggleShare(meal)}
+													><GlobeIcon /></Button
 												>
 												<Button
 													variant="ghost"
@@ -404,15 +430,23 @@
 						<Empty.Root>
 							<Empty.Header>
 								<Empty.Media><CookingPotIcon /></Empty.Media>
-								<Empty.Title>Your database is empty</Empty.Title>
+								<Empty.Title>Your database is empty</Empty.Title
+								>
 								<Empty.Description>
-									Add your first meal, or load the sample data to explore.
+									Add your first meal, or load the sample data
+									to explore.
 								</Empty.Description>
 							</Empty.Header>
 							<Empty.Content>
-								<div class="flex flex-wrap justify-center gap-2">
-									<Button onclick={openAddMeal}>Add a meal</Button>
-									<Button variant="outline" onclick={loadSamples}
+								<div
+									class="flex flex-wrap justify-center gap-2"
+								>
+									<Button onclick={openAddMeal}
+										>Add a meal</Button
+									>
+									<Button
+										variant="outline"
+										onclick={loadSamples}
 										>Load sample data</Button
 									>
 								</div>
@@ -437,26 +471,40 @@
 								<Card.Root>
 									<Card.Header>
 										<div class="min-w-0 flex-1">
-											<Card.Title>{recipe.name}</Card.Title>
-											<Card.Description>{recipe.note}</Card.Description>
+											<Card.Title
+												>{recipe.name}</Card.Title
+											>
+											<Card.Description
+												>{recipe.note}</Card.Description
+											>
 										</div>
 										<Card.Action>
-											<Badge variant="secondary">{recipe.category}</Badge>
+											<Badge variant="secondary"
+												>{recipe.category}</Badge
+											>
 										</Card.Action>
 									</Card.Header>
 									<Card.Content>
-										<div class="flex items-center justify-between gap-2">
-											<span class="text-[10px] text-muted-foreground"
-												>by {recipe.householdName} · {recipe.ingredients.length} ingredients</span
+										<div
+											class="flex items-center justify-between gap-2"
+										>
+											<span
+												class="text-[10px] text-muted-foreground"
+												>by {recipe.householdName} · {recipe
+													.ingredients.length} ingredients</span
 											>
-											<div class="flex items-center gap-1">
+											<div
+												class="flex items-center gap-1"
+											>
 												<Button
 													variant="outline"
 													size="icon-sm"
 													aria-label={`Add ${recipe.name} to your database`}
 													title={`Add ${recipe.name}`}
-													onclick={() => adoptSharedRecipe(recipe._id)}
-													><PlusIcon /></Button
+													onclick={() =>
+														adoptSharedRecipe(
+															recipe._id,
+														)}><PlusIcon /></Button
 												>
 											</div>
 										</div>
@@ -470,7 +518,8 @@
 								<Empty.Media><BookOpenIcon /></Empty.Media>
 								<Empty.Title>No recipes found</Empty.Title>
 								<Empty.Description>
-									Try a different search — or share one of yours.
+									Try a different search — or share one of
+									yours.
 								</Empty.Description>
 							</Empty.Header>
 						</Empty.Root>
@@ -502,7 +551,9 @@
 				initialName={editingMeal?.name ?? ""}
 				initialNote={editingMeal?.note ?? ""}
 				initialTime={editingMeal?.time ?? undefined}
-				initialMealTimes={editingMeal ? [...editingMeal.mealTimes] : ["dinner"]}
+				initialMealTimes={editingMeal
+					? [...editingMeal.mealTimes]
+					: ["dinner"]}
 				initialIngredients={editingMeal?.ingredients ?? []}
 				editingMeal={editingMeal
 					? {
@@ -511,7 +562,10 @@
 							mealTimes: [...editingMeal.mealTimes],
 						}
 					: null}
-				existingMeals={meals.map((meal) => ({ id: meal.id, name: meal.name }))}
+				existingMeals={meals.map((meal) => ({
+					id: meal.id,
+					name: meal.name,
+				}))}
 				idPrefix="meal-dialog"
 				onSaved={handleMealSaved}
 				onCancel={closeMealDialog}

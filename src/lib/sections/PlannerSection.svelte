@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ChevronLeft, ChevronRight } from "@lucide/svelte";
+	import BanIcon from "@lucide/svelte/icons/ban";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
@@ -21,6 +22,7 @@
 		weekLabelShort,
 	} from "$lib/dates.js";
 	import { errorMessage } from "$lib/errors.js";
+	import { excludedCellSet, weekdayIndex } from "$lib/exclusions.js";
 	import {
 		displayMealTime,
 		fallbackMealTimes,
@@ -101,6 +103,30 @@
 		viewingMember !== null && viewingMember._id === selfMemberId,
 	);
 	let savingMode = $state(false);
+	// The viewed member's opted-out (weekday, slot) cells. Exclusions
+	// apply to every displayed date, past or future: a fully excluded
+	// day or slot column is hidden outright, other excluded cells
+	// render grayed out. (Past plans are only unplanned from the save
+	// date onward, so hidden past meals still exist underneath.)
+	let exclusionSet = $derived(
+		excludedCellSet(viewingMember?.excludedCells),
+	);
+	function cellExcluded(date: string, slot: MealType): boolean {
+		return exclusionSet.has(`${weekdayIndex(date)}:${slot}`);
+	}
+	function dayFullyExcluded(date: string): boolean {
+		return MEAL_TYPES.every((type) => cellExcluded(date, type.id));
+	}
+	function visibleSlotTypes(dates: string[]): typeof MEAL_TYPES {
+		return MEAL_TYPES.filter((type) =>
+			dates.some((date) => !cellExcluded(date, type.id)),
+		);
+	}
+	let displayWeekDates = $derived(
+		currentWeek.filter((date) => !dayFullyExcluded(date)),
+	);
+	let daySlotTypes = $derived(visibleSlotTypes([anchorDate]));
+	let weekSlotTypes = $derived(visibleSlotTypes(displayWeekDates));
 
 	const mealsQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
@@ -525,11 +551,32 @@
 								<Badge>Today</Badge>
 							{/if}
 						</div>
-						{#each MEAL_TYPES as type (type.id)}
-							{@const meal = slotMeal(anchorDate, type.id)}
-							<div class="day-slot">
-								<h3>{type.label}</h3>
-								{#if isSkipped(anchorDate, type.id)}
+						{#if dayFullyExcluded(anchorDate)}
+							<div
+								class="empty-day-slot opacity-70"
+								title="Excluded in planner settings"
+							>
+								<p class="flex items-center gap-1.5">
+									<BanIcon size={13} /> No planning on {weekdayLabel(
+										anchorDate,
+									)}
+								</p>
+							</div>
+						{:else}
+							{#each daySlotTypes as type (type.id)}
+								{@const meal = slotMeal(anchorDate, type.id)}
+								<div class="day-slot">
+									<h3>{type.label}</h3>
+									{#if cellExcluded(anchorDate, type.id)}
+										<div
+											class="empty-day-slot opacity-70"
+											title="Excluded in planner settings"
+										>
+											<p class="flex items-center gap-1.5">
+												<BanIcon size={12} /> Excluded
+											</p>
+										</div>
+									{:else if isSkipped(anchorDate, type.id)}
 									<div class="empty-day-slot skipped">
 										<p>Skipped</p>
 										{#if canEditViewing}
@@ -617,11 +664,25 @@
 								{/if}
 							</div>
 						{/each}
+						{/if}
 					</div>
 				{:else}
 					<div class="week-scroll">
-						<div class="week-track">
-							{#each currentWeek as date (date)}
+						{#if displayWeekDates.length === 0}
+							<div
+								class="empty-day-slot opacity-70"
+								title="Excluded in planner settings"
+							>
+								<p class="flex items-center gap-1.5">
+									<BanIcon size={13} /> This whole week is excluded
+								</p>
+							</div>
+						{:else}
+							<div
+								class="week-track"
+								style={`grid-template-columns: repeat(${displayWeekDates.length}, 148px)`}
+							>
+								{#each displayWeekDates as date (date)}
 								<article
 									class="day"
 									class:selected={date === today}
@@ -630,11 +691,18 @@
 										<span>{weekdayLabel(date)}</span>
 										{#if date === today}<em>Today</em>{/if}
 									</div>
-									{#each MEAL_TYPES as type (type.id)}
+									{#each weekSlotTypes as type (type.id)}
 										{@const meal = slotMeal(date, type.id)}
 										<div class="slot">
 											<small>{type.label}</small>
-											{#if isSkipped(date, type.id)}
+											{#if cellExcluded(date, type.id)}
+												<span
+													class="empty-slot opacity-70"
+													title="Excluded in planner settings"
+													aria-disabled="true"
+													><BanIcon size={11} /> Excluded</span
+												>
+											{:else if isSkipped(date, type.id)}
 												{#if canEditViewing}
 													<div class="skipped-wrap">
 														<button
@@ -729,6 +797,7 @@
 								</article>
 							{/each}
 						</div>
+						{/if}
 					</div>
 				{/if}
 			</Card.Content>
@@ -742,6 +811,7 @@
 				callerMemberId={selfMemberId}
 				week={currentWeek}
 				canEdit={canEditViewing}
+				excludedCells={viewingMember.excludedCells ?? []}
 			/>
 		</Card.Root>
 	{/if}
@@ -1014,10 +1084,13 @@
 		border-style: solid;
 		border-radius: 9px;
 	}
-	.empty-slot:hover {
+	button.empty-slot:hover {
 		border-color: var(--primary);
 		color: var(--primary);
 		background: color-mix(in srgb, var(--primary) 8%, transparent);
+	}
+	.empty-slot[aria-disabled="true"] {
+		cursor: default;
 	}
 	.skipped-wrap {
 		display: flex;

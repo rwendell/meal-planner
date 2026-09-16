@@ -26,6 +26,20 @@ export const mealSlot = v.union(
 	v.literal("snack"),
 );
 
+// Weekday index matching Date#getDay(): 0 = Sunday … 6 = Saturday.
+export const weekday = v.union(
+	v.literal(0),
+	v.literal(1),
+	v.literal(2),
+	v.literal(3),
+	v.literal(4),
+	v.literal(5),
+	v.literal(6),
+);
+
+// A (weekday, meal-slot) cell the member opted out of planning.
+export const excludedCell = v.object({ day: weekday, slot: mealSlot });
+
 // A planner slot holds a meal, is unplanned (null), or is deliberately
 // skipped ("skip"). Skips are first-class values — never meal rows — so
 // they need no database entry and stay out of the meal list and groceries.
@@ -60,6 +74,10 @@ export default defineSchema({
 		// Each member's own planner view. Unset means "planner".
 		// Only the member themselves may change it.
 		plannerMode: v.optional(v.union(v.literal("planner"), v.literal("list"))),
+		// Planner cells the member opted out of (e.g. no weekends, no
+		// snacks). Unset/empty means everything is plannable. Only the
+		// member themselves may change it.
+		excludedCells: v.optional(v.array(excludedCell)),
 	}).index("by_household", ["householdId"]),
 	// Step 1 of the workflow: the meal database, shared household-wide.
 	meals: defineTable({

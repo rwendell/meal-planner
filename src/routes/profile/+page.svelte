@@ -17,14 +17,27 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { todayISO } from "$lib/dates.js";
 	import { errorMessage } from "$lib/errors.js";
+	import {
+		EXCLUSION_WEEKDAYS,
+		type ExcludedCell,
+		type ExclusionDay,
+		excludedCellSet,
+		exclusionKey,
+		sameExcludedCells,
+		sortExcludedCells,
+	} from "$lib/exclusions.js";
 	import { refKey, roster } from "$lib/households.svelte.js";
+	import { MEAL_TYPES, type MealType } from "$lib/meal-types.js";
 	import { session } from "$lib/session.svelte.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
-	type RosterEntry = NonNullable<NonNullable<typeof rosterQuery.data>[number]>;
+	type RosterEntry = NonNullable<
+		NonNullable<typeof rosterQuery.data>[number]
+	>;
 
 	const rosterQuery = useQuery(api.households.listHouseholds, () =>
 		roster.refs.length > 0
@@ -53,6 +66,9 @@
 	const createHousehold = useMutation(api.households.create);
 	const joinHousehold = useMutation(api.households.join);
 	const leaveHousehold = useMutation(api.households.leave);
+	const applyPlannerExclusions = useMutation(
+		api.households.applyPlannerExclusions,
+	);
 
 	const INVITE_CODE_PATTERN = /^[A-FHJ-KM-NP-TVX-Z2-9]{6}$/;
 
@@ -113,6 +129,126 @@
 	let joinError = $state("");
 	let createError = $state("");
 
+	// Planner exclusions: the member's own opted-out (weekday, slot)
+	// cells, edited through the page-level profile edit mode. A null
+	// draft means no local edits yet — it initializes from the server
+	// state on first toggle, so a slow member load can't clobber it.
+	// Saving unplans affected meals after confirmation.
+	let myMember = $derived(members.find((m) => m._id === myId) ?? null);
+	let savedExclusions = $derived<ExcludedCell[]>(
+		myMember?.excludedCells ?? [],
+	);
+	let exclusionDraft = $state<ExcludedCell[] | null>(null);
+	let confirmExclusionsOpen = $state(false);
+	let shownExclusions = $derived(
+		editingProfile ? (exclusionDraft ?? savedExclusions) : savedExclusions,
+	);
+	let shownExclusionSet = $derived(excludedCellSet(shownExclusions));
+	let exclusionsDirty = $derived(
+		editingProfile &&
+			exclusionDraft !== null &&
+			!sameExcludedCells(exclusionDraft, savedExclusions),
+	);
+
+	const exclusionImpactQuery = useQuery(api.households.exclusionImpact, () =>
+		session.session && exclusionsDirty
+			? {
+					householdId: session.session
+						.householdId as Id<"households">,
+					memberId: session.session
+						.memberId as Id<"householdMembers">,
+					callerMemberId: session.session
+						.memberId as Id<"householdMembers">,
+					fromDate: todayISO(),
+					cells: sortExcludedCells(exclusionDraft ?? []),
+				}
+			: "skip",
+	);
+	let impactMeals = $derived(exclusionImpactQuery.data?.meals ?? 0);
+	let impactPending = $derived(
+		exclusionsDirty &&
+			exclusionImpactQuery.data === undefined &&
+			!exclusionImpactQuery.error,
+	);
+
+	function draftCells(): ExcludedCell[] {
+		return (exclusionDraft ?? savedExclusions).map((cell) => ({ ...cell }));
+	}
+
+	function setCells(cells: ExcludedCell[], excluded: boolean): void {
+		const keys = new Set(
+			cells.map((cell) => exclusionKey(cell.day, cell.slot)),
+		);
+		const kept = draftCells().filter(
+			(cell) => !keys.has(exclusionKey(cell.day, cell.slot)),
+		);
+		exclusionDraft = excluded ? [...kept, ...cells] : kept;
+	}
+
+	function setSlotExcluded(slot: MealType, excluded: boolean): void {
+		setCells(
+			EXCLUSION_WEEKDAYS.map((row) => ({ day: row.day, slot })),
+			excluded,
+		);
+	}
+
+	const WEEKEND_DAYS: ExclusionDay[] = [0, 6];
+	const ALL_SLOTS: MealType[] = MEAL_TYPES.map((type) => type.id);
+
+	function presetCells(
+		days: ExclusionDay[],
+		slots: MealType[],
+	): ExcludedCell[] {
+		return days.flatMap((day) => slots.map((slot) => ({ day, slot })));
+	}
+
+	let weekendCells = $derived(presetCells(WEEKEND_DAYS, ALL_SLOTS));
+	let weekendsExcluded = $derived(
+		weekendCells.every((cell) =>
+			shownExclusionSet.has(exclusionKey(cell.day, cell.slot)),
+		),
+	);
+
+	function slotExcludedCount(slot: MealType): number {
+		return EXCLUSION_WEEKDAYS.filter((row) =>
+			shownExclusionSet.has(exclusionKey(row.day, slot)),
+		).length;
+	}
+
+	async function requestSaveExclusions(): Promise<void> {
+		if (!exclusionsDirty) return;
+		if (impactMeals > 0 && !confirmExclusionsOpen) {
+			confirmExclusionsOpen = true;
+			return;
+		}
+		await saveExclusions();
+	}
+
+	async function saveExclusions(): Promise<boolean> {
+		const current = session.session;
+		if (!current) return false;
+		try {
+			const result = await applyPlannerExclusions({
+				householdId: current.householdId as Id<"households">,
+				memberId: current.memberId as Id<"householdMembers">,
+				callerMemberId: current.memberId as Id<"householdMembers">,
+				fromDate: todayISO(),
+				cells: sortExcludedCells(exclusionDraft ?? []),
+			});
+			confirmExclusionsOpen = false;
+			exclusionDraft = null;
+			toast.success(
+				result.meals > 0
+					? `Exclusions saved — unplanned ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
+					: "Exclusions saved",
+			);
+			return true;
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't save exclusions."));
+			return false;
+		}
+	}
+
 	// Prefill the rename inputs from loaded data, resetting only when a
 	// different entity is shown so typing is never clobbered.
 	$effect(() => {
@@ -167,13 +303,16 @@
 				(isManager &&
 					ownerManagesPlansDraft !== null &&
 					ownerManagesPlansDraft !==
-						(household?.ownerManagesPlans ?? false))
+						(household?.ownerManagesPlans ?? false)) ||
+				exclusionsDirty
 			) ||
+			impactPending ||
 			savingProfile,
 	);
 
 	async function startEditingProfile(): Promise<void> {
 		if (!activeEntry) return;
+		exclusionDraft = null;
 		editingProfile = true;
 		await tick();
 		nameInput?.focus();
@@ -187,6 +326,8 @@
 			inviteCodeEdit = activeEntry.household.inviteCode;
 		}
 		ownerManagesPlansDraft = null;
+		exclusionDraft = null;
+		confirmExclusionsOpen = false;
 		editingProfile = false;
 	}
 
@@ -212,11 +353,19 @@
 			toast.error("Use exactly 6 supported letters or digits.");
 			return;
 		}
+		// Exclusions confirm first: nothing else saves until the user
+		// confirms the unplan (or there is nothing to confirm). The
+		// confirm dialog re-enters here with the dialog already open.
+		if (exclusionsDirty) {
+			await requestSaveExclusions();
+			if (confirmExclusionsOpen || exclusionsDirty) return;
+		}
 		const baselineOwnerPlans = household?.ownerManagesPlans ?? false;
 		const pendingOwnerPlans = ownerManagesPlansDraft;
 		const memberChanged = memberName !== entry.member.name;
 		const householdChanged = householdName !== entry.household.name;
-		const inviteCodeChanged = pendingInviteCode !== entry.household.inviteCode;
+		const inviteCodeChanged =
+			pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
 			isManager &&
 			pendingOwnerPlans !== null &&
@@ -239,12 +388,15 @@
 						householdId: current.householdId as Id<"households">,
 						memberId: current.memberId as Id<"householdMembers">,
 						name: memberName,
-						callerMemberId: current.memberId as Id<"householdMembers">,
+						callerMemberId:
+							current.memberId as Id<"householdMembers">,
 					});
 					toast.success("Name updated");
 				} catch (error) {
 					failed = true;
-					toast.error(errorMessage(error, "Couldn't update your name."));
+					toast.error(
+						errorMessage(error, "Couldn't update your name."),
+					);
 				}
 			}
 			if (householdChanged) {
@@ -258,7 +410,10 @@
 				} catch (error) {
 					failed = true;
 					toast.error(
-						errorMessage(error, "Couldn't update the household name."),
+						errorMessage(
+							error,
+							"Couldn't update the household name.",
+						),
 					);
 				}
 			}
@@ -272,14 +427,17 @@
 					toast.success("Invite code updated");
 				} catch (error) {
 					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the invite code."));
+					toast.error(
+						errorMessage(error, "Couldn't update the invite code."),
+					);
 				}
 			}
 			if (ownerPlansChanged) {
 				try {
 					await setOwnerManagesPlans({
 						householdId: current.householdId as Id<"households">,
-						callerMemberId: current.memberId as Id<"householdMembers">,
+						callerMemberId:
+							current.memberId as Id<"householdMembers">,
 						enabled: pendingOwnerPlans,
 					});
 					toast.success(
@@ -289,7 +447,9 @@
 					);
 				} catch (error) {
 					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the setting."));
+					toast.error(
+						errorMessage(error, "Couldn't update the setting."),
+					);
 				}
 			}
 			if (!failed) {
@@ -412,7 +572,9 @@
 		<div class="profile-grid">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div class="grid min-w-0 flex-1 gap-1">
-					<h1 class="m-0 font-serif text-[26px] leading-tight tracking-[-0.02em]">
+					<h1
+						class="m-0 font-serif text-[26px] leading-tight tracking-[-0.02em]"
+					>
 						Profile
 					</h1>
 					<p class="m-0 text-sm text-muted-foreground">
@@ -433,13 +595,18 @@
 				{/if}
 			</div>
 			{#if activeEntry}
-				<div class="flex items-center gap-3 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs">
+				<div
+					class="flex items-center gap-3 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs"
+				>
 					<MemberAvatar name={myName} size="lg" />
 					{#if !editingProfile}
 						<div class="min-w-0 flex-1">
 							<p class="m-0 truncate font-semibold">{myName}</p>
-							<p class="m-0 truncate text-xs text-muted-foreground">
-								{activeEntry.isOwner ? "Owner" : "Member"} · Member of {activeEntry.household.name}
+							<p
+								class="m-0 truncate text-xs text-muted-foreground"
+							>
+								{activeEntry.isOwner ? "Owner" : "Member"} · Member
+								of {activeEntry.household.name}
 							</p>
 						</div>
 					{:else}
@@ -459,7 +626,8 @@
 								class="h-8"
 								disabled={savingProfile}
 								onkeydown={(event) => {
-									if (event.key === "Escape") cancelEditingProfile();
+									if (event.key === "Escape")
+										cancelEditingProfile();
 								}}
 							/>
 						</form>
@@ -471,17 +639,22 @@
 						<Card.Title>Current household</Card.Title>
 						<Card.Description>
 							{activeEntry.memberCount}
-							{activeEntry.memberCount === 1 ? "member" : "members"} · rename or share the invite
-							code
+							{activeEntry.memberCount === 1
+								? "member"
+								: "members"} · rename or share the invite code
 						</Card.Description>
 					</Card.Header>
 					<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
 						<div class="grid content-start gap-1.5">
-							<span class="text-xs font-semibold text-muted-foreground">Household name</span>
+							<span
+								class="text-xs font-semibold text-muted-foreground"
+								>Household name</span
+							>
 							{#if editingProfile}
 								<form
 									class="grid gap-2"
-									onsubmit={(event) => void saveProfileEdits(event)}
+									onsubmit={(event) =>
+										void saveProfileEdits(event)}
 								>
 									<Input
 										id="household-name"
@@ -494,7 +667,8 @@
 										aria-label="Household name"
 										disabled={savingProfile}
 										onkeydown={(event) => {
-											if (event.key === "Escape") cancelEditingProfile();
+											if (event.key === "Escape")
+												cancelEditingProfile();
 										}}
 									/>
 								</form>
@@ -525,22 +699,30 @@
 										class="uppercase tracking-[0.2em]"
 										disabled={savingProfile}
 										onkeydown={(event) => {
-											if (event.key === "Escape") cancelEditingProfile();
+											if (event.key === "Escape")
+												cancelEditingProfile();
 										}}
 									/>
 								{:else}
-									<InviteCode code={activeEntry.household.inviteCode} />
+									<InviteCode
+										code={activeEntry.household.inviteCode}
+									/>
 								{/if}
 							</div>
 							{#if editingProfile && inviteCodeError !== ""}
-								<p class="m-0 text-xs font-semibold text-destructive" role="alert">
+								<p
+									class="m-0 text-xs font-semibold text-destructive"
+									role="alert"
+								>
 									{inviteCodeError}
 								</p>
 							{/if}
 						</div>
 						<Separator class="sm:col-span-2" />
 						<div class="grid gap-2 sm:col-span-2">
-							<span class="text-xs font-semibold text-muted-foreground">
+							<span
+								class="text-xs font-semibold text-muted-foreground"
+							>
 								Members · {members.length}
 							</span>
 							{#if householdQuery.data === undefined}
@@ -551,16 +733,31 @@
 									This household no longer exists.
 								</p>
 							{:else if members.length === 0}
-								<p class="m-0 text-sm text-muted-foreground">No members yet.</p>
+								<p class="m-0 text-sm text-muted-foreground">
+									No members yet.
+								</p>
 							{:else}
 								{#each members as member (member._id)}
 									{@const isSelf = member._id === myId}
-									<div class="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5">
-										<div class="flex min-w-0 flex-wrap items-center gap-1.5">
-											<strong class="truncate text-sm">{member.name}</strong>
-											{#if isSelf}<Badge variant="secondary" class="shrink-0">You</Badge>{/if}
+									<div
+										class="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5"
+									>
+										<div
+											class="flex min-w-0 flex-wrap items-center gap-1.5"
+										>
+											<strong class="truncate text-sm"
+												>{member.name}</strong
+											>
+											{#if isSelf}<Badge
+													variant="secondary"
+													class="shrink-0">You</Badge
+												>{/if}
 											{#if household?.ownerId === member._id}
-												<Badge variant="secondary" class="shrink-0">Owner</Badge>
+												<Badge
+													variant="secondary"
+													class="shrink-0"
+													>Owner</Badge
+												>
 											{/if}
 										</div>
 										{#if !isSelf && isManager}
@@ -583,17 +780,25 @@
 														<AlertDialog.Title>
 															Remove {member.name}?
 														</AlertDialog.Title>
-														<AlertDialog.Description>
-															{member.name} will lose access to this household
-															and their planned meals will be removed.
+														<AlertDialog.Description
+														>
+															{member.name} will lose
+															access to this household
+															and their planned meals
+															will be removed.
 														</AlertDialog.Description>
 													</AlertDialog.Header>
 													<AlertDialog.Footer>
-														<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+														<AlertDialog.Cancel
+															>Cancel</AlertDialog.Cancel
+														>
 														<AlertDialog.Action
 															variant="destructive"
 															onclick={() =>
-																removeMemberRow(member._id, member.name)}
+																removeMemberRow(
+																	member._id,
+																	member.name,
+																)}
 														>
 															Remove
 														</AlertDialog.Action>
@@ -608,7 +813,9 @@
 						{#if isManager}
 							<Separator class="sm:col-span-2" />
 							<div class="grid gap-2 sm:col-span-2">
-								<span class="text-xs font-semibold text-muted-foreground">
+								<span
+									class="text-xs font-semibold text-muted-foreground"
+								>
 									Owner settings
 								</span>
 								<div class="flex items-start gap-2.5">
@@ -620,7 +827,8 @@
 												ownerManagesPlansDraft = value;
 											}
 										}}
-										disabled={!editingProfile || savingProfile}
+										disabled={!editingProfile ||
+											savingProfile}
 										class="mt-0.5"
 									/>
 									<span class="grid gap-0.5">
@@ -629,11 +837,15 @@
 											class="cursor-pointer text-sm font-medium"
 											>Owner can plan for everyone</label
 										>
-										<span class="text-xs text-muted-foreground">
-											When on, the owner can switch between members'
-											plans and pick meals for them. Everyone else only
-											ever sees and edits their own plan. Changes apply
-											when profile edits are saved.
+										<span
+											class="text-xs text-muted-foreground"
+										>
+											When on, the owner can switch
+											between members' plans and pick
+											meals for them. Everyone else only
+											ever sees and edits their own plan.
+											Changes apply when profile edits are
+											saved.
 										</span>
 									</span>
 								</div>
@@ -643,22 +855,216 @@
 				</Card.Root>
 			{/if}
 
+			{#if activeEntry}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>Planner exclusions</Card.Title>
+						<Card.Description>
+							Skip days or meals you never plan — weekends off, no
+							snacks, and so on. Checked boxes are excluded.
+							Saving unplans affected meals from today onward.
+						</Card.Description>
+					</Card.Header>
+					<Card.Content class="grid gap-3">
+						{#if householdQuery.data === undefined}
+							<Skeleton class="h-40" />
+						{:else}
+							<fieldset class="m-0 grid gap-3 border-0 p-0">
+								<legend class="sr-only"
+									>Excluded days and meals</legend
+								>
+								<div class="grid gap-3">
+									<div class="flex flex-wrap gap-2">
+										{#if shownExclusions.length > 0}
+											<Button
+												variant="ghost"
+												size="sm"
+												disabled={!editingProfile ||
+													savingProfile}
+												onclick={() => {
+													exclusionDraft = [];
+												}}
+											>
+												Clear all
+											</Button>
+										{/if}
+									</div>
+									<div class="grid gap-1">
+										<div
+											class="grid grid-cols-[minmax(5.5rem,1.2fr)_repeat(7,minmax(1.25rem,1fr))] items-center gap-1 px-1"
+										>
+											<span></span>
+											{#each EXCLUSION_WEEKDAYS as row (row.day)}
+												<span
+													class="flex items-start justify-center text-center"
+												>
+													<span
+														class="hidden text-[10px] font-semibold text-muted-foreground sm:inline"
+													>
+														{row.label}
+													</span>
+													<span
+														class="text-[10px] font-semibold text-muted-foreground sm:hidden"
+														title={row.label}
+													>
+														{row.label.slice(0, 3)}
+													</span>
+												</span>
+											{/each}
+										</div>
+									</div>
+									<div class="grid gap-1">
+										{#each MEAL_TYPES as slot (slot.id)}
+											{@const excluded =
+												slotExcludedCount(slot.id)}
+											<div
+												class="grid grid-cols-[minmax(5.5rem,1.2fr)_repeat(7,minmax(1.25rem,1fr))] items-center gap-1 rounded-lg px-1 py-1 odd:bg-muted/40"
+											>
+												<span
+													class="flex min-w-0 items-center gap-1.5"
+												>
+													<Checkbox
+														checked={excluded ===
+															EXCLUSION_WEEKDAYS.length}
+														indeterminate={excluded >
+															0 &&
+															excluded <
+																EXCLUSION_WEEKDAYS.length}
+														onCheckedChange={(
+															value,
+														) => {
+															if (value === true)
+																setSlotExcluded(
+																	slot.id,
+																	true,
+																);
+															else if (
+																value === false
+															)
+																setSlotExcluded(
+																	slot.id,
+																	false,
+																);
+														}}
+														disabled={!editingProfile ||
+															savingProfile}
+														aria-label={`Exclude all ${slot.label.toLowerCase()} meals`}
+													/>
+													<span
+														class="truncate text-sm font-medium"
+													>
+														{slot.label}
+													</span>
+												</span>
+												{#each EXCLUSION_WEEKDAYS as row (row.day)}
+													<span
+														class="flex justify-center"
+													>
+														<Checkbox
+															checked={shownExclusionSet.has(
+																exclusionKey(
+																	row.day,
+																	slot.id,
+																),
+															)}
+															onCheckedChange={(
+																value,
+															) => {
+																if (
+																	typeof value ===
+																	"boolean"
+																)
+																	setCells(
+																		[
+																			{
+																				day: row.day,
+																				slot: slot.id,
+																			},
+																		],
+																		value,
+																	);
+															}}
+															disabled={!editingProfile ||
+																savingProfile}
+															aria-label={`Exclude ${slot.label} on ${row.label}`}
+														/>
+													</span>
+												{/each}
+											</div>
+										{/each}
+									</div>
+								</div>
+							</fieldset>
+						{/if}
+						{#if editingProfile && exclusionsDirty}
+							{#if exclusionImpactQuery.data === undefined && !exclusionImpactQuery.error}
+								<p class="m-0 text-xs text-muted-foreground">
+									Checking affected meals…
+								</p>
+							{:else if impactMeals > 0}
+								<p
+									class="m-0 text-xs font-semibold text-amber-600 dark:text-amber-500"
+								>
+									Saving will unplan {impactMeals}
+									{impactMeals === 1 ? "meal" : "meals"} from today
+									onward.
+								</p>
+							{:else}
+								<p class="m-0 text-xs text-muted-foreground">
+									No planned meals are affected.
+								</p>
+							{/if}
+						{/if}
+					</Card.Content>
+				</Card.Root>
+			{/if}
+
+			<AlertDialog.Root bind:open={confirmExclusionsOpen}>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>
+							Unplan {impactMeals}
+							{impactMeals === 1 ? "meal" : "meals"}?
+						</AlertDialog.Title>
+						<AlertDialog.Description>
+							These planned meals fall on days you're excluding.
+							Saving will unplan them from today onward and update
+							groceries. This can't be undone.
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+						<AlertDialog.Action
+							disabled={savingProfile}
+							onclick={() => void saveProfileEdits()}
+						>
+							Unplan & save
+						</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+
 			<Card.Root>
 				<Card.Header>
 					<Card.Title>Households</Card.Title>
 					<Card.Description>
-						Switch between households, or leave ones you no longer need.
+						Switch between households, or leave ones you no longer
+						need.
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="grid gap-2 sm:grid-cols-2">
 					{#if entries.length === 0}
-						<p class="m-0 text-sm text-muted-foreground sm:col-span-2">
-							No households yet — join one below or create a new household.
+						<p
+							class="m-0 text-sm text-muted-foreground sm:col-span-2"
+						>
+							No households yet — join one below or create a new
+							household.
 						</p>
 					{:else}
 						{#each entries as entry (`${entry.household._id}:${entry.member._id}`)}
 							{@const isActive =
-								entry.household._id === session.session?.householdId &&
+								entry.household._id ===
+									session.session?.householdId &&
 								entry.member._id === session.session?.memberId}
 							<div
 								class={cn(
@@ -667,16 +1073,26 @@
 								)}
 							>
 								<div class="min-w-0 flex-1">
-									<div class="flex flex-wrap items-center gap-1.5">
-										<strong class="truncate">{entry.household.name}</strong>
-										{#if isActive}<Badge>Current</Badge>{/if}
+									<div
+										class="flex flex-wrap items-center gap-1.5"
+									>
+										<strong class="truncate"
+											>{entry.household.name}</strong
+										>
+										{#if isActive}<Badge>Current</Badge
+											>{/if}
 										<Badge variant="secondary">
 											{entry.isOwner ? "Owner" : "Member"}
 										</Badge>
 									</div>
-									<p class="m-0 mt-1 font-mono text-xs text-muted-foreground">
+									<p
+										class="m-0 mt-1 font-mono text-xs text-muted-foreground"
+									>
 										{entry.household.inviteCode} · {entry.memberCount}
-										{entry.memberCount === 1 ? "member" : "members"} · as {entry.member.name}
+										{entry.memberCount === 1
+											? "member"
+											: "members"} · as {entry.member
+											.name}
 									</p>
 								</div>
 								<div class="flex shrink-0 gap-2">
@@ -684,7 +1100,8 @@
 										<Button
 											variant="outline"
 											size="sm"
-											onclick={() => switchHousehold(entry)}
+											onclick={() =>
+												switchHousehold(entry)}
 										>
 											Switch
 										</Button>
@@ -705,18 +1122,25 @@
 										<AlertDialog.Content>
 											<AlertDialog.Header>
 												<AlertDialog.Title>
-													Leave {entry.household.name}?
+													Leave {entry.household
+														.name}?
 												</AlertDialog.Title>
 												<AlertDialog.Description>
-													You will lose access to this household and your
-													planned meals there will be removed.
+													You will lose access to this
+													household and your planned
+													meals there will be removed.
 												</AlertDialog.Description>
 											</AlertDialog.Header>
 											<AlertDialog.Footer>
-												<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+												<AlertDialog.Cancel
+													>Cancel</AlertDialog.Cancel
+												>
 												<AlertDialog.Action
 													variant="destructive"
-													onclick={() => handleLeaveHousehold(entry)}
+													onclick={() =>
+														handleLeaveHousehold(
+															entry,
+														)}
 												>
 													Leave
 												</AlertDialog.Action>
@@ -734,17 +1158,22 @@
 				<Card.Header>
 					<Card.Title>Join or create</Card.Title>
 					<Card.Description>
-						Use an invite code to join another household, or start a fresh one.
+						Use an invite code to join another household, or start a
+						fresh one.
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="grid gap-6 sm:grid-cols-2">
 					<div class="grid content-start gap-2">
-						<h3 class="m-0 text-sm font-semibold">Join with code</h3>
+						<h3 class="m-0 text-sm font-semibold">
+							Join with code
+						</h3>
 						<p class="m-0 text-xs text-muted-foreground">
 							Ask a member for their 6-character invite code.
 						</p>
 						<form class="grid gap-2" onsubmit={handleJoinHousehold}>
-							<label for="join-code" class="grid gap-1.5 text-xs font-semibold text-muted-foreground"
+							<label
+								for="join-code"
+								class="grid gap-1.5 text-xs font-semibold text-muted-foreground"
 								>Invite code<Input
 									id="join-code"
 									bind:value={joinCode}
@@ -757,11 +1186,16 @@
 								/></label
 							>
 							{#if joinError}
-								<p class="m-0 text-xs font-semibold text-destructive" role="alert">
+								<p
+									class="m-0 text-xs font-semibold text-destructive"
+									role="alert"
+								>
 									{joinError}
 								</p>
 							{/if}
-							<Button type="submit" disabled={!joinCode.trim()}>Join</Button>
+							<Button type="submit" disabled={!joinCode.trim()}
+								>Join</Button
+							>
 						</form>
 					</div>
 					<div class="grid content-start gap-2">
@@ -769,25 +1203,35 @@
 						<p class="m-0 text-xs text-muted-foreground">
 							Creates a new kitchen and switches you to it.
 						</p>
-						<form class="grid gap-2" onsubmit={handleCreateHousehold}>
+						<form
+							class="grid gap-2"
+							onsubmit={handleCreateHousehold}
+						>
 							<label
 								for="new-household-name"
 								class="grid gap-1.5 text-xs font-semibold text-muted-foreground"
-							>Household name<Input
-								id="new-household-name"
-								bind:value={newHouseholdName}
-								required
-								maxlength={40}
-								placeholder="e.g. Smith Kitchen"
-								autocomplete="off"
-							/></label
-						>
-						{#if createError}
-								<p class="m-0 text-xs font-semibold text-destructive" role="alert">
+								>Household name<Input
+									id="new-household-name"
+									bind:value={newHouseholdName}
+									required
+									maxlength={40}
+									placeholder="e.g. Smith Kitchen"
+									autocomplete="off"
+								/></label
+							>
+							{#if createError}
+								<p
+									class="m-0 text-xs font-semibold text-destructive"
+									role="alert"
+								>
 									{createError}
 								</p>
 							{/if}
-							<Button type="submit" disabled={!newHouseholdName.trim()}>Create</Button>
+							<Button
+								type="submit"
+								disabled={!newHouseholdName.trim()}
+								>Create</Button
+							>
 						</form>
 					</div>
 				</Card.Content>
@@ -812,7 +1256,6 @@
 		display: grid;
 		gap: 12px;
 		align-items: start;
-		max-width: 46rem;
 	}
 	@media (min-width: 560px) {
 		main {

@@ -10,6 +10,11 @@ function assertDate(date: string): void {
 	if (!ISO_DATE.test(date)) throw new Error("Invalid date.");
 }
 
+/** 0–6 weekday index (Sunday-first, like Date#getDay) of an ISO date. */
+function weekdayOf(date: string): number {
+	return new Date(`${date}T12:00:00Z`).getUTCDay();
+}
+
 async function assertMember(
 	ctx: QueryCtx,
 	householdId: Id<"households">,
@@ -123,6 +128,15 @@ export const setSlot = mutation({
 			args.memberId,
 			args.callerMemberId,
 		);
+		if (args.mealId !== null) {
+			const member = await ctx.db.get("householdMembers", args.memberId);
+			const excluded = new Set(
+				(member?.excludedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+			);
+			if (excluded.has(`${weekdayOf(args.date)}:${args.slot}`)) {
+				throw new Error("That day is excluded from your planner.");
+			}
+		}
 		if (args.mealId !== null && args.mealId !== "skip") {
 			const meal = await ctx.db.get("meals", args.mealId);
 			if (!meal || meal.householdId !== args.householdId) {
