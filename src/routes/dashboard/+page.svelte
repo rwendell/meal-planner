@@ -19,9 +19,9 @@
 		<PlannerSection />
 	</section>
 	<section id="dashboard-meals" aria-label="Meal database">
-		<MealsSection />
+		<MealsSection hero={false} />
 	</section>
 	<section id="dashboard-shopping" aria-label="Shopping list">
-		<ShoppingSection />
+		<ShoppingSection hero={false} />
 	</section>
 </div>

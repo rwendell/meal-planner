@@ -10,6 +10,7 @@
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import MealEditor from "$lib/components/MealEditor.svelte";
+	import PlannerHero from "$lib/components/PlannerHero.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
@@ -57,6 +58,10 @@
 		"Dinner",
 		"Snack",
 	];
+
+	// Pages view shows the shared planner hero above the database; the
+	// dashboard already has the planner's hero, so it opts out.
+	let { hero = true }: { hero?: boolean } = $props();
 
 	let search = $state("");
 	let category = $state<"All" | MealCategory>("All");
@@ -277,7 +282,8 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<main class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20">
+<main class="mx-auto flex max-w-[1180px] flex-col gap-4 px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20">
+	{#if hero}<PlannerHero />{/if}
 	<Card.Root>
 		<Card.Header>
 			<Card.Title id="meals-title">Meals</Card.Title>

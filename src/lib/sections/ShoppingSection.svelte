@@ -3,6 +3,7 @@
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import { copyText } from "$lib/clipboard.js";
+	import PlannerHero from "$lib/components/PlannerHero.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
@@ -26,6 +27,10 @@
 	}
 
 	let householdId = $derived(session.session?.householdId ?? null);
+	// Pages view shows the shared planner hero above the list (and the
+	// list follows the hero's week); the dashboard already has the
+	// planner's hero, so it opts out.
+	let { hero = true }: { hero?: boolean } = $props();
 	// The unified list covers everyone's plans for the week the planner is
 	// on, so planning next week shows next week's groceries.
 	let listDates = $derived(weekDates(plannerWeek.anchor));
@@ -121,8 +126,9 @@
 </script>
 
 <main
-	class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
+	class="mx-auto flex max-w-[1180px] flex-col gap-4 px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
 >
+	{#if hero}<PlannerHero />{/if}
 	<Card.Root>
 		<Card.Header>
 			<Card.Title id="shopping-title">Shopping list</Card.Title>

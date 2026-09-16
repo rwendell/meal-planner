@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { ChevronLeft, ChevronRight } from "@lucide/svelte";
 	import BanIcon from "@lucide/svelte/icons/ban";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import XIcon from "@lucide/svelte/icons/x";
@@ -7,12 +6,12 @@
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
 	import MealPicker from "$lib/components/MealPicker.svelte";
+	import PlannerHero from "$lib/components/PlannerHero.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import {
-		addDays,
 		formatMonthDay,
 		formatShort,
 		todayISO,
@@ -292,19 +291,6 @@
 		return `${weekdayLabel(date)}, ${formatShort(date)}`;
 	}
 
-	function stepView(direction: 1 | -1): void {
-		// List mode is always week-based; planner day view steps one day.
-		const step =
-			mode === "list" || effectiveView !== "day"
-				? direction * 7
-				: direction;
-		plannerWeek.set(addDays(anchorDate, step));
-	}
-
-	function goToday(): void {
-		plannerWeek.set(today);
-	}
-
 	function openPicker(date: string, slot: MealType): void {
 		const slotLabel =
 			MEAL_TYPES.find((type) => type.id === slot)?.label ?? slot;
@@ -502,42 +488,10 @@
 <main
 	class="mx-auto flex max-w-[1180px] flex-col gap-4 px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-7 lg:pt-7 lg:pb-20"
 >
-	<Card.Root id="planner" class="bg-muted">
-		<Card.Header>
-			<Card.Title
-				class="font-serif text-[clamp(42px,9vw,64px)] leading-[0.95] tracking-[-0.045em]"
-			>
-				{viewHeading}
-			</Card.Title>
-		</Card.Header>
-		<Card.Content>
-			<div class="flex items-center gap-2">
-				<Button
-					variant="outline"
-					size="icon"
-					class="text-[18px] leading-none"
-					aria-label={mode === "list" || effectiveView !== "day"
-						? "Previous week"
-						: "Previous day"}
-					onclick={() => stepView(-1)}
-				>
-					<ChevronLeft />
-				</Button>
-				<Button variant="outline" size="default" onclick={goToday}
-					>Today</Button
-				>
-				<Button
-					variant="outline"
-					size="icon"
-					class="text-[18px] leading-none"
-					aria-label={mode === "list" || effectiveView !== "day"
-						? "Next week"
-						: "Next day"}
-					onclick={() => stepView(1)}><ChevronRight /></Button
-				>
-			</div>
-		</Card.Content>
-	</Card.Root>
+	<PlannerHero
+		heading={viewHeading}
+		dayStep={mode === "planner" && effectiveView === "day"}
+	/>
 
 	{#if mode === "planner"}
 		<Card.Root>
