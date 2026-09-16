@@ -1,8 +1,10 @@
 <script lang="ts">
-		import { useMutation, useQuery } from "convex-svelte";
+	import { ChevronLeft, ChevronRight } from "@lucide/svelte";
+	import PlusIcon from "@lucide/svelte/icons/plus";
+	import XIcon from "@lucide/svelte/icons/x";
+	import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
-	import Icon from "$lib/components/Icon.svelte";
 	import MealPicker from "$lib/components/MealPicker.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -39,7 +41,7 @@
 		name: string;
 		category: MealCategory;
 		note: string;
-		time: string;
+		time: number | null | undefined;
 		color: string;
 		ingredientCount: number;
 		mealTimes: MealType[];
@@ -89,9 +91,7 @@
 	// to your own — unless the household lets the owner manage
 	// everyone's plans.
 	let canEditViewing = $derived(
-		!viewingMember ||
-			viewingMember._id === selfMemberId ||
-			canManageOthers,
+		!viewingMember || viewingMember._id === selfMemberId || canManageOthers,
 	);
 	// Each member owns their own planner view: the mode shown follows
 	// whoever you're viewing, and the toggle only ever writes your own
@@ -110,8 +110,7 @@
 			? {
 					householdId: householdId as Id<"households">,
 					memberId: viewingMember._id,
-					dates:
-						mode === "list" ? currentWeek : visibleDates,
+					dates: mode === "list" ? currentWeek : visibleDates,
 				}
 			: "skip",
 	);
@@ -160,7 +159,12 @@
 	let planMap = $derived.by(() => {
 		const map = new Map<string, Record<MealType, string | null>>();
 		for (const date of visibleDates) {
-			map.set(date, { breakfast: null, lunch: null, dinner: null, snack: null });
+			map.set(date, {
+				breakfast: null,
+				lunch: null,
+				dinner: null,
+				snack: null,
+			});
 		}
 		for (const row of daysQuery.data ?? []) {
 			map.set(row.date, {
@@ -345,7 +349,13 @@
 		if (!target) return;
 		const { date, slot, dayLabel: label } = pickerTarget;
 		const ok = await runPlanMutation(
-			() => setSlot({ ...target, date, slot, mealId: mealId as Id<"meals"> }),
+			() =>
+				setSlot({
+					...target,
+					date,
+					slot,
+					mealId: mealId as Id<"meals">,
+				}),
 			() => `${name} added to ${label}${ownerSuffix()}`,
 		);
 		if (ok) closePicker();
@@ -370,7 +380,8 @@
 			MEAL_TYPES.find((type) => type.id === slot)?.label ?? slot;
 		await runPlanMutation(
 			() => setSlot({ ...target, date, slot, mealId: null }),
-			() => `${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`,
+			() =>
+				`${label} on ${dayLabel(date)} back to unplanned${ownerSuffix()}`,
 		);
 	}
 
@@ -473,32 +484,30 @@
 		</Card.Header>
 		<Card.Content>
 			<div class="date-nav">
-					<Button
-						variant="outline"
-						size="icon"
-						class="text-[18px] leading-none"
-						aria-label={mode === "list" ||
-						effectiveView !== "day"
-							? "Previous week"
-							: "Previous day"}
-						onclick={() => stepView(-1)}>‹</Button
-					>
-					<Button
-						variant="outline"
-						size="default"
-						onclick={goToday}>Today</Button
-					>
-					<Button
-						variant="outline"
-						size="icon"
-						class="text-[18px] leading-none"
-						aria-label={mode === "list" ||
-						effectiveView !== "day"
-							? "Next week"
-							: "Next day"}
-						onclick={() => stepView(1)}>›</Button
-					>
-				</div>
+				<Button
+					variant="outline"
+					size="icon"
+					class="text-[18px] leading-none"
+					aria-label={mode === "list" || effectiveView !== "day"
+						? "Previous week"
+						: "Previous day"}
+					onclick={() => stepView(-1)}
+				>
+					<ChevronLeft />
+				</Button>
+				<Button variant="outline" size="default" onclick={goToday}
+					>Today</Button
+				>
+				<Button
+					variant="outline"
+					size="icon"
+					class="text-[18px] leading-none"
+					aria-label={mode === "list" || effectiveView !== "day"
+						? "Next week"
+						: "Next day"}
+					onclick={() => stepView(1)}><ChevronRight /></Button
+				>
+			</div>
 		</Card.Content>
 	</Card.Root>
 
@@ -506,195 +515,234 @@
 		<Card.Root>
 			{@render viewControls()}
 			<Card.Content>
-			{#if effectiveView === "day"}
-				<div class="day-detail">
-					<div class="day-detail-head">
-						<h2 class="m-0 text-[22px]">{weekdayLabel(anchorDate)}</h2>
-						{#if anchorDate === today}
-							<Badge>Today</Badge>
-						{/if}
-					</div>
-					{#each MEAL_TYPES as type (type.id)}
-						{@const meal = slotMeal(anchorDate, type.id)}
-						<div class="day-slot">
-							<h3>{type.label}</h3>
-							{#if isSkipped(anchorDate, type.id)}
-								<div class="empty-day-slot skipped">
-									<p>Skipped</p>
-									{#if canEditViewing}
-										<button
-											type="button"
-											class="empty-slot"
-											onclick={() =>
-												openPicker(anchorDate, type.id)}
-											><Icon name="plus" size={11} /> Change</button
-										>
-										<button
-											type="button"
-											class="chip-remove"
-											aria-label={`Unskip ${type.label}`}
-											title="Back to unplanned"
-											onclick={() =>
-												unskipSlot(anchorDate, type.id)}
-											><Icon name="close" size={11} /></button
-										>
-									{/if}
-								</div>
-							{:else if meal}
-								{@const prepTime = displayMealTime(meal.time)}
-								<div
-									class="day-meal-card"
-									style={`--meal-color: ${meal.color}`}
-								>
-									<div class="day-meal-content">
-										<strong>{meal.name}</strong>
-										<p class="day-meal-note">
-											{meal.note || "No note added"}
-										</p>
-										<div class="day-meal-meta">
-											{#if prepTime}<Badge variant="secondary">{prepTime}</Badge>{/if}
-											<Badge variant="outline">
-												{meal.ingredientCount > 0
-													? `${meal.ingredientCount} ingredient${meal.ingredientCount === 1 ? "" : "s"}`
-													: "No groceries"}
-											</Badge>
-										</div>
-									</div>
-									{#if canEditViewing}
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Remove ${meal.name} from ${type.label}`}
-											title={`Remove ${meal.name}`}
-											onclick={() =>
-												removeMeal(anchorDate, type.id)}
-											><Icon name="close" size={11} /></Button
-										>
-									{/if}
-								</div>
-							{:else}
-								<div class="empty-day-slot">
-									<p>No meal planned</p>
-									{#if canEditViewing}
-										<Button
-											variant="outline"
-											size="sm"
-											onclick={() =>
-												openPicker(anchorDate, type.id)}
-											><Icon name="plus" size={11} /> Add meal</Button
-										>
-									{/if}
-								</div>
+				{#if effectiveView === "day"}
+					<div class="day-detail">
+						<div class="day-detail-head">
+							<h2 class="m-0 text-[22px]">
+								{weekdayLabel(anchorDate)}
+							</h2>
+							{#if anchorDate === today}
+								<Badge>Today</Badge>
 							{/if}
 						</div>
-					{/each}
-				</div>
-			{:else}
-				<div class="week-scroll">
-					<div class="week-track">
-						{#each currentWeek as date (date)}
-							<article
-								class="day"
-								class:selected={date === today}
-							>
-								<div class="day-head">
-									<span>{weekdayLabel(date)}</span>
-									{#if date === today}<em>Today</em>{/if}
-								</div>
-								{#each MEAL_TYPES as type (type.id)}
-									{@const meal = slotMeal(date, type.id)}
-									<div class="slot">
-										<small>{type.label}</small>
-										{#if isSkipped(date, type.id)}
-											{#if canEditViewing}
-												<div class="skipped-wrap">
-													<button
-														type="button"
-														class="empty-slot"
-														onclick={() =>
-															openPicker(date, type.id)}
-														><Icon name="plus" size={11} /> Skipped</button
-													>
-													<button
-														type="button"
-														class="chip-remove"
-														aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
-														title="Back to unplanned"
-														onclick={() =>
-															unskipSlot(date, type.id)}
-														><Icon name="close" size={11} /></button
-													>
-												</div>
-											{:else}
-												<span class="text-xs text-muted-foreground">Skipped</span>
-											{/if}
-										{:else if meal}
-											<div
-												class="meal-chip"
-												style={`background: ${meal.color}`}
+						{#each MEAL_TYPES as type (type.id)}
+							{@const meal = slotMeal(anchorDate, type.id)}
+							<div class="day-slot">
+								<h3>{type.label}</h3>
+								{#if isSkipped(anchorDate, type.id)}
+									<div class="empty-day-slot skipped">
+										<p>Skipped</p>
+										{#if canEditViewing}
+											<button
+												type="button"
+												class="empty-slot"
+												onclick={() =>
+													openPicker(
+														anchorDate,
+														type.id,
+													)}
+												><PlusIcon size={11} /> Change</button
 											>
-												<span class="chip-name"
-													>{meal.name}{#if meal.ingredientCount === 0}<span
-															class="chip-note"
-															>No list</span
-														>{/if}</span
-												>
+											<button
+												type="button"
+												class="chip-remove"
+												aria-label={`Unskip ${type.label}`}
+												title="Back to unplanned"
+												onclick={() =>
+													unskipSlot(
+														anchorDate,
+														type.id,
+													)}
+												><XIcon size={11} /></button
+											>
+										{/if}
+									</div>
+								{:else if meal}
+									{@const prepTime = displayMealTime(
+										meal.time,
+									)}
+									<div
+										class="day-meal-card"
+										style={`--meal-color: ${meal.color}`}
+									>
+										<div class="day-meal-content">
+											<strong>{meal.name}</strong>
+											<p class="day-meal-note">
+												{meal.note || "No note added"}
+											</p>
+											<div class="day-meal-meta">
+												{#if prepTime}<Badge
+														variant="secondary"
+														>{prepTime}</Badge
+													>{/if}
+												<Badge variant="outline">
+													{meal.ingredientCount > 0
+														? `${meal.ingredientCount} ingredient${meal.ingredientCount === 1 ? "" : "s"}`
+														: "No groceries"}
+												</Badge>
+											</div>
+										</div>
+										{#if canEditViewing}
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												aria-label={`Remove ${meal.name} from ${type.label}`}
+												title={`Remove ${meal.name}`}
+												onclick={() =>
+													removeMeal(
+														anchorDate,
+														type.id,
+													)}><XIcon /></Button
+											>
+										{/if}
+									</div>
+								{:else}
+									<div class="empty-day-slot">
+										<p>No meal planned</p>
+										{#if canEditViewing}
+											<Button
+												variant="outline"
+												size="sm"
+												onclick={() =>
+													openPicker(
+														anchorDate,
+														type.id,
+													)}
+												><PlusIcon
+													data-icon="inline-start"
+												/> Add meal</Button
+											>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<div class="week-scroll">
+						<div class="week-track">
+							{#each currentWeek as date (date)}
+								<article
+									class="day"
+									class:selected={date === today}
+								>
+									<div class="day-head">
+										<span>{weekdayLabel(date)}</span>
+										{#if date === today}<em>Today</em>{/if}
+									</div>
+									{#each MEAL_TYPES as type (type.id)}
+										{@const meal = slotMeal(date, type.id)}
+										<div class="slot">
+											<small>{type.label}</small>
+											{#if isSkipped(date, type.id)}
 												{#if canEditViewing}
-													<button
-														type="button"
-														class="chip-remove"
-														aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
-														title={`Remove ${meal.name}`}
-														onclick={() =>
-															removeMeal(
-																date,
-																type.id,
-															)}
-														><Icon name="close" size={11} /></button
+													<div class="skipped-wrap">
+														<button
+															type="button"
+															class="empty-slot"
+															onclick={() =>
+																openPicker(
+																	date,
+																	type.id,
+																)}
+															><PlusIcon
+																size={11}
+															/> Skipped</button
+														>
+														<button
+															type="button"
+															class="chip-remove"
+															aria-label={`Unskip ${dayLabel(date)} ${type.label}`}
+															title="Back to unplanned"
+															onclick={() =>
+																unskipSlot(
+																	date,
+																	type.id,
+																)}
+															><XIcon
+																size={11}
+															/></button
+														>
+													</div>
+												{:else}
+													<span
+														class="text-xs text-muted-foreground"
+														>Skipped</span
 													>
 												{/if}
-											</div>
-										{:else}
-											{#if canEditViewing}
+											{:else if meal}
+												<div
+													class="meal-chip"
+													style={`background: ${meal.color}`}
+												>
+													<span class="chip-name"
+														>{meal.name}{#if meal.ingredientCount === 0}<span
+																class="chip-note"
+																>No list</span
+															>{/if}</span
+													>
+													{#if canEditViewing}
+														<button
+															type="button"
+															class="chip-remove"
+															aria-label={`Remove ${meal.name} from ${dayLabel(date)} ${type.label}`}
+															title={`Remove ${meal.name}`}
+															onclick={() =>
+																removeMeal(
+																	date,
+																	type.id,
+																)}
+															><XIcon
+																size={11}
+															/></button
+														>
+													{/if}
+												</div>
+											{:else if canEditViewing}
 												<button
 													type="button"
 													class="empty-slot"
 													onclick={() =>
-														openPicker(date, type.id)}
-													><Icon name="plus" size={11} /> Add</button
+														openPicker(
+															date,
+															type.id,
+														)}
+													><PlusIcon size={11} /> Add</button
 												>
 											{:else}
-												<span class="text-xs text-muted-foreground">Empty</span>
+												<span
+													class="text-xs text-muted-foreground"
+													>Empty</span
+												>
 											{/if}
-										{/if}
-									</div>
-								{/each}
-								{#if canEditViewing && dayMealCount(date) > 0}
-									<Button
-										variant="ghost"
-										size="sm"
-										class="mt-2.5 w-full text-[9px] font-extrabold tracking-[0.1em] uppercase"
-										onclick={() => clearDay(date)}
-									>Clear day</Button
-									>
-								{/if}
-							</article>
-						{/each}
+										</div>
+									{/each}
+									{#if canEditViewing && dayMealCount(date) > 0}
+										<Button
+											variant="ghost"
+											size="sm"
+											class="mt-2.5 w-full text-[9px] font-extrabold tracking-[0.1em] uppercase"
+											onclick={() => clearDay(date)}
+											>Clear day</Button
+										>
+									{/if}
+								</article>
+							{/each}
+						</div>
 					</div>
-				</div>
-			{/if}
-		</Card.Content>
+				{/if}
+			</Card.Content>
 		</Card.Root>
 	{:else if householdId && viewingMember && selfMemberId}
 		<Card.Root>
 			{@render viewControls()}
-		<ListPlanSection
-			{householdId}
-			memberId={viewingMember._id}
-			callerMemberId={selfMemberId}
-			week={currentWeek}
-			canEdit={canEditViewing}
-		/>
+			<ListPlanSection
+				{householdId}
+				memberId={viewingMember._id}
+				callerMemberId={selfMemberId}
+				week={currentWeek}
+				canEdit={canEditViewing}
+			/>
 		</Card.Root>
 	{/if}
 </main>
@@ -703,8 +751,8 @@
 	open={pickerTarget !== null}
 	slot={pickerTarget?.slot ?? null}
 	{householdId}
-	meals={meals}
-	othersByMeal={othersByMeal}
+	{meals}
+	{othersByMeal}
 	showSkip={true}
 	title="Choose a meal"
 	description={pickerTarget
@@ -784,11 +832,7 @@
 			color-mix(in srgb, var(--meal-color) 30%, var(--border));
 		border-left: 4px solid var(--meal-color);
 		border-radius: 14px;
-		background: color-mix(
-			in srgb,
-			var(--meal-color) 12%,
-			var(--card)
-		);
+		background: color-mix(in srgb, var(--meal-color) 12%, var(--card));
 		color: var(--foreground);
 	}
 	.day-meal-content {

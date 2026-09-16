@@ -1,6 +1,14 @@
 <script lang="ts">
 	import "./layout.css";
+	import BookIcon from "@lucide/svelte/icons/book";
+	import CalendarIcon from "@lucide/svelte/icons/calendar";
+	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
+	import SparklesIcon from "@lucide/svelte/icons/sparkles";
+	import UserIcon from "@lucide/svelte/icons/user";
+	import UtensilsIcon from "@lucide/svelte/icons/utensils";
 	import { setupConvex, useMutation, useQuery } from "convex-svelte";
+	import type { Component } from "svelte";
 	import { tick } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { browser } from "$app/environment";
@@ -9,7 +17,6 @@
 	import { page } from "$app/state";
 	import { PUBLIC_CONVEX_URL } from "$env/static/public";
 	import favicon from "$lib/assets/favicon.svg";
-	import Icon, { type IconName } from "$lib/components/Icon.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
@@ -42,7 +49,7 @@
 	interface NavItem {
 		id: string;
 		label: string;
-		icon: IconName;
+		Icon: Component;
 		href: "/#planner" | "/meals" | "/shopping";
 	}
 
@@ -56,14 +63,14 @@
 		{
 			id: "planner",
 			label: "Planner",
-			icon: "calendar",
+			Icon: CalendarIcon,
 			href: "/#planner",
 		},
-		{ id: "meals", label: "Meal database", icon: "book", href: "/meals" },
+		{ id: "meals", label: "Meal database", Icon: BookIcon, href: "/meals" },
 		{
 			id: "shopping",
 			label: "Shopping list",
-			icon: "cart",
+			Icon: ShoppingCartIcon,
 			href: "/shopping",
 		},
 	];
@@ -480,7 +487,7 @@
 							: "Go to planner"}
 					>
 						<span class="mobile-mark"
-							><Icon name="utensils" size={15} /></span
+							><UtensilsIcon size={15} /></span
 						>
 						<strong>Meal Planner</strong>
 					</a>
@@ -502,10 +509,9 @@
 											href={resolve(item.href)}
 											active={activeSection === item.id}
 										>
-											<Icon
-												name={item.icon}
+											<item.Icon
 												size={16}
-												dataIcon="inline-start"
+												data-icon="inline-start"
 											/><span>{item.label}</span>
 										</NavigationMenu.Link>
 									</NavigationMenu.Item>
@@ -638,20 +644,13 @@
 										void goto(resolve("/profile"));
 									}}
 								>
-									<Icon
-										name="user"
-										size={15}
-										dataIcon="inline-start"
-									/>
+									<UserIcon data-icon="inline-start" />
 									<span class="flex-1 text-left"
 										>Profile & households</span
 									>
 									<span
 										class="grid shrink-0 -rotate-90 text-muted-foreground"
-										><Icon
-											name="chevron-down"
-											size={14}
-										/></span
+										><ChevronDownIcon /></span
 									>
 								</Button>
 								<Button
@@ -659,20 +658,13 @@
 									class="w-full justify-start gap-2 px-2"
 									onclick={openPreferences}
 								>
-									<Icon
-										name="spark"
-										size={15}
-										dataIcon="inline-start"
-									/>
+									<SparklesIcon data-icon="inline-start" />
 									<span class="flex-1 text-left"
 										>Preferences</span
 									>
 									<span
 										class="grid shrink-0 -rotate-90 text-muted-foreground"
-										><Icon
-											name="chevron-down"
-											size={14}
-										/></span
+										><ChevronDownIcon /></span
 									>
 								</Button>
 							</nav>
@@ -688,9 +680,8 @@
 									onclick={showProfileView}
 								>
 									<span class="grid rotate-90"
-										><Icon
-											name="chevron-down"
-											size={14}
+										><ChevronDownIcon
+											data-icon="inline-start"
 										/></span
 									>
 									<span>Back to profile</span>

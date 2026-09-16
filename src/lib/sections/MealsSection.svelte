@@ -1,10 +1,14 @@
 <script lang="ts">
 	import BookOpenIcon from "@lucide/svelte/icons/book-open";
 	import CookingPotIcon from "@lucide/svelte/icons/cooking-pot";
+	import CopyIcon from "@lucide/svelte/icons/copy";
+	import GlobeIcon from "@lucide/svelte/icons/globe";
+	import PencilIcon from "@lucide/svelte/icons/pencil";
+	import PlusIcon from "@lucide/svelte/icons/plus";
 	import SearchXIcon from "@lucide/svelte/icons/search-x";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
-	import Icon from "$lib/components/Icon.svelte";
 	import MealEditor from "$lib/components/MealEditor.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -39,7 +43,7 @@
 		name: string;
 		category: MealCategory;
 		note: string;
-		time: string;
+		time: number | null | undefined;
 		color: string;
 		ingredientCount: number;
 		ingredients: Ingredient[];
@@ -236,7 +240,7 @@
 			name,
 			category: meal.category,
 			note: meal.note,
-			time: displayMealTime(meal.time) ?? "",
+			time: meal.time ?? null,
 			color: meal.color,
 			ingredients: meal.ingredients.map((ingredient) => ({
 				...ingredient,
@@ -277,7 +281,7 @@
 			<Card.Title id="meals-title">Meals</Card.Title>
 			<Card.Action>
 				<Button variant="outline" size="sm" onclick={openAddMeal}
-					><Icon name="plus" size={14} dataIcon="inline-start" /> New meal</Button
+					><PlusIcon data-icon="inline-start" /> New meal</Button
 				>
 			</Card.Action>
 		</Card.Header>
@@ -341,7 +345,7 @@
 									<Card.Content>
 										<div class="flex items-center justify-between gap-2">
 											<span class="text-[10px] text-muted-foreground"
-												>{#if prepTime}{prepTime} · {/if}{meal.ingredientCount} ingredients</span
+												>{#if prepTime}{prepTime}{" · "}{/if}{meal.ingredientCount} ingredients</span
 											>
 											<div class="flex items-center gap-1">
 												<Button
@@ -349,9 +353,7 @@
 													size="icon-sm"
 													aria-label={`Edit ${meal.name}`}
 													title={`Edit ${meal.name}`}
-													onclick={() => openEditMeal(meal)}><Icon
-														name="pencil"
-														size={11}
+													onclick={() => openEditMeal(meal)}><PencilIcon
 													/></Button
 												>
 												<Button
@@ -359,7 +361,7 @@
 													size="icon-sm"
 													aria-label={`Duplicate ${meal.name}`}
 													title={`Duplicate ${meal.name}`}
-													onclick={() => duplicateMeal(meal)}><Icon name="copy" size={11} /></Button
+													onclick={() => duplicateMeal(meal)}><CopyIcon /></Button
 												>
 												<Button
 													variant={publishedMealIds.has(meal.id)
@@ -372,9 +374,7 @@
 													title={publishedMealIds.has(meal.id)
 														? `Stop sharing ${meal.name}`
 														: `Share ${meal.name}`}
-													onclick={() => toggleShare(meal)}><Icon
-														name="globe"
-														size={11}
+													onclick={() => toggleShare(meal)}><GlobeIcon
 													/></Button
 												>
 												<Button
@@ -386,7 +386,7 @@
 														deleteMealFromDatabase(
 															meal.id,
 															meal.name,
-														)}><Icon name="close" size={11} /></Button
+														)}><XIcon /></Button
 												>
 											</div>
 										</div>
@@ -456,7 +456,7 @@
 													aria-label={`Add ${recipe.name} to your database`}
 													title={`Add ${recipe.name}`}
 													onclick={() => adoptSharedRecipe(recipe._id)}
-													><Icon name="plus" size={14} /></Button
+													><PlusIcon /></Button
 												>
 											</div>
 										</div>
@@ -501,7 +501,7 @@
 				{householdId}
 				initialName={editingMeal?.name ?? ""}
 				initialNote={editingMeal?.note ?? ""}
-				initialTime={editingMeal ? (displayMealTime(editingMeal.time) ?? "") : ""}
+				initialTime={editingMeal?.time ?? undefined}
 				initialMealTimes={editingMeal ? [...editingMeal.mealTimes] : ["dinner"]}
 				initialIngredients={editingMeal?.ingredients ?? []}
 				editingMeal={editingMeal

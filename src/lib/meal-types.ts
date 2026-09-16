@@ -44,17 +44,15 @@ export function categoryFromMealTimes(times: MealType[]): MealCategory {
 }
 
 /**
- * Legacy filler stored for meals created before prep time became
- * optional. Blank and legacy values are never displayed.
+ * Displayable prep time ("25 min"), or null when absent. The database
+ * stores whole minutes; null/undefined/NaN/non-positive all hide.
  */
-export const LEGACY_MEAL_TIME_PLACEHOLDER = "Homemade";
-
-/** Displayable prep time, or null when absent/blank/legacy. */
 export function displayMealTime(
-	time: string | null | undefined,
+	minutes: number | null | undefined,
 ): string | null {
-	const trimmed = time?.trim() ?? "";
-	if (!trimmed) return null;
-	if (trimmed === LEGACY_MEAL_TIME_PLACEHOLDER) return null;
-	return trimmed;
+	if (minutes === null || minutes === undefined) return null;
+	if (!Number.isFinite(minutes)) return null;
+	const whole = Math.floor(minutes);
+	if (whole <= 0) return null;
+	return whole === 1 ? "1 min" : `${whole} min`;
 }

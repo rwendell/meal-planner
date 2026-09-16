@@ -1,6 +1,7 @@
 <script lang="ts">
+	import PlusIcon from "@lucide/svelte/icons/plus";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
-	import Icon from "$lib/components/Icon.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
@@ -40,7 +41,7 @@
 		householdId,
 		initialName = "",
 		initialNote = "",
-		initialTime = "",
+		initialTime = undefined,
 		initialMealTimes = ["dinner"],
 		initialIngredients = [],
 		editingMeal = null,
@@ -53,7 +54,7 @@
 		householdId: string | null;
 		initialName?: string;
 		initialNote?: string;
-		initialTime?: string;
+		initialTime?: number;
 		initialMealTimes?: MealType[];
 		initialIngredients?: MealEditorIngredient[];
 		editingMeal?: MealEditorEditingMeal | null;
@@ -85,7 +86,7 @@
 	}
 
 	function getInitialTime(): string {
-		return initialTime;
+		return initialTime === undefined ? "" : String(initialTime);
 	}
 
 	function getInitialTimes(): MealType[] {
@@ -169,6 +170,19 @@
 		ingredientRows = ingredientRows.filter((row) => row.key !== key);
 	}
 
+	/**
+	 * The number input binds a string, but Svelte coerces it to a number
+	 * at runtime — accept both. Empty/invalid/negative becomes null (no
+	 * prep time); anything else is floored to whole minutes.
+	 */
+	function parsePrepMinutes(value: string | number | null | undefined): number | null {
+		if (value === null || value === undefined) return null;
+		if (typeof value === "string" && value.trim() === "") return null;
+		const minutes = Math.floor(Number(value));
+		if (!Number.isFinite(minutes) || minutes < 0) return null;
+		return minutes;
+	}
+
 	async function saveMeal(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		const name = nameValue.trim();
@@ -187,6 +201,7 @@
 			.filter((ingredient) => ingredient.name);
 		const household = householdId as Id<"households">;
 		const category = resolveMealCategory();
+		const prepMinutes = parsePrepMinutes(timeValue);
 		saving = true;
 		try {
 			if (editingMeal) {
@@ -195,7 +210,7 @@
 					name,
 					category,
 					note: noteValue.trim() || undefined,
-					time: timeValue.trim(),
+					time: prepMinutes,
 					ingredients,
 					mealTimes: selectedTimes,
 				});
@@ -206,7 +221,7 @@
 					name,
 					category,
 					note: noteValue.trim() || undefined,
-					time: timeValue.trim(),
+					time: prepMinutes,
 					ingredients,
 					mealTimes: selectedTimes,
 				});
@@ -235,17 +250,24 @@
 			placeholder="Crispy chickpea salad"
 		/></label
 	>
-	<fieldset class="times-field">
-		<legend>Meal times</legend>
-		<div class="time-options">
+	<fieldset class="m-0 grid min-w-0 gap-2 border-0 p-0">
+		<legend
+			class="mb-2 p-0 text-[11px] font-extrabold text-muted-foreground"
+			>Meal times</legend
+		>
+		<div class="flex flex-wrap gap-2">
 			{#each ALL_MEAL_TIMES as time (time)}
-				<span class="time-pick">
+				<span class="inline-flex items-center gap-1.5">
 					<Checkbox
 						checked={selectedTimes.includes(time)}
 						onCheckedChange={() => toggleMealTime(time)}
 						aria-label={time}
 					/>
-					<button type="button" onclick={() => toggleMealTime(time)}>
+					<button
+						type="button"
+						class="cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-foreground capitalize"
+						onclick={() => toggleMealTime(time)}
+					>
 						{time}
 					</button>
 				</span>
@@ -264,23 +286,33 @@
 	<label
 		for={`${prefix}-meal-time`}
 		class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
-		>Prep time (optional)<Input
+		>Prep time (minutes)
+		<Input
 			id={`${prefix}-meal-time`}
+			type="number"
 			bind:value={timeValue}
-			placeholder="e.g. 25 min"
-			maxlength={20}
+			placeholder="25"
+			min={0}
+			max={999}
+			step={1}
 			autocomplete="off"
 		/></label
 	>
-	<div class="ingredient-editor">
-		<span class="ingredient-label" id={`${prefix}-ingredients-label`}
-			>Ingredients</span
+	<div class="grid gap-2">
+		<span
+			class="text-[11px] font-extrabold text-muted-foreground"
+			id={`${prefix}-ingredients-label`}>Ingredients</span
 		>
-		<div class="ingredient-head" aria-hidden="true">
+		<div
+			class="grid grid-cols-[1fr_72px_88px_30px] gap-1.5 text-[9px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
+			aria-hidden="true"
+		>
 			<span>Name</span><span>Amount</span><span>Group</span><span></span>
 		</div>
 		{#each ingredientRows as row, i (row.key)}
-			<div class="ingredient-row">
+			<div
+				class="grid grid-cols-[1fr_72px_88px_30px] items-center gap-1.5"
+			>
 				<Input
 					bind:value={row.name}
 					placeholder="Flour"
@@ -315,7 +347,7 @@
 					size="icon-sm"
 					aria-label={`Remove ingredient ${i + 1}`}
 					onclick={() => removeIngredientRow(row.key)}
-					><Icon name="close" size={12} /></Button
+					><XIcon /></Button
 				>
 			</div>
 		{/each}
@@ -324,75 +356,18 @@
 			size="sm"
 			class="justify-self-start"
 			onclick={addIngredientRow}
-			><Icon name="plus" size={12} dataIcon="inline-start" /> Add ingredient</Button
+			><PlusIcon data-icon="inline-start" /> Add ingredient</Button
 		>
 	</div>
 	{#if formError}
-		<p class="m-0 text-xs font-semibold text-destructive" role="alert">{formError}</p>
+		<p class="m-0 text-xs font-semibold text-destructive" role="alert">
+			{formError}
+		</p>
 	{/if}
 	<Dialog.Footer>
-		<Button variant="outline" onclick={onCancel} disabled={saving}>Cancel</Button>
+		<Button variant="outline" onclick={onCancel} disabled={saving}
+			>Cancel</Button
+		>
 		<Button type="submit" disabled={saving}>{resolvedSubmitLabel}</Button>
 	</Dialog.Footer>
 </form>
-
-<style>
-	.times-field {
-		display: grid;
-		gap: 8px;
-		margin: 0;
-		padding: 0;
-		border: 0;
-	}
-	.times-field legend {
-		padding: 0;
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--muted-foreground);
-	}
-	.time-options {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-	}
-	.time-pick {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.time-pick button {
-		border: 0;
-		padding: 0;
-		background: transparent;
-		color: var(--foreground);
-		font-size: 12px;
-		font-weight: 700;
-		text-transform: capitalize;
-		cursor: pointer;
-	}
-	.ingredient-editor {
-		display: grid;
-		gap: 8px;
-	}
-	.ingredient-label {
-		font-size: 11px;
-		font-weight: 800;
-		color: var(--muted-foreground);
-	}
-	.ingredient-head {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		font-size: 9px;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--muted-foreground);
-	}
-	.ingredient-row {
-		display: grid;
-		grid-template-columns: 1fr 72px 88px 30px;
-		gap: 6px;
-		align-items: center;
-	}
-</style>

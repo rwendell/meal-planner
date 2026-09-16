@@ -1,8 +1,9 @@
 <script lang="ts">
+	import PlusIcon from "@lucide/svelte/icons/plus";
 	import SearchXIcon from "@lucide/svelte/icons/search-x";
+	import UserIcon from "@lucide/svelte/icons/user";
 	import { useQuery } from "convex-svelte";
 	import { resolve } from "$app/paths";
-	import Icon from "$lib/components/Icon.svelte";
 	import MealEditor from "$lib/components/MealEditor.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
@@ -194,11 +195,11 @@
 									class="picker-others"
 									title={`Picked by ${others.join(", ")}`}
 								>
-									<Icon name="user" size={13} />
+									<UserIcon size={13} />
 									<span>{others.join(", ")}</span>
 								</span>
 							{/if}
-							<Icon name="plus" size={13} />
+							<PlusIcon />
 						</Button>
 					{/each}
 				</div>

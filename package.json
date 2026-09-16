@@ -33,7 +33,7 @@
 		"vite": "^8.0.16"
 	},
 	"dependencies": {
-		"@lucide/svelte": "^1.45.0",
+		"@lucide/svelte": "^1.46.0",
 		"bits-ui": "^2.19.2",
 		"clsx": "^2.1.1",
 		"convex": "^1.45.0",

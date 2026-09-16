@@ -1,7 +1,8 @@
 <script lang="ts">
+	import CheckIcon from "@lucide/svelte/icons/check";
+	import CopyIcon from "@lucide/svelte/icons/copy";
 	import { toast } from "svelte-sonner";
 	import { copyText } from "$lib/clipboard.js";
-	import Icon from "$lib/components/Icon.svelte";
 	import { Button } from "$lib/components/ui/button";
 
 	let { code }: { code: string } = $props();
@@ -29,6 +30,10 @@
 	aria-label={`Copy invite code ${code}`}
 	onclick={copy}
 >
-	<Icon name={copied ? "check" : "copy"} size={13} dataIcon="inline-start" />
+	{#if copied}
+		<CheckIcon data-icon="inline-start" />
+	{:else}
+		<CopyIcon data-icon="inline-start" />
+	{/if}
 	<span class="font-mono text-sm font-extrabold tracking-[0.2em]">{code}</span>
 </Button>

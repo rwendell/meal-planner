@@ -23,6 +23,20 @@ async function assertUniqueName(
 	if (clash) throw new Error("A meal with this name already exists.");
 }
 
+/**
+ * Prep time in whole minutes. Undefined (unset) means no prep time was
+ * given. Rejects NaN and negatives; anything else is floored.
+ */
+function normalizePrepMinutes(
+	value: number | null | undefined,
+): number | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (!Number.isFinite(value) || value < 0) {
+		throw new Error("Prep time must be a positive number of minutes.");
+	}
+	return Math.floor(value);
+}
+
 export const list = query({
 	args: { householdId: v.id("households") },
 	handler: async (ctx, args) => {
@@ -41,7 +55,7 @@ export const create = mutation({
 		name: v.string(),
 		category: mealCategory,
 		note: v.optional(v.string()),
-		time: v.optional(v.string()),
+		time: v.optional(v.union(v.number(), v.null())),
 		color: v.optional(v.string()),
 		ingredients: v.optional(v.array(ingredient)),
 		mealTimes: v.array(mealSlot),
@@ -54,13 +68,14 @@ export const create = mutation({
 		if (args.mealTimes.length === 0) {
 			throw new Error("Pick at least one meal time.");
 		}
+		const time = normalizePrepMinutes(args.time);
 		await assertUniqueName(ctx, args.householdId, name);
 		return await ctx.db.insert("meals", {
 			householdId: args.householdId,
 			name,
 			category: args.category,
 			note: args.note?.trim() || "No description",
-			time: args.time?.trim() ?? "",
+			...(time === undefined ? {} : { time }),
 			color: args.color ?? "#f2cbb9",
 			ingredients: args.ingredients ?? [],
 			mealTimes: args.mealTimes,
@@ -75,7 +90,8 @@ export const update = mutation({
 		name: v.string(),
 		category: mealCategory,
 		note: v.optional(v.string()),
-		time: v.optional(v.string()),
+		// Undefined leaves prep time unchanged; null clears it.
+		time: v.optional(v.union(v.number(), v.null())),
 		color: v.optional(v.string()),
 		ingredients: v.array(ingredient),
 		mealTimes: v.array(mealSlot),
@@ -95,7 +111,9 @@ export const update = mutation({
 			name,
 			category: args.category,
 			note: args.note?.trim() || "No description",
-			time: args.time === undefined ? existing.time : args.time.trim(),
+			...(args.time === undefined
+				? {}
+				: { time: normalizePrepMinutes(args.time) ?? null }),
 			color: args.color ?? existing.color,
 			ingredients: args.ingredients,
 			mealTimes: args.mealTimes,
@@ -103,6 +121,48 @@ export const update = mutation({
 		return args.id;
 	},
 	returns: v.id("meals"),
+});
+
+function parseLegacyPrepMinutes(value: unknown): number | null {
+	if (typeof value === "number") {
+		return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+	}
+	if (typeof value !== "string") return null;
+	const match = value.match(/(\d+(?:\.\d+)?)/);
+	if (!match) return null;
+	const minutes = Math.floor(Number(match[1]));
+	return minutes > 0 ? minutes : null;
+}
+
+/**
+ * One-shot migration: converts legacy string prep times ("25 min",
+ * "Homemade", "") to whole minutes. Unparseable values become null (no
+ * prep time). Run once per deployment, then delete this function.
+ */
+export const migratePrepTimes = mutation({
+	args: {},
+	handler: async (ctx) => {
+		let meals = 0;
+		for (const meal of await ctx.db.query("meals").take(500)) {
+			const legacy = meal.time as unknown;
+			if (typeof legacy !== "string") continue;
+			await ctx.db.patch("meals", meal._id, {
+				time: parseLegacyPrepMinutes(legacy),
+			});
+			meals += 1;
+		}
+		let recipes = 0;
+		for (const recipe of await ctx.db.query("publishedRecipes").take(500)) {
+			const legacy = recipe.time as unknown;
+			if (typeof legacy !== "string") continue;
+			await ctx.db.patch("publishedRecipes", recipe._id, {
+				time: parseLegacyPrepMinutes(legacy),
+			});
+			recipes += 1;
+		}
+		return { meals, recipes };
+	},
+	returns: v.object({ meals: v.number(), recipes: v.number() }),
 });
 
 export const remove = mutation({

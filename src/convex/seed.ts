@@ -39,7 +39,7 @@ export const ensureSeed = mutation({
 			name: string;
 			category: "Breakfast" | "Lunch" | "Dinner" | "Snack";
 			note: string;
-			time: string;
+			time: number;
 			color: string;
 			ingredients: {
 				name: string;
@@ -59,7 +59,7 @@ export const ensureSeed = mutation({
 				name: "Overnight oats",
 				category: "Breakfast",
 				note: "Blueberry, almond butter and chia",
-				time: "5 min",
+				time: 5,
 				color: "#dce9db",
 				ingredients: [
 					{ name: "Rolled oats", amount: "1 bag", group: "Pantry Staples" },
@@ -71,7 +71,7 @@ export const ensureSeed = mutation({
 				name: "Ricotta toast",
 				category: "Breakfast",
 				note: "Whipped ricotta, honey and figs",
-				time: "10 min",
+				time: 10,
 				color: "#f0dfbd",
 				ingredients: [
 					{ name: "Sourdough loaf", amount: "1", group: "Bakery & Deli" },
@@ -83,7 +83,7 @@ export const ensureSeed = mutation({
 				name: "Green goddess wrap",
 				category: "Lunch",
 				note: "Crunchy greens, avocado and herbs",
-				time: "15 min",
+				time: 15,
 				color: "#cfe2d8",
 				ingredients: [
 					{ name: "Flour tortillas", amount: "1 pack", group: "Bakery & Deli" },
@@ -96,7 +96,7 @@ export const ensureSeed = mutation({
 				name: "Miso salmon bowl",
 				category: "Dinner",
 				note: "Miso salmon, rice and sesame greens",
-				time: "30 min",
+				time: 30,
 				color: "#f2cbb9",
 				ingredients: [
 					{ name: "Salmon fillets", amount: "2", group: "Meat & Seafood" },
@@ -109,7 +109,7 @@ export const ensureSeed = mutation({
 				name: "Lemon herb chicken",
 				category: "Dinner",
 				note: "Roasted chicken, lemon and greens",
-				time: "35 min",
+				time: 35,
 				color: "#e4ddbf",
 				ingredients: [
 					{ name: "Chicken thighs", amount: "4", group: "Meat & Seafood" },
@@ -121,7 +121,7 @@ export const ensureSeed = mutation({
 				name: "Tomato basil pasta",
 				category: "Dinner",
 				note: "Silky tomato sauce and torn basil",
-				time: "25 min",
+				time: 25,
 				color: "#e9c5bb",
 				ingredients: [
 					{ name: "Rigatoni", amount: "1 box", group: "Pantry Staples" },
@@ -138,7 +138,7 @@ export const ensureSeed = mutation({
 				name: "Roasted veggie tacos",
 				category: "Dinner",
 				note: "Charred vegetables, lime and crema",
-				time: "25 min",
+				time: 25,
 				color: "#e7d5ae",
 				ingredients: [
 					{ name: "Flour tortillas", amount: "1 pack", group: "Bakery & Deli" },

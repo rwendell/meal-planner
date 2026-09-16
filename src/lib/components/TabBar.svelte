@@ -1,6 +1,9 @@
 <script lang="ts">
+	import BookIcon from "@lucide/svelte/icons/book";
+	import CalendarIcon from "@lucide/svelte/icons/calendar";
+	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
+	import type { Component } from "svelte";
 	import { resolve } from "$app/paths";
-	import Icon, { type IconName } from "$lib/components/Icon.svelte";
 	import { cn } from "$lib/utils.js";
 
 	let { active = "planner" }: { active?: string } = $props();
@@ -8,12 +11,12 @@
 	const tabs: {
 		id: string;
 		label: string;
-		icon: IconName;
+		Icon: Component;
 		href: "/#planner" | "/meals" | "/shopping";
 	}[] = [
-		{ id: "planner", label: "Planner", icon: "calendar", href: "/#planner" },
-		{ id: "meals", label: "Meal database", icon: "book", href: "/meals" },
-		{ id: "shopping", label: "Shopping list", icon: "cart", href: "/shopping" },
+		{ id: "planner", label: "Planner", Icon: CalendarIcon, href: "/#planner" },
+		{ id: "meals", label: "Meal database", Icon: BookIcon, href: "/meals" },
+		{ id: "shopping", label: "Shopping list", Icon: ShoppingCartIcon, href: "/shopping" },
 	];
 </script>
 
@@ -24,7 +27,7 @@
 			class={cn(active === tab.id && "active")}
 			aria-current={active === tab.id ? "page" : undefined}
 		>
-			<Icon name={tab.icon} size={18} /><span>{tab.label}</span>
+		<tab.Icon size={18} /><span>{tab.label}</span>
 		</a>
 	{/each}
 </nav>

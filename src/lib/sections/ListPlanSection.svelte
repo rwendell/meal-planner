@@ -1,8 +1,9 @@
 <script lang="ts">
+	import PlusIcon from "@lucide/svelte/icons/plus";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import EditActions from "$lib/components/EditActions.svelte";
-	import Icon from "$lib/components/Icon.svelte";
 	import MealPicker from "$lib/components/MealPicker.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
@@ -308,7 +309,7 @@
 										onclick={() =>
 											removeDraftMeal(slot.id, entry.id)}
 									>
-										<Icon name="close" size={14} />
+										<XIcon size={14} />
 									</button>
 								{/if}
 								<span class="min-w-0 truncate">{meal.name}</span
@@ -363,7 +364,7 @@
 					aria-label={`Add a ${slot.label.toLowerCase()} meal`}
 					onclick={() => openPicker(slot.id)}
 				>
-					<Icon name="plus" size={11} /> Add meal
+					<PlusIcon data-icon="inline-start" /> Add meal
 				</Button>
 			{/if}
 		</section>

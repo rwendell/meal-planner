@@ -106,7 +106,7 @@ type SampleMeal = {
 	name: string;
 	category: "Breakfast" | "Lunch" | "Dinner" | "Snack";
 	note: string;
-	time: string;
+	time: number;
 	color: string;
 	mealTimes: ("breakfast" | "lunch" | "dinner" | "snack")[];
 	ingredients: {
@@ -129,7 +129,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Shakshuka",
 		category: "Breakfast",
 		note: "Eggs poached in spiced tomato sauce",
-		time: "25 min",
+		time: 25,
 		color: "#e9c5bb",
 		mealTimes: ["breakfast"],
 		ingredients: [
@@ -144,7 +144,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Banana pancakes",
 		category: "Breakfast",
 		note: "Fluffy pancakes, no added sugar",
-		time: "20 min",
+		time: 20,
 		color: "#f0dfbd",
 		ingredients: [
 			{ name: "Bananas", amount: "2", group: "Produce" },
@@ -158,7 +158,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Mediterranean quinoa bowl",
 		category: "Lunch",
 		note: "Quinoa, chickpeas, cucumber and feta",
-		time: "20 min",
+		time: 20,
 		color: "#cfe2d8",
 		mealTimes: ["lunch"],
 		ingredients: [
@@ -173,7 +173,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Caprese sandwich",
 		category: "Lunch",
 		note: "Mozzarella, tomato and basil on ciabatta",
-		time: "10 min",
+		time: 10,
 		color: "#e7d5ae",
 		mealTimes: ["lunch"],
 		ingredients: [
@@ -187,7 +187,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Chicken tikka masala",
 		category: "Dinner",
 		note: "Creamy spiced curry with basmati rice",
-		time: "40 min",
+		time: 40,
 		color: "#f2cbb9",
 		mealTimes: ["dinner"],
 		ingredients: [
@@ -202,7 +202,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Veggie stir-fry",
 		category: "Dinner",
 		note: "Rainbow vegetables with soy-ginger sauce",
-		time: "20 min",
+		time: 20,
 		color: "#dce9db",
 		mealTimes: ["dinner", "lunch"],
 		ingredients: [
@@ -217,7 +217,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Red lentil soup",
 		category: "Dinner",
 		note: "Hearty one-pot soup with lemon",
-		time: "30 min",
+		time: 30,
 		color: "#e4ddbf",
 		mealTimes: ["dinner", "lunch"],
 		ingredients: [
@@ -231,7 +231,7 @@ const SAMPLE_MEALS: SampleMeal[] = [
 		name: "Avocado toast",
 		category: "Breakfast",
 		note: "Sourdough, smashed avocado and chili flakes",
-		time: "10 min",
+		time: 10,
 		color: "#cfe2d8",
 		mealTimes: ["breakfast"],
 		ingredients: [

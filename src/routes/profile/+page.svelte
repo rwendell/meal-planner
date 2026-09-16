@@ -1,11 +1,11 @@
 <script lang="ts">
 	import UserRoundIcon from "@lucide/svelte/icons/user-round";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { tick } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { resolve } from "$app/paths";
 	import EditActions from "$lib/components/EditActions.svelte";
-	import Icon from "$lib/components/Icon.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -574,7 +574,7 @@
 															title="Remove"
 															{...props}
 														>
-															<Icon name="close" size={14} />
+															<XIcon />
 														</Button>
 													{/snippet}
 												</AlertDialog.Trigger>

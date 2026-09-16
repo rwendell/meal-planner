@@ -66,7 +66,8 @@ export default defineSchema({
 		name: v.string(),
 		category: mealCategory,
 		note: v.string(),
-		time: v.string(),
+		// Prep time in whole minutes. Null/unset means no prep time given.
+		time: v.optional(v.union(v.number(), v.null())),
 		color: v.string(),
 		ingredients: v.array(ingredient),
 		// Which planner slots this meal can fill. Optional so meals
@@ -101,7 +102,7 @@ export default defineSchema({
 		name: v.string(),
 		category: mealCategory,
 		note: v.string(),
-		time: v.string(),
+		time: v.optional(v.union(v.number(), v.null())),
 		color: v.string(),
 		ingredients: v.array(ingredient),
 		mealTimes: v.array(mealSlot),
