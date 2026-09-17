@@ -915,7 +915,7 @@
 										autocomplete="off"
 										autocapitalize="characters"
 										aria-labelledby="household-invite-code-label"
-										class="uppercase tracking-[0.2em]"
+										class="w-28 uppercase tracking-[0.2em]"
 										disabled={savingProfile}
 										onkeydown={(event) => {
 											if (event.key === "Escape")
