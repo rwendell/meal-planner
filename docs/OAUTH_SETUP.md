@@ -1,68 +1,103 @@
-# Google OAuth setup (later)
+# Google OAuth (implemented)
 
-The app currently identifies household members with invite codes — no
-passwords, no accounts. When you're ready for real Google sign-in, the
-seam is small on purpose:
+Sign-in runs through [@convex-dev/auth](https://labs.convex.dev/auth)
+(Google provider) with the community SvelteKit adapter
+`@mmailaender/convex-auth-svelte`. Invite codes keep working alongside —
+they're still how new family members join, and anonymous use is unchanged.
 
-- Every server function takes `householdId` / `memberId` explicitly.
-- The client keeps exactly one identity object: `{ householdId, memberId }`
-  in `src/lib/session.svelte.ts`, populated by onboarding today.
-- To switch to OAuth, that object gets populated from the Convex Auth
-  session instead of localStorage, and `memberId` resolves from the
-  authenticated user rather than the join form.
+## How identity flows
 
-## Steps
+- `householdMembers.authSubject` holds the Convex Auth **user ID**
+  (the `users` row ID). Never `tokenIdentifier` — it embeds the session
+  ID (`iss|userId|sessionId`) and rotates every sign-in. Legacy
+  tokenIdentifier links are recognized by their middle segment and
+  rewritten on next touch (`linkMatches` in `authCheck.ts`).
+- `src/convex/authCheck.ts` is the trust boundary:
+  - `assertCaller` (queries): rejects caller rows linked to a *different*
+    sign-in; anonymous callers pass through as before.
+  - `assertCallerMutation` (mutations): same, plus auto-links an
+    unclaimed caller row to the signer.
+- `create` / `join` stamp new member rows via `linkNewMember`, so the
+  creator becomes owner-linked and joiners link at join time.
+- `myMemberships` returns every membership for the signer; the layout
+  reconciles them into the local roster (all kitchens survive a new
+  device, not just the active one).
+- `claimHouseholds` is the one-time migration: links this device's roster
+  rows to the sign-in. Rows claimed by someone else count as skipped.
+- `authProfile` exposes the signer's email/name for the account UI.
+- Enforced (caller verified + auto-linked): all `households.ts`
+  mutations, `plan.setSlot` / `plan.clearDay`, `listPlans.apply`.
+- NOT yet enforced: `meals`, `shopping`, `recipes` mutations take no
+  caller at all (household-scoped, as before). See follow-ups.
 
-1. Install the Convex Auth component:
+## Names and pictures
 
-   ```sh
-   aube add @convex-dev/auth
-   ```
+- Anonymous members get a stable per-browser `{Adjective} {Produce}`
+  name (`src/lib/anon-names.ts`, e.g. "Sunny Tomato") via
+  `deviceName()` in `session.svelte.ts`, instead of "Me".
+- `householdMembers` carries `image` (Google picture URL) and
+  `autoNamed` (true while the name is auto-generated).
+- On link (`linkNewMember`, `claimHouseholds`, caller auto-link) the
+  member's picture refreshes from the `users` table (via
+  `getAuthUserId` — session JWTs carry only `sub`, never profile
+  claims), and an auto-generated name is replaced once by the stored
+  OAuth name (then frozen; explicit renames via `renameMember` clear
+  `autoNamed`).
+- `MemberAvatar` renders the picture when present, initials otherwise.
 
-2. In the [Google Cloud Console](https://console.cloud.google.com/):
-   - Create a project (or reuse one) and configure the OAuth consent
-     screen (External, your email as test user is enough to start).
-   - Create Credentials → OAuth client ID (Web application).
-   - Authorized redirect URI: `https://<your-deployment>.convex.site/api/auth/callback/google`
-     (use the dev deployment URL first; add the prod URL later).
-   - Note the client ID and client secret.
+## Client wiring (client-only)
 
-3. Store them on each deployment (never commit them):
+Deliberately no SvelteKit server auth: no `hooks.server.ts`, no
+`+layout.server.ts`. The `/sveltekit` adapter entry hammered
+`invalidateAll()` on every token change and added a Convex roundtrip to
+every page load, which froze the UI after sign-in. Instead:
 
-   ```sh
-   npx convex env set CONVEX_AUTH_GOOGLE_ID "<id>" --deployment-name dev
-   npx convex env set CONVEX_AUTH_GOOGLE_SECRET "<secret>" --deployment-name dev
-   ```
+- `src/routes/+layout.svelte` — `setupConvexAuth({ convexUrl })` from
+  `@mmailaender/convex-auth-svelte/svelte` reuses the existing
+  `setupConvex()` client and talks to the `auth:signIn` / `auth:signOut`
+  Convex actions directly; tokens live in namespaced localStorage.
+  Memberships reconcile into the roster; the claim runs once per
+  sign-in; auto-provision waits for auth and only creates a kitchen
+  when the signer has no memberships anywhere.
+- Profile page `Account` card — Sign in with Google / sign-out + address.
 
-4. Add `src/convex/auth.config.ts`:
+## Backend files
 
-   ```ts
-   export default {
-     providers: [
-       {
-         domain: "https://accounts.google.com",
-         applicationID: process.env.CONVEX_AUTH_GOOGLE_ID!,
-       },
-     ],
-   };
-   ```
+- `src/convex/auth.config.ts` — `{ domain: CONVEX_SITE_URL,
+  applicationID: "convex" }` (this SITE_URL form is required; a Google
+  domain here is wrong for Convex Auth).
+- `src/convex/auth.ts` — `convexAuth({ providers: [Google] })`.
+- `src/convex/http.ts` — `auth.addHttpRoutes(http)` → callback at
+  `<site-url>/api/auth/callback/google`.
+- `src/convex/schema.ts` — `...authTables` plus `authSubject` +
+  `by_authSubject` on `householdMembers`.
 
-   Follow the [@convex-dev/auth Svelte setup](https://labs.convex.dev/auth)
-   (`convex/auth.ts` with Google provider, `ConvexProviderWithAuth` via
-   `convex-svelte` auth helpers) for the client wiring.
+## Env vars (dev `fantastic-lynx-682` — already set)
 
-5. Link auth to households: on first sign-in, look up a member by the
-   Google subject (`ctx.auth.getUserIdentity()`); if none exists, run the
-   existing join/create flow once and store the subject on the member row.
-   After that, `memberId` comes from the session and the invite form is
-   only needed for joining additional households.
+| var | value |
+|---|---|
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google Cloud OAuth web client |
+| `SITE_URL` | `http://localhost:5173` (dev) |
+| `JWT_PRIVATE_KEY` / `JWKS` | headless `jose` RS256 pair |
 
-## Notes
+Google redirect URI (dev):
+`https://fantastic-lynx-682.convex.site/api/auth/callback/google`
 
-- Keep invite codes working alongside OAuth — they're still the way new
-  family members join a household, and they work without any account.
-- OAuth tokens must never go in function arguments; always derive identity
-  server-side via `ctx.auth.getUserIdentity()`.
-- After switching, delete the auto-provision effect in
-  `src/routes/+layout.svelte` (first-visit household creation) since
-  anonymous provisioning no longer makes sense.
+Backups (age-encrypted, never committed):
+`~/.secrets/meal-planner-google-id.age`,
+`~/.secrets/meal-planner-google-secret.age`
+(`secret-get meal-planner-google-secret` to read).
+
+## Follow-ups
+
+1. **Phase B cutover:** drop `callerMemberId` args and derive the caller
+   purely from `ctx.auth` (keeping an anonymous path while invite codes
+   exist).
+2. **Household-scoped writes:** `meals` / `shopping` / `recipes`
+   mutations identify no caller — add membership checks when Phase B
+   lands.
+3. **Prod:** separate Google OAuth client with the prod `.site` callback,
+   prod `SITE_URL`, and the same `npx convex env set` vars with
+   `--deployment-name prod`.
+4. Tokens must never go in function arguments; always derive identity
+   server-side via `ctx.auth.getUserIdentity()`.

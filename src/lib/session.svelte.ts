@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import { randomAnonName } from "$lib/anon-names.js";
 
 export interface HouseholdSession {
 	householdId: string;
@@ -7,6 +8,26 @@ export interface HouseholdSession {
 
 export const STORAGE_KEY = "meal-planner-session";
 const LOCK_KEY = "meal-planner-provisioning";
+const DEVICE_NAME_KEY = "meal-planner-device-name";
+
+/**
+ * Stable per-browser anonymous display name ("Sunny Tomato"), generated
+ * once and persisted. Used for auto-provisioned members and anywhere a
+ * member name isn't loaded yet. Replaced by the OAuth profile name on
+ * first sign-in link.
+ */
+export function deviceName(): string {
+	if (!browser) return "Sunny Tomato";
+	try {
+		const stored = localStorage.getItem(DEVICE_NAME_KEY);
+		if (stored?.trim()) return stored;
+		const name = randomAnonName();
+		localStorage.setItem(DEVICE_NAME_KEY, name);
+		return name;
+	} catch {
+		return randomAnonName();
+	}
+}
 
 export function readStoredSession(): HouseholdSession | null {
 	return load();

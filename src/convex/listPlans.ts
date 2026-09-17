@@ -1,6 +1,7 @@
 import { type Infer, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, type QueryCtx } from "./_generated/server";
+import { type MutationCtx, mutation } from "./_generated/server";
+import { assertCallerMutation } from "./authCheck";
 import { mealSlot } from "./schema";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -35,7 +36,7 @@ function canManage(
  * owner manage everyone's plans.
  */
 async function assertCanEdit(
-	ctx: QueryCtx,
+	ctx: MutationCtx,
 	householdId: Id<"households">,
 	targetMemberId: Id<"householdMembers">,
 	callerMemberId: Id<"householdMembers">,
@@ -60,6 +61,8 @@ async function assertCanEdit(
 	) {
 		throw new Error("You can only plan your own meals.");
 	}
+	// Signed-in callers must own the caller row; unclaimed rows link here.
+	await assertCallerMutation(ctx, householdId, callerMemberId);
 }
 
 /** Collapse repeated meals, keeping the first count for each. */

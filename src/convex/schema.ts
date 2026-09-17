@@ -1,3 +1,4 @@
+import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -56,6 +57,7 @@ export const ingredient = v.object({
 });
 
 export default defineSchema({
+	...authTables,
 	// Households group members who share one meal database, per-member
 	// plans, and a unified shopping list. Joined via invite code.
 	households: defineTable({
@@ -71,6 +73,16 @@ export default defineSchema({
 	householdMembers: defineTable({
 		householdId: v.id("households"),
 		name: v.string(),
+		// Google profile picture URL, set when the member links a sign-in.
+		image: v.optional(v.string()),
+		// True when the name was auto-generated (anon default) and is
+		// safe to replace with the OAuth profile name on first link.
+		// Any explicit rename clears it.
+		autoNamed: v.optional(v.boolean()),
+		// Convex Auth identity (tokenIdentifier) of the signed-in user
+		// this member belongs to. Unset on anonymous/invite-code rows
+		// until claimed at first sign-in.
+		authSubject: v.optional(v.string()),
 		// Each member's own planner view. Unset means "planner".
 		// Only the member themselves may change it.
 		plannerMode: v.optional(v.union(v.literal("planner"), v.literal("list"))),
@@ -78,7 +90,9 @@ export default defineSchema({
 		// snacks). Unset/empty means everything is plannable. Only the
 		// member themselves may change it.
 		excludedCells: v.optional(v.array(excludedCell)),
-	}).index("by_household", ["householdId"]),
+	})
+		.index("by_household", ["householdId"])
+		.index("by_authSubject", ["authSubject"]),
 	// Step 1 of the workflow: the meal database, shared household-wide.
 	meals: defineTable({
 		name: v.string(),

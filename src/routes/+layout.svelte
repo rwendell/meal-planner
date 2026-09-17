@@ -3,10 +3,14 @@
 	import BookIcon from "@lucide/svelte/icons/book";
 	import CalendarIcon from "@lucide/svelte/icons/calendar";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+	import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
+	import LogInIcon from "@lucide/svelte/icons/log-in";
+	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import UtensilsIcon from "@lucide/svelte/icons/utensils";
+	import { setupConvexAuth, useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import { setupConvex, useMutation, useQuery } from "convex-svelte";
 	import type { Component } from "svelte";
 	import { tick } from "svelte";
@@ -35,6 +39,7 @@
 	import { prefs } from "$lib/prefs.svelte.js";
 	import {
 		clearProvisioningLock,
+		deviceName,
 		provisioningLockAge,
 		STORAGE_KEY,
 		session,
@@ -45,6 +50,14 @@
 	import type { Id } from "../convex/_generated/dataModel";
 
 	setupConvex(PUBLIC_CONVEX_URL);
+
+	let { children } = $props();
+
+	// Client-only auth: talks to Convex actions directly. Reuses the
+	// setupConvex() client from context; tokens attach to the same
+	// client useQuery/useMutation already use.
+	setupConvexAuth({ convexUrl: PUBLIC_CONVEX_URL });
+	const auth = useAuth();
 
 	interface NavItem {
 		id: string;
@@ -144,6 +157,82 @@
 			: "skip",
 	);
 	const createHousehold = useMutation(api.households.create);
+	const membershipsQuery = useQuery(api.households.myMemberships, () =>
+		!auth.isLoading && auth.isAuthenticated ? {} : "skip",
+	);
+	const claimHouseholds = useMutation(api.households.claimHouseholds);
+	let signingIn = $state(false);
+
+	async function handleSignIn(): Promise<void> {
+		signingIn = true;
+		try {
+			const result = await auth.signIn("google");
+			// OAuth navigates away: keep spinning until the page unloads.
+			// Only reset when no redirect happened.
+			if (!result.redirect) signingIn = false;
+		} catch {
+			signingIn = false;
+		}
+	}
+
+	function handleSignOut(): void {
+		closeProfileMenu();
+		// Local first so the UI flips instantly; the server cleanup
+		// finishing a moment later doesn't matter.
+		session.disconnect();
+		void auth.signOut().catch(() => {});
+	}
+
+	// Signed-in kitchens reconcile into the local roster, so every
+	// membership — not just the active one — survives a new device.
+	// mergeServerMemberships is idempotent: the effect converges
+	// instead of retriggering itself.
+	$effect(() => {
+		const memberships = membershipsQuery.data;
+		if (!memberships || !auth.isAuthenticated) return;
+		roster.mergeServerMemberships(
+			memberships.map((membership) => ({
+				householdId: membership.householdId,
+				memberId: membership.memberId,
+			})),
+		);
+		if (!session.session && memberships[0]) {
+			roster.switchTo({
+				householdId: memberships[0].householdId,
+				memberId: memberships[0].memberId,
+			});
+		}
+	});
+
+	// One-time migration: link this device's roster rows to the sign-in.
+	// Memberships refresh reactively once the claim commits. Skips the
+	// server roundtrip entirely when every roster row is already linked.
+	let claimAttempted = $state(false);
+	$effect(() => {
+		if (!auth.isAuthenticated || claimAttempted) return;
+		const memberships = membershipsQuery.data;
+		if (memberships === undefined || roster.refs.length === 0) {
+			return;
+		}
+		const linked = new Set(
+			memberships.map((m) => `${m.householdId}:${m.memberId}`),
+		);
+		if (
+			!roster.refs.some(
+				(ref) => !linked.has(`${ref.householdId}:${ref.memberId}`),
+			)
+		) {
+			claimAttempted = true;
+			return;
+		}
+		claimAttempted = true;
+		claimHouseholds({
+			refs: roster.refs.map((ref) => ({
+				householdId: ref.householdId as Id<"households">,
+				memberId: ref.memberId as Id<"householdMembers">,
+			})),
+		}).catch(() => {});
+	});
 
 	// First visit lands straight in the planner with a personal household.
 	// A linked-but-deleted household resets the same way. A lock plus a
@@ -152,6 +241,16 @@
 	$effect(() => {
 		provisionTick;
 		if (!browser || session.session) return;
+		// Wait for auth to resolve: anonymous visitors provision as
+		// before, but signed-in users provision only when no membership
+		// exists anywhere (claim/reconcile effects run first).
+		if (auth.isLoading) return;
+		if (auth.isAuthenticated) {
+			if (membershipsQuery.data === undefined) return;
+			if (membershipsQuery.data.length > 0 || roster.refs.length > 0) {
+				return;
+			}
+		}
 		const onStorage = (event: StorageEvent) => {
 			if (event.key === STORAGE_KEY) session.reload();
 		};
@@ -164,7 +263,11 @@
 			}, 3000);
 		} else {
 			setProvisioningLock();
-			createHousehold({ householdName: "My Kitchen", memberName: "Me" })
+			createHousehold({
+				householdName: "My Kitchen",
+				memberName: deviceName(),
+				autoNamed: true,
+			})
 				.then((result) => {
 					roster.switchTo({
 						householdId: result.householdId,
@@ -190,11 +293,20 @@
 		}
 	});
 
-	function selfName(): string {
-		const self = householdQuery.data?.members.find(
-			(member) => member._id === session.session?.memberId,
+	function selfMember() {
+		return (
+			householdQuery.data?.members.find(
+				(member) => member._id === session.session?.memberId,
+			) ?? null
 		);
-		return self?.name ?? "Me";
+	}
+
+	function selfName(): string {
+		return selfMember()?.name ?? deviceName();
+	}
+
+	function selfImage(): string | null {
+		return selfMember()?.image ?? null;
 	}
 
 	const profileFocusableSelector =
@@ -431,8 +543,6 @@
 			}
 		});
 	});
-
-	let { children } = $props();
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
@@ -537,7 +647,11 @@
 									aria-controls="profile-menu"
 									aria-expanded={profileOpen}
 								>
-									<MemberAvatar name={selfName()} size="sm" />
+									<MemberAvatar
+										name={selfName()}
+										image={selfImage()}
+										size="sm"
+									/>
 									<span
 										class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden"
 										>{selfName()}</span
@@ -669,6 +783,39 @@
 										><ChevronDownIcon /></span
 									>
 								</Button>
+								{#if auth.isAuthenticated}
+									<Button
+										variant="ghost"
+										class="w-full justify-start gap-2 px-2"
+										onclick={() => void handleSignOut()}
+									>
+										<LogOutIcon data-icon="inline-start" />
+										<span class="flex-1 text-left"
+											>Sign out</span
+										>
+									</Button>
+								{:else}
+									<Button
+										variant="ghost"
+										class="w-full justify-start gap-2 px-2"
+										disabled={auth.isLoading || signingIn}
+										onclick={() => void handleSignIn()}
+									>
+										{#if signingIn}
+											<LoaderCircleIcon
+												data-icon="inline-start"
+												class="animate-spin"
+											/>
+										{:else}
+											<LogInIcon data-icon="inline-start" />
+										{/if}
+										<span class="flex-1 text-left"
+											>{signingIn
+												? "Signing in…"
+												: "Sign in with Google"}</span
+										>
+									</Button>
+								{/if}
 							</nav>
 						</div>
 					{:else}

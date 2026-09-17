@@ -6,10 +6,21 @@ import {
 	type QueryCtx,
 	query,
 } from "./_generated/server";
+import {
+	applyAuthProfile,
+	assertCaller,
+	assertCallerMutation,
+	authUserProfile,
+	callerUserId,
+	linkMatches,
+	linkNewMember,
+} from "./authCheck";
 import schema, { excludedCell } from "./schema";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const INVITE_CODE_PATTERN = /^[A-FHJ-KM-NP-TVX-Z2-9]{6}$/;
+// Generated codes stay unambiguous (no 0/O, 1/I/L). Custom codes set by
+// users allow any A-Z or 0-9.
+const CUSTOM_INVITE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 
 function randomCode(): string {
 	let code = "";
@@ -21,10 +32,8 @@ function randomCode(): string {
 
 function cleanInviteCode(raw: string): string {
 	const normalized = raw.trim().toUpperCase();
-	if (!INVITE_CODE_PATTERN.test(normalized)) {
-		throw new Error(
-			"Invite codes must use exactly 6 supported letters or digits.",
-		);
+	if (!CUSTOM_INVITE_CODE_PATTERN.test(normalized)) {
+		throw new Error("Invite codes must use exactly 6 letters or digits.");
 	}
 	return normalized;
 }
@@ -71,7 +80,11 @@ export const get = query({
 });
 
 export const create = mutation({
-	args: { householdName: v.string(), memberName: v.string() },
+	args: {
+		householdName: v.string(),
+		memberName: v.string(),
+		autoNamed: v.optional(v.boolean()),
+	},
 	handler: async (ctx, args) => {
 		const householdName = cleanName(args.householdName);
 		const memberName = cleanName(args.memberName);
@@ -97,8 +110,11 @@ export const create = mutation({
 		const memberId = await ctx.db.insert("householdMembers", {
 			householdId,
 			name: memberName,
+			...(args.autoNamed === true ? { autoNamed: true as const } : {}),
 		});
 		await ctx.db.patch("households", householdId, { ownerId: memberId });
+		// Signed-in creators own this member from the start.
+		await linkNewMember(ctx, memberId);
 		return { householdId, memberId, inviteCode };
 	},
 	returns: v.object({
@@ -109,7 +125,11 @@ export const create = mutation({
 });
 
 export const join = mutation({
-	args: { inviteCode: v.string(), memberName: v.string() },
+	args: {
+		inviteCode: v.string(),
+		memberName: v.string(),
+		autoNamed: v.optional(v.boolean()),
+	},
 	handler: async (ctx, args) => {
 		const code = args.inviteCode.trim().toUpperCase();
 		const memberName = cleanName(args.memberName);
@@ -125,7 +145,10 @@ export const join = mutation({
 		const memberId = await ctx.db.insert("householdMembers", {
 			householdId: household._id,
 			name,
+			...(args.autoNamed === true ? { autoNamed: true as const } : {}),
 		});
+		// Signed-in joiners link the new row to their sign-in.
+		await linkNewMember(ctx, memberId);
 		return { householdId: household._id, memberId };
 	},
 	returns: v.object({
@@ -195,6 +218,7 @@ export const leave = mutation({
 	handler: async (ctx, args) => {
 		const member = await ctx.db.get("householdMembers", args.memberId);
 		if (!member) return { householdDeleted: false };
+		await assertCallerMutation(ctx, member.householdId, args.memberId);
 		await deleteMemberRows(ctx, args.memberId);
 		const remaining = await ctx.db
 			.query("householdMembers")
@@ -227,6 +251,7 @@ export const renameHousehold = mutation({
 		if (!member || member.householdId !== args.householdId) {
 			throw new Error("Household member not found.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.memberId);
 		const name = cleanName(args.name);
 		if (!name) throw new Error("Household name is required.");
 		await ctx.db.patch("households", args.householdId, { name });
@@ -247,6 +272,7 @@ export const setInviteCode = mutation({
 		if (!household || !member || member.householdId !== args.householdId) {
 			throw new Error("Household member not found.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.memberId);
 		const inviteCode = cleanInviteCode(args.inviteCode);
 		const existing = await ctx.db
 			.query("households")
@@ -290,9 +316,13 @@ export const renameMember = mutation({
 		) {
 			throw new Error("Only the kitchen owner can rename other members.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		const name = cleanName(args.name);
 		if (!name) throw new Error("Member name is required.");
-		await ctx.db.patch("householdMembers", args.memberId, { name });
+		await ctx.db.patch("householdMembers", args.memberId, {
+			name,
+			autoNamed: false,
+		});
 		return args.memberId;
 	},
 	returns: v.id("householdMembers"),
@@ -323,6 +353,7 @@ export const setPlannerMode = mutation({
 		) {
 			throw new Error("Household member not found.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		await ctx.db.patch("householdMembers", args.memberId, {
 			plannerMode: args.mode,
 		});
@@ -380,6 +411,9 @@ async function assertOwnExclusions(
 	) {
 		throw new Error("Household member not found.");
 	}
+	// Signed-in callers must own the caller row (read-only check; the
+	// mutation path links unclaimed rows via assertCallerMutation).
+	await assertCaller(ctx, householdId, callerMemberId);
 }
 
 /**
@@ -448,6 +482,8 @@ export const applyPlannerExclusions = mutation({
 			args.cells,
 			args.fromDate,
 		);
+		// Link the caller's row to their sign-in before writing.
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		await ctx.db.patch("householdMembers", args.memberId, {
 			excludedCells: args.cells,
 		});
@@ -498,6 +534,7 @@ export const setOwnerManagesPlans = mutation({
 		if (!household || !caller || caller.householdId !== args.householdId) {
 			throw new Error("Household member not found.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		if (!canManage(household, args.callerMemberId)) {
 			throw new Error("Only the kitchen owner can change this setting.");
 		}
@@ -536,6 +573,7 @@ export const removeMember = mutation({
 		if (!canManage(household, args.callerMemberId)) {
 			throw new Error("Only the kitchen owner can remove members.");
 		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		await deleteMemberRows(ctx, args.memberId);
 		const remaining = await ctx.db
 			.query("householdMembers")
@@ -604,4 +642,134 @@ export const listHouseholds = query({
 		return results;
 	},
 	returns: v.array(v.union(rosterEntry, v.null())),
+});
+
+/**
+ * Every membership linked to the signed-in user. Anonymous callers get
+ * []. The client reconciles this into the local roster so all of the
+ * user's kitchens — not just the active one — survive a new device.
+ */
+export const myMemberships = query({
+	args: {},
+	handler: async (ctx) => {
+		const userId = await callerUserId(ctx);
+		if (!userId) return [];
+		// Scan (not the by_authSubject index): legacy rows store a full
+		// tokenIdentifier whose session segment rotates, so exact-match
+		// misses them. linkMatches accepts both forms; every touch
+		// normalizes legacy links to the plain user ID.
+		const candidates = await ctx.db
+			.query("householdMembers")
+			.order("desc")
+			.take(200);
+		const members = candidates.filter(
+			(member) => member.authSubject && linkMatches(member.authSubject, userId),
+		);
+		const out: Array<{
+			householdId: Id<"households">;
+			memberId: Id<"householdMembers">;
+			householdName: string;
+			memberName: string;
+			memberImage: string | null;
+		}> = [];
+		for (const member of members) {
+			const household = await ctx.db.get("households", member.householdId);
+			if (!household) continue;
+			out.push({
+				householdId: household._id,
+				memberId: member._id,
+				householdName: household.name,
+				memberName: member.name,
+				memberImage: member.image ?? null,
+			});
+		}
+		return out;
+	},
+	returns: v.array(
+		v.object({
+			householdId: v.id("households"),
+			memberId: v.id("householdMembers"),
+			householdName: v.string(),
+			memberName: v.string(),
+			memberImage: v.union(v.string(), v.null()),
+		}),
+	),
+});
+
+/**
+ * One-time migration: link this device's roster rows to the signer.
+ * Rows already linked to a different sign-in count as skipped — the UI
+ * reconciles through myMemberships instead.
+ */
+export const claimHouseholds = mutation({
+	args: {
+		refs: v.array(
+			v.object({
+				householdId: v.id("households"),
+				memberId: v.id("householdMembers"),
+			}),
+		),
+	},
+	handler: async (ctx, args) => {
+		const userId = await callerUserId(ctx);
+		if (!userId) throw new Error("Sign in to link your households.");
+		let claimed = 0;
+		let alreadyMine = 0;
+		let skipped = 0;
+		const seen = new Set<string>();
+		for (const ref of args.refs.slice(0, 20)) {
+			const key = `${ref.householdId}:${ref.memberId}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			const member = await ctx.db.get("householdMembers", ref.memberId);
+			if (!member || member.householdId !== ref.householdId) {
+				skipped += 1;
+				continue;
+			}
+			if (!member.authSubject) {
+				await applyAuthProfile(ctx, member._id);
+				claimed += 1;
+				continue;
+			}
+			if (linkMatches(member.authSubject, userId)) {
+				// Already linked: still refresh name/picture (and
+				// normalize legacy tokenIdentifier links to user ID).
+				await applyAuthProfile(ctx, member._id);
+				alreadyMine += 1;
+				continue;
+			}
+			skipped += 1;
+		}
+		return { claimed, alreadyMine, skipped };
+	},
+	returns: v.object({
+		claimed: v.number(),
+		alreadyMine: v.number(),
+		skipped: v.number(),
+	}),
+});
+
+/** Signed-in profile for the account UI, or null when anonymous. */
+export const authProfile = query({
+	args: {},
+	handler: async (ctx) => {
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) return null;
+		// Profile fields live in the users table; the session JWT only
+		// carries `sub`.
+		const profile = await authUserProfile(ctx);
+		return {
+			email: profile?.email ?? identity.email ?? null,
+			name: profile?.name ?? identity.name ?? null,
+			image: profile?.image ?? identity.pictureUrl ?? null,
+		};
+	},
+	returns: v.union(
+		v.object({
+			email: v.union(v.string(), v.null()),
+			name: v.union(v.string(), v.null()),
+			image: v.union(v.string(), v.null()),
+		}),
+		v.null(),
+	),
 });

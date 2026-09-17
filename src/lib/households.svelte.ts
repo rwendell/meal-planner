@@ -86,6 +86,20 @@ class HouseholdRoster {
 		this.persist();
 	}
 
+	/**
+	 * Merge server-side memberships into the roster. Assigns at most
+	 * once and only when something is actually missing — safe to call
+	 * from an $effect that also reads the roster (unlike add(), which
+	 * always rebuilds the array and self-triggers).
+	 */
+	mergeServerMemberships(mine: HouseholdRef[]): void {
+		const seen = new Set(this.refs.map(refKey));
+		const missing = mine.filter((ref) => !seen.has(refKey(ref)));
+		if (missing.length === 0) return;
+		this.refs = [...missing, ...this.refs];
+		this.persist();
+	}
+
 	switchTo(ref: HouseholdRef): void {
 		this.add(ref);
 		session.connect(ref);

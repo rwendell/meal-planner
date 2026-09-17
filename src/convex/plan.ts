@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, type QueryCtx, query } from "./_generated/server";
+import {
+	type MutationCtx,
+	mutation,
+	type QueryCtx,
+	query,
+} from "./_generated/server";
+import { assertCallerMutation } from "./authCheck";
 import schema, { mealSlot, planSlotValue } from "./schema";
 
 const weekDayDoc = schema.doc("weekDays");
@@ -38,7 +44,7 @@ function canManage(
  * owner manage everyone's plans.
  */
 async function assertCanEdit(
-	ctx: QueryCtx,
+	ctx: MutationCtx,
 	householdId: Id<"households">,
 	targetMemberId: Id<"householdMembers">,
 	callerMemberId: Id<"householdMembers">,
@@ -63,6 +69,8 @@ async function assertCanEdit(
 	) {
 		throw new Error("You can only plan your own meals.");
 	}
+	// Signed-in callers must own the caller row; unclaimed rows link here.
+	await assertCallerMutation(ctx, householdId, callerMemberId);
 }
 
 /**

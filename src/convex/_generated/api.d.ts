@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
+import type * as authCheck from "../authCheck.js";
 import type * as households from "../households.js";
+import type * as http from "../http.js";
 import type * as listPlans from "../listPlans.js";
 import type * as meals from "../meals.js";
 import type * as plan from "../plan.js";
@@ -23,7 +26,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
+  authCheck: typeof authCheck;
   households: typeof households;
+  http: typeof http;
   listPlans: typeof listPlans;
   meals: typeof meals;
   plan: typeof plan;

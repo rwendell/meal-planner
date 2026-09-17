@@ -13,16 +13,25 @@
 
 	let {
 		name,
+		image = null,
 		size = "md",
 		class: className,
 	}: {
 		name: string;
+		image?: string | null;
 		size?: Size;
 		class?: string;
 	} = $props();
 </script>
 
 <Avatar.Root class={cn(sizes[size].root, className)} aria-hidden="true">
+	{#if image}
+		<Avatar.Image
+			src={image}
+			alt={name}
+			referrerpolicy="no-referrer"
+		/>
+	{/if}
 	<Avatar.Fallback class={cn("font-bold", sizes[size].fallback)}>
 		{initials(name)}
 	</Avatar.Fallback>

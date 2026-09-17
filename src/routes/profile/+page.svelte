@@ -1,9 +1,11 @@
 <script lang="ts">
 	import UserRoundIcon from "@lucide/svelte/icons/user-round";
 	import XIcon from "@lucide/svelte/icons/x";
+	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { tick } from "svelte";
 	import { toast } from "svelte-sonner";
+	import { browser } from "$app/environment";
 	import { resolve } from "$app/paths";
 	import EditActions from "$lib/components/EditActions.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
@@ -22,7 +24,6 @@
 	import {
 		EXCLUSION_WEEKDAYS,
 		type ExcludedCell,
-		type ExclusionDay,
 		excludedCellSet,
 		exclusionKey,
 		sameExcludedCells,
@@ -30,7 +31,7 @@
 	} from "$lib/exclusions.js";
 	import { refKey, roster } from "$lib/households.svelte.js";
 	import { MEAL_TYPES, type MealType } from "$lib/meal-types.js";
-	import { session } from "$lib/session.svelte.js";
+	import { deviceName, session } from "$lib/session.svelte.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
@@ -56,6 +57,38 @@
 			: "skip",
 	);
 
+	const auth = useAuth();
+	let linkingAccount = $state(false);
+
+	// One-click recovery for members the roster never saw (e.g. the
+	// device roster was wiped): link the active member row directly.
+	async function handleLinkAccount(): Promise<void> {
+		const current = session.session;
+		if (!current || linkingAccount) return;
+		linkingAccount = true;
+		try {
+			const result = await claimHouseholds({
+				refs: [
+					{
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+					},
+				],
+			});
+			if (result.claimed > 0 || result.alreadyMine > 0) {
+				toast.success("Member linked to your sign-in");
+			} else {
+				toast.error(
+					"This member belongs to a different sign-in.",
+				);
+			}
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't link this member."));
+		} finally {
+			linkingAccount = false;
+		}
+	}
+
 	const renameHousehold = useMutation(api.households.renameHousehold);
 	const setInviteCode = useMutation(api.households.setInviteCode);
 	const setOwnerManagesPlans = useMutation(
@@ -66,11 +99,14 @@
 	const createHousehold = useMutation(api.households.create);
 	const joinHousehold = useMutation(api.households.join);
 	const leaveHousehold = useMutation(api.households.leave);
+	const claimHouseholds = useMutation(api.households.claimHouseholds);
 	const applyPlannerExclusions = useMutation(
 		api.households.applyPlannerExclusions,
 	);
 
-	const INVITE_CODE_PATTERN = /^[A-FHJ-KM-NP-TVX-Z2-9]{6}$/;
+	// Generated codes avoid ambiguous chars, but a custom code may use
+	// any A-Z or 0-9.
+	const CUSTOM_INVITE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 
 	let entries = $derived(
 		(rosterQuery.data ?? []).filter(
@@ -87,13 +123,39 @@
 				entry.member._id === session.session?.memberId,
 		) ?? null,
 	);
-	let myName = $derived(activeEntry?.member.name ?? "Me");
+	let myName = $derived(activeEntry?.member.name ?? deviceName());
 
 	let household = $derived(householdQuery.data?.household ?? null);
 	let members = $derived(householdQuery.data?.members ?? []);
 	let myId = $derived(session.session?.memberId ?? null);
 	let isManager = $derived(
 		household ? !household.ownerId || household.ownerId === myId : false,
+	);
+
+	// Staged household switch: picking a card in edit mode only records
+	// the choice; the switch commits when profile edits save.
+	let pendingHouseholdKey = $state<string | null>(null);
+	let activeHouseholdKey = $derived(
+		activeEntry
+			? refKey({
+					householdId: activeEntry.household._id,
+					memberId: activeEntry.member._id,
+				})
+			: null,
+	);
+	let householdSwitchPending = $derived(
+		pendingHouseholdKey !== null && pendingHouseholdKey !== activeHouseholdKey,
+	);
+	let switchTarget = $derived(
+		householdSwitchPending && pendingHouseholdKey
+			? (entries.find(
+					(entry) =>
+						refKey({
+							householdId: entry.household._id,
+							memberId: entry.member._id,
+						}) === pendingHouseholdKey,
+				) ?? null)
+			: null,
 	);
 
 	// Drop roster entries the server no longer resolves (deleted households).
@@ -129,11 +191,29 @@
 	let joinError = $state("");
 	let createError = $state("");
 
+	// One actions set at a time: the header row is always rendered, so
+	// observing it is stable. Top buttons show while any of it is
+	// visible; otherwise the bottom set takes over.
+	let headerRowRef = $state<HTMLDivElement | null>(null);
+	let headerRowVisible = $state(true);
+	$effect(() => {
+		const target = headerRowRef;
+		if (!browser || !target) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				headerRowVisible = entries[0]?.isIntersecting ?? true;
+			},
+			{ threshold: 0 },
+		);
+		observer.observe(target);
+		return () => observer.disconnect();
+	});
+
 	// Planner exclusions: the member's own opted-out (weekday, slot)
 	// cells, edited through the page-level profile edit mode. A null
 	// draft means no local edits yet — it initializes from the server
 	// state on first toggle, so a slow member load can't clobber it.
-	// Saving unplans affected meals after confirmation.
+	// Saving removes affected meals after confirmation.
 	let myMember = $derived(members.find((m) => m._id === myId) ?? null);
 	let savedExclusions = $derived<ExcludedCell[]>(
 		myMember?.excludedCells ?? [],
@@ -192,23 +272,6 @@
 		);
 	}
 
-	const WEEKEND_DAYS: ExclusionDay[] = [0, 6];
-	const ALL_SLOTS: MealType[] = MEAL_TYPES.map((type) => type.id);
-
-	function presetCells(
-		days: ExclusionDay[],
-		slots: MealType[],
-	): ExcludedCell[] {
-		return days.flatMap((day) => slots.map((slot) => ({ day, slot })));
-	}
-
-	let weekendCells = $derived(presetCells(WEEKEND_DAYS, ALL_SLOTS));
-	let weekendsExcluded = $derived(
-		weekendCells.every((cell) =>
-			shownExclusionSet.has(exclusionKey(cell.day, cell.slot)),
-		),
-	);
-
 	function slotExcludedCount(slot: MealType): number {
 		return EXCLUSION_WEEKDAYS.filter((row) =>
 			shownExclusionSet.has(exclusionKey(row.day, slot)),
@@ -239,7 +302,7 @@
 			exclusionDraft = null;
 			toast.success(
 				result.meals > 0
-					? `Exclusions saved — unplanned ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
+					? `Exclusions saved — removed ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
 					: "Exclusions saved",
 			);
 			return true;
@@ -264,6 +327,7 @@
 				ownerManagesPlansDraft = null;
 			}
 			editingProfile = false;
+			pendingHouseholdKey = null;
 			savingProfile = false;
 		}
 	});
@@ -276,6 +340,7 @@
 			inviteCodeEdit = house.inviteCode;
 			ownerManagesPlansDraft = null;
 			editingProfile = false;
+			pendingHouseholdKey = null;
 			savingProfile = false;
 		}
 	});
@@ -287,8 +352,8 @@
 	let inviteCodeError = $derived(
 		!pendingInviteCode
 			? "Invite code is required."
-			: !INVITE_CODE_PATTERN.test(pendingInviteCode)
-				? "Use exactly 6 supported letters or digits."
+			: !CUSTOM_INVITE_CODE_PATTERN.test(pendingInviteCode)
+				? "Use exactly 6 letters or digits."
 				: "",
 	);
 	let profileSaveDisabled = $derived(
@@ -304,7 +369,8 @@
 					ownerManagesPlansDraft !== null &&
 					ownerManagesPlansDraft !==
 						(household?.ownerManagesPlans ?? false)) ||
-				exclusionsDirty
+				exclusionsDirty ||
+				householdSwitchPending
 			) ||
 			impactPending ||
 			savingProfile,
@@ -313,6 +379,7 @@
 	async function startEditingProfile(): Promise<void> {
 		if (!activeEntry) return;
 		exclusionDraft = null;
+		pendingHouseholdKey = null;
 		editingProfile = true;
 		await tick();
 		nameInput?.focus();
@@ -328,6 +395,7 @@
 		ownerManagesPlansDraft = null;
 		exclusionDraft = null;
 		confirmExclusionsOpen = false;
+		pendingHouseholdKey = null;
 		editingProfile = false;
 	}
 
@@ -349,12 +417,12 @@
 		) {
 			return;
 		}
-		if (!INVITE_CODE_PATTERN.test(pendingInviteCode)) {
-			toast.error("Use exactly 6 supported letters or digits.");
+		if (!CUSTOM_INVITE_CODE_PATTERN.test(pendingInviteCode)) {
+			toast.error("Use exactly 6 letters or digits.");
 			return;
 		}
 		// Exclusions confirm first: nothing else saves until the user
-		// confirms the unplan (or there is nothing to confirm). The
+		// confirms the remove (or there is nothing to confirm). The
 		// confirm dialog re-enters here with the dialog already open.
 		if (exclusionsDirty) {
 			await requestSaveExclusions();
@@ -374,9 +442,11 @@
 			!memberChanged &&
 			!householdChanged &&
 			!inviteCodeChanged &&
-			!ownerPlansChanged
+			!ownerPlansChanged &&
+			!switchTarget
 		) {
 			editingProfile = false;
+			pendingHouseholdKey = null;
 			return;
 		}
 		savingProfile = true;
@@ -455,6 +525,10 @@
 			if (!failed) {
 				ownerManagesPlansDraft = null;
 				editingProfile = false;
+				pendingHouseholdKey = null;
+				// Staged switch commits last: server saves above ran
+				// against the previous household on purpose.
+				if (switchTarget) switchHousehold(switchTarget);
 			}
 		} finally {
 			savingProfile = false;
@@ -488,6 +562,9 @@
 			const result = await joinHousehold({
 				inviteCode: joinCode,
 				memberName: myName,
+				// No active entry means myName is the device fallback,
+				// safe to replace with the OAuth name later.
+				autoNamed: !activeEntry,
 			});
 			joinCode = "";
 			roster.switchTo({
@@ -509,6 +586,7 @@
 			const result = await createHousehold({
 				householdName: name,
 				memberName: myName,
+				autoNamed: !activeEntry,
 			});
 			newHouseholdName = "";
 			roster.switchTo({
@@ -572,7 +650,10 @@
 		</div>
 	{:else}
 		<div class="grid items-start gap-3 min-[560px]:gap-4">
-			<div class="flex flex-wrap items-start justify-between gap-3">
+			<div
+				bind:this={headerRowRef}
+				class="flex flex-wrap items-start justify-between gap-3"
+			>
 				<div class="grid min-w-0 flex-1 gap-1">
 					<h1
 						class="m-0 font-serif text-[26px] leading-tight tracking-[-0.02em]"
@@ -583,7 +664,7 @@
 						Your name, households, and members.
 					</p>
 				</div>
-				{#if activeEntry}
+				{#if activeEntry && headerRowVisible}
 					<EditActions
 						editing={editingProfile}
 						disabled={savingProfile}
@@ -600,7 +681,11 @@
 				<div
 					class="flex items-center gap-3 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs"
 				>
-					<MemberAvatar name={myName} size="lg" />
+					<MemberAvatar
+						name={myName}
+						image={myMember?.image ?? null}
+						size="lg"
+					/>
 					{#if !editingProfile}
 						<div class="min-w-0 flex-1">
 							<p class="m-0 truncate font-semibold">{myName}</p>
@@ -635,6 +720,31 @@
 						</form>
 					{/if}
 				</div>
+				{#if activeEntry &&
+					auth.isAuthenticated &&
+					myMember &&
+					!myMember.authSubject}
+					<div
+						class="flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-3 py-2"
+					>
+						<p
+							class="m-0 min-w-0 flex-1 text-xs text-muted-foreground"
+						>
+							This member isn't linked to your sign-in yet —
+							link it to sync your name and picture.
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={linkingAccount}
+							onclick={() => void handleLinkAccount()}
+						>
+							{linkingAccount
+								? "Linking…"
+								: "Link to my sign-in"}
+						</Button>
+					</div>
+				{/if}
 
 				<Card.Root>
 					<Card.Header>
@@ -862,9 +972,7 @@
 					<Card.Header>
 						<Card.Title>Planner exclusions</Card.Title>
 						<Card.Description>
-							Skip days or meals you never plan — weekends off, no
-							snacks, and so on. Checked boxes are excluded.
-							Saving unplans affected meals from today onward.
+							Skip days or meals you never plan snacks, and so on.
 						</Card.Description>
 					</Card.Header>
 					<Card.Content class="grid gap-3">
@@ -876,30 +984,6 @@
 									>Excluded days and meals</legend
 								>
 								<div class="grid gap-3">
-									<div class="flex flex-wrap gap-2">
-										<Button
-											variant={weekendsExcluded ? "secondary" : "outline"}
-											size="sm"
-											aria-pressed={weekendsExcluded}
-											disabled={!editingProfile || savingProfile}
-											onclick={() => setCells(weekendCells, !weekendsExcluded)}
-										>
-											Weekends off
-										</Button>
-										{#if shownExclusions.length > 0}
-											<Button
-												variant="ghost"
-												size="sm"
-												disabled={!editingProfile ||
-													savingProfile}
-												onclick={() => {
-													exclusionDraft = [];
-												}}
-											>
-												Clear all
-											</Button>
-										{/if}
-									</div>
 									<div class="grid gap-1">
 										<div
 											class="grid grid-cols-[minmax(5.5rem,1.2fr)_repeat(7,minmax(1.25rem,1fr))] items-center gap-1 px-1"
@@ -1016,7 +1100,7 @@
 								<p
 									class="m-0 text-xs font-semibold text-amber-600 dark:text-amber-500"
 								>
-									Saving will unplan {impactMeals}
+									Saving will remove {impactMeals}
 									{impactMeals === 1 ? "meal" : "meals"} from today
 									onward.
 								</p>
@@ -1034,12 +1118,12 @@
 				<AlertDialog.Content>
 					<AlertDialog.Header>
 						<AlertDialog.Title>
-							Unplan {impactMeals}
+							Remove {impactMeals}
 							{impactMeals === 1 ? "meal" : "meals"}?
 						</AlertDialog.Title>
 						<AlertDialog.Description>
 							These planned meals fall on days you're excluding.
-							Saving will unplan them from today onward and update
+							Saving will remove them from today onward and update
 							groceries. This can't be undone.
 						</AlertDialog.Description>
 					</AlertDialog.Header>
@@ -1049,7 +1133,7 @@
 							disabled={savingProfile}
 							onclick={() => void saveProfileEdits()}
 						>
-							Unplan & save
+							Remove & save
 						</AlertDialog.Action>
 					</AlertDialog.Footer>
 				</AlertDialog.Content>
@@ -1077,47 +1161,66 @@
 								entry.household._id ===
 									session.session?.householdId &&
 								entry.member._id === session.session?.memberId}
-							<div
+							{@const key = refKey({
+								householdId: entry.household._id,
+								memberId: entry.member._id,
+							})}
+							{@const isPending =
+								pendingHouseholdKey === key &&
+								pendingHouseholdKey !== activeHouseholdKey}
+							{@const highlighted =
+								isPending ||
+								(isActive && !householdSwitchPending)}
+						<div
+							class={cn(
+								"flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
+								highlighted && "border-primary bg-muted/50",
+								editingProfile &&
+									!highlighted &&
+									"transition-colors hover:border-muted-foreground/50",
+							)}
+						>
+							<button
+								type="button"
+								disabled={!editingProfile}
+								aria-pressed={isPending}
+								aria-label={isActive && !isPending
+									? `Current household: ${entry.household.name}`
+									: isPending
+										? `Selected household: ${entry.household.name} (applies on save)`
+										: editingProfile
+											? `Select ${entry.household.name}`
+											: entry.household.name}
+								onclick={() => {
+									pendingHouseholdKey = isPending ? null : key;
+								}}
 								class={cn(
-									"flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
-									isActive && "border-primary bg-muted/50",
+									"grid min-w-0 flex-1 justify-items-start gap-0 text-left",
+									editingProfile && "cursor-pointer",
 								)}
 							>
-								<div class="min-w-0 flex-1">
-									<div
-										class="flex flex-wrap items-center gap-1.5"
+								<span
+									class="flex max-w-full flex-wrap items-center gap-1.5"
+								>
+									<strong class="truncate"
+										>{entry.household.name}</strong
 									>
-										<strong class="truncate"
-											>{entry.household.name}</strong
-										>
-										{#if isActive}<Badge>Current</Badge
-											>{/if}
-										<Badge variant="secondary">
-											{entry.isOwner ? "Owner" : "Member"}
-										</Badge>
-									</div>
-									<p
-										class="m-0 mt-1 font-mono text-xs text-muted-foreground"
-									>
-										{entry.household.inviteCode} · {entry.memberCount}
-										{entry.memberCount === 1
-											? "member"
-											: "members"} · as {entry.member
-											.name}
-									</p>
-								</div>
-								<div class="flex shrink-0 gap-2">
-									{#if !isActive}
-										<Button
-											variant="outline"
-											size="sm"
-											onclick={() =>
-												switchHousehold(entry)}
-										>
-											Switch
-										</Button>
-									{/if}
-									<AlertDialog.Root>
+									<Badge variant="secondary">
+										{entry.isOwner ? "Owner" : "Member"}
+									</Badge>
+								</span>
+								<span
+									class="mt-1 font-mono text-xs text-muted-foreground"
+								>
+									{entry.household.inviteCode} · {entry.memberCount}
+									{entry.memberCount === 1
+										? "member"
+										: "members"} · as {entry.member
+										.name}
+								</span>
+							</button>
+							<div class="flex shrink-0 gap-2">
+								<AlertDialog.Root>
 										<AlertDialog.Trigger>
 											{#snippet child({ props })}
 												<Button
@@ -1247,6 +1350,19 @@
 					</div>
 				</Card.Content>
 			</Card.Root>
+			{#if activeEntry && !headerRowVisible}
+				<div class="flex justify-end">
+					<EditActions
+						editing={editingProfile}
+						disabled={savingProfile}
+						saveDisabled={profileSaveDisabled}
+						saving={savingProfile}
+						onEdit={() => void startEditingProfile()}
+						onCancel={cancelEditingProfile}
+						onSave={() => void saveProfileEdits()}
+					/>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </main>
