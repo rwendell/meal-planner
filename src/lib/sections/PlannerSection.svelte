@@ -6,6 +6,8 @@ import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
+	import { browser } from "$app/environment";
+	import LeftoverReview from "$lib/components/LeftoverReview.svelte";
 	import MealPicker from "$lib/components/MealPicker.svelte";
 	import PlannerHero from "$lib/components/PlannerHero.svelte";
 	import { Badge } from "$lib/components/ui/badge";
@@ -13,6 +15,7 @@ import XIcon from "@lucide/svelte/icons/x";
 	import * as Card from "$lib/components/ui/card";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import {
+		addDays,
 		formatMonthDay,
 		formatShort,
 		todayISO,
@@ -102,6 +105,115 @@ import XIcon from "@lucide/svelte/icons/x";
 	let isSelfView = $derived(
 		viewingMember !== null && viewingMember._id === selfMemberId,
 	);
+
+	// Leftover review: last week's dates, a nudge while a full passed
+	// week is unevaluated, and per-device dismissal memory. Owners with
+	// the household setting review every member, not just the viewed one.
+	const REVIEW_STORAGE_KEY = "meal-planner-leftover-review";
+	let reviewOpen = $state(false);
+	let reviewTick = $state(0);
+	let lastWeekDates = $derived(weekDates(addDays(anchorDate, -7)));
+	let lastWeekAnchor = $derived(lastWeekDates[0] ?? anchorDate);
+	let lastWeekEnd = $derived(lastWeekDates[6] ?? anchorDate);
+	let reviewScopeAll = $derived(
+		selfIsManager && (householdQuery.data?.household.ownerReviewsMeals ?? false),
+	);
+
+	function reviewDismissal(): string | null {
+		if (!browser) return null;
+		try {
+			const raw = localStorage.getItem(REVIEW_STORAGE_KEY);
+			if (!raw) return null;
+			const parsed: unknown = JSON.parse(raw);
+			if (typeof parsed !== "object" || parsed === null) return null;
+			const { ref, anchor } = parsed as {
+				ref?: unknown;
+				anchor?: unknown;
+			};
+			if (typeof ref !== "string" || typeof anchor !== "string") {
+				return null;
+			}
+			if (
+				!session.session ||
+				ref !==
+					`${session.session.householdId}:${session.session.memberId}`
+			) {
+				return null;
+			}
+			return anchor;
+		} catch {
+			return null;
+		}
+	}
+
+	function dismissReview(): void {
+		if (!browser || !session.session) return;
+		try {
+			localStorage.setItem(
+				REVIEW_STORAGE_KEY,
+				JSON.stringify({
+					ref: `${session.session.householdId}:${session.session.memberId}`,
+					anchor: lastWeekAnchor,
+				}),
+			);
+		} catch {
+			// Ignore storage failures; the nudge simply returns.
+		}
+		reviewTick += 1;
+	}
+
+	let needsReview = $derived(
+		reviewTick >= 0 &&
+			!!session.session &&
+			!!viewingMember &&
+			lastWeekEnd < today &&
+			reviewDismissal() !== lastWeekAnchor,
+	);
+
+	// Review entry only exists when last week has planned meals that
+	// aren't already marked ready.
+	const lastWeekDaysQuery = useQuery(api.plan.getDays, () =>
+		householdId && viewingMember
+			? {
+					householdId: householdId as Id<"households">,
+					memberId: viewingMember._id,
+					dates: lastWeekDates,
+				}
+			: "skip",
+	);
+	const lastWeekDaysAllQuery = useQuery(api.plan.getDays, () =>
+		householdId && reviewScopeAll
+			? {
+					householdId: householdId as Id<"households">,
+					dates: lastWeekDates,
+				}
+			: "skip",
+	);
+	let lastWeekReviewable = $derived.by(() => {
+		const existingIds = new Set(meals.map((meal) => meal.id));
+		const ready = new Set(
+			(readyQuery.data ?? []).map((row) => row.mealId),
+		);
+		const rows = reviewScopeAll
+			? (lastWeekDaysAllQuery.data ?? [])
+			: (lastWeekDaysQuery.data ?? []);
+		const planned = new Set<Id<"meals">>();
+		for (const row of rows) {
+			for (const slot of [
+				row.breakfast,
+				row.lunch,
+				row.dinner,
+				row.snack ?? null,
+			]) {
+				if (slot && slot !== "skip") planned.add(slot);
+			}
+		}
+		let count = 0;
+		for (const id of planned) {
+			if (existingIds.has(id) && !ready.has(id)) count += 1;
+		}
+		return count;
+	});
 	let savingMode = $state(false);
 	// The viewed member's opted-out (weekday, slot) cells. Exclusions
 	// apply to every displayed date, past or future: a fully excluded
@@ -506,6 +618,53 @@ import XIcon from "@lucide/svelte/icons/x";
 		dayStep={mode === "planner" && effectiveView === "day"}
 	/>
 
+	{#if householdId && viewingMember && selfMemberId && lastWeekReviewable > 0}
+		{#if needsReview}
+			<Card.Root>
+				<Card.Content>
+					<div
+						class="flex flex-wrap items-center gap-3"
+					>
+						<div class="min-w-0 flex-1">
+							<p class="m-0 text-sm font-semibold">
+								Review last week for leftovers?
+							</p>
+							<p class="m-0 text-xs text-muted-foreground">
+								Anything still around gets marked ready in one
+								pass.
+							</p>
+						</div>
+						<div class="flex shrink-0 gap-2">
+							<Button
+								variant="ghost"
+								size="sm"
+								onclick={dismissReview}
+							>
+								Not now
+							</Button>
+							<Button
+								size="sm"
+								onclick={() => (reviewOpen = true)}
+							>
+								Review
+							</Button>
+						</div>
+					</div>
+				</Card.Content>
+			</Card.Root>
+		{:else}
+			<div class="flex justify-end">
+				<Button
+					variant="ghost"
+					size="sm"
+					onclick={() => (reviewOpen = true)}
+				>
+					Review last week
+				</Button>
+			</div>
+		{/if}
+	{/if}
+
 	{#if mode === "planner"}
 		<Card.Root>
 			{@render viewControls()}
@@ -853,4 +1012,20 @@ import XIcon from "@lucide/svelte/icons/x";
 	onSelect={assignToSlot}
 	onSkip={skipSlot}
 	onCreate={assignCreatedMeal}
+/>
+
+<LeftoverReview
+	{householdId}
+	memberId={reviewScopeAll ? null : (viewingMember?._id ?? null)}
+	memberName={reviewScopeAll ? "everyone" : (viewingMember?.name ?? "your")}
+	members={members.map((member) => ({
+		id: member._id,
+		name: member.name,
+	}))}
+	dates={lastWeekDates}
+	open={reviewOpen}
+	onClose={() => {
+		dismissReview();
+		reviewOpen = false;
+	}}
 />

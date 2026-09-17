@@ -69,6 +69,9 @@ export default defineSchema({
 		// When true, the owner may view and plan for other members.
 		// Unset means members plan only for themselves.
 		ownerManagesPlans: v.optional(v.boolean()),
+		// When true, the owner's leftover review covers every member.
+		// Unset means members review only their own plan.
+		ownerReviewsMeals: v.optional(v.boolean()),
 	}).index("by_inviteCode", ["inviteCode"]),
 	householdMembers: defineTable({
 		householdId: v.id("households"),

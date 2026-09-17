@@ -19,6 +19,7 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { Switch } from "$lib/components/ui/switch";
 	import { todayISO } from "$lib/dates.js";
 	import { errorMessage } from "$lib/errors.js";
 	import {
@@ -80,9 +81,7 @@
 			} else if (result.claimed > 0 || result.alreadyMine > 0) {
 				toast.success("Member linked to your sign-in");
 			} else {
-				toast.error(
-					"This member belongs to a different sign-in.",
-				);
+				toast.error("This member belongs to a different sign-in.");
 			}
 		} catch (error) {
 			toast.error(errorMessage(error, "Couldn't link this member."));
@@ -95,6 +94,9 @@
 	const setInviteCode = useMutation(api.households.setInviteCode);
 	const setOwnerManagesPlans = useMutation(
 		api.households.setOwnerManagesPlans,
+	);
+	const setOwnerReviewsMeals = useMutation(
+		api.households.setOwnerReviewsMeals,
 	);
 	const setAutoShareMeals = useMutation(api.households.setMemberAutoShare);
 	const renameMember = useMutation(api.households.renameMember);
@@ -147,7 +149,8 @@
 			: null,
 	);
 	let householdSwitchPending = $derived(
-		pendingHouseholdKey !== null && pendingHouseholdKey !== activeHouseholdKey,
+		pendingHouseholdKey !== null &&
+			pendingHouseholdKey !== activeHouseholdKey,
 	);
 	let switchTarget = $derived(
 		householdSwitchPending && pendingHouseholdKey
@@ -188,6 +191,7 @@
 	let householdNameEdit = $state("");
 	let householdNameEditKey = $state<string | null>(null);
 	let ownerManagesPlansDraft = $state<boolean | null>(null);
+	let ownerReviewsMealsDraft = $state<boolean | null>(null);
 	let autoShareMealsDraft = $state<boolean | null>(null);
 	let inviteCodeEdit = $state("");
 	let joinCode = $state("");
@@ -329,6 +333,7 @@
 				householdNameEdit = house.name;
 				inviteCodeEdit = house.inviteCode;
 				ownerManagesPlansDraft = null;
+				ownerReviewsMealsDraft = null;
 				autoShareMealsDraft = null;
 			}
 			editingProfile = false;
@@ -344,7 +349,8 @@
 			householdNameEdit = house.name;
 			inviteCodeEdit = house.inviteCode;
 			ownerManagesPlansDraft = null;
-				autoShareMealsDraft = null;
+			ownerReviewsMealsDraft = null;
+			autoShareMealsDraft = null;
 			editingProfile = false;
 			pendingHouseholdKey = null;
 			savingProfile = false;
@@ -353,6 +359,9 @@
 
 	let pendingOwnerManagesPlans = $derived(
 		ownerManagesPlansDraft ?? household?.ownerManagesPlans ?? false,
+	);
+	let pendingOwnerReviewsMeals = $derived(
+		ownerReviewsMealsDraft ?? household?.ownerReviewsMeals ?? false,
 	);
 	let pendingAutoShareMeals = $derived(
 		autoShareMealsDraft ?? myMember?.autoShareMeals ?? true,
@@ -378,6 +387,10 @@
 					ownerManagesPlansDraft !== null &&
 					ownerManagesPlansDraft !==
 						(household?.ownerManagesPlans ?? false)) ||
+				(isManager &&
+					ownerReviewsMealsDraft !== null &&
+					ownerReviewsMealsDraft !==
+						(household?.ownerReviewsMeals ?? false)) ||
 				(autoShareMealsDraft !== null &&
 					autoShareMealsDraft !==
 						(myMember?.autoShareMeals ?? true)) ||
@@ -405,6 +418,7 @@
 			inviteCodeEdit = activeEntry.household.inviteCode;
 		}
 		ownerManagesPlansDraft = null;
+		ownerReviewsMealsDraft = null;
 		autoShareMealsDraft = null;
 		exclusionDraft = null;
 		confirmExclusionsOpen = false;
@@ -443,6 +457,8 @@
 		}
 		const baselineOwnerPlans = household?.ownerManagesPlans ?? false;
 		const pendingOwnerPlans = ownerManagesPlansDraft;
+		const baselineOwnerReviews = household?.ownerReviewsMeals ?? false;
+		const pendingOwnerReviews = ownerReviewsMealsDraft;
 		const baselineAutoShare = myMember?.autoShareMeals ?? true;
 		const pendingAutoShare = autoShareMealsDraft;
 		const memberChanged = memberName !== entry.member.name;
@@ -453,14 +469,18 @@
 			isManager &&
 			pendingOwnerPlans !== null &&
 			pendingOwnerPlans !== baselineOwnerPlans;
+		const ownerReviewsChanged =
+			isManager &&
+			pendingOwnerReviews !== null &&
+			pendingOwnerReviews !== baselineOwnerReviews;
 		const autoShareChanged =
-			pendingAutoShare !== null &&
-			pendingAutoShare !== baselineAutoShare;
+			pendingAutoShare !== null && pendingAutoShare !== baselineAutoShare;
 		if (
 			!memberChanged &&
 			!householdChanged &&
 			!inviteCodeChanged &&
 			!ownerPlansChanged &&
+			!ownerReviewsChanged &&
 			!autoShareChanged &&
 			!switchTarget
 		) {
@@ -541,6 +561,26 @@
 					);
 				}
 			}
+			if (ownerReviewsChanged) {
+				try {
+					await setOwnerReviewsMeals({
+						householdId: current.householdId as Id<"households">,
+						callerMemberId:
+							current.memberId as Id<"householdMembers">,
+						enabled: pendingOwnerReviews,
+					});
+					toast.success(
+						pendingOwnerReviews
+							? "Owner reviews everyone's leftovers"
+							: "Leftover reviews are per-member again",
+					);
+				} catch (error) {
+					failed = true;
+					toast.error(
+						errorMessage(error, "Couldn't update the setting."),
+					);
+				}
+			}
 			if (autoShareChanged) {
 				try {
 					await setAutoShareMeals({
@@ -564,6 +604,7 @@
 			}
 			if (!failed) {
 				ownerManagesPlansDraft = null;
+				ownerReviewsMealsDraft = null;
 				autoShareMealsDraft = null;
 				editingProfile = false;
 				pendingHouseholdKey = null;
@@ -730,18 +771,21 @@
 						/>
 						{#if !editingProfile}
 							<div class="min-w-0 flex-1">
-								<p class="m-0 truncate font-semibold">{myName}</p>
+								<p class="m-0 truncate font-semibold">
+									{myName}
+								</p>
 								<p
 									class="m-0 truncate text-xs text-muted-foreground"
 								>
-									{activeEntry.isOwner ? "Owner" : "Member"} · Member
-									of {activeEntry.household.name}
+									{activeEntry.isOwner ? "Owner" : "Member"} ·
+									Member of {activeEntry.household.name}
 								</p>
 							</div>
 						{:else}
 							<form
 								class="flex min-w-0 flex-1 items-center gap-1.5"
-								onsubmit={(event) => void saveProfileEdits(event)}
+								onsubmit={(event) =>
+									void saveProfileEdits(event)}
 							>
 								<Input
 									bind:ref={nameInput}
@@ -784,32 +828,25 @@
 										editingProfile &&
 											!savingProfile &&
 											"cursor-pointer",
-									)}
-									>Share my new meals publicly</label
+									)}>Share my new meals publicly</label
 								>
 								<span class="text-xs text-muted-foreground">
-									When on, meals you add appear in the community
-									cookbook automatically. Turn off to keep them
-									private; any meal can still be shared from its
-									editor. Changes apply when profile edits are
-									saved.
+									Meals you add appear in the community
+									cookbook automatically.
 								</span>
 							</span>
 						</div>
 					{/if}
 				</div>
-				{#if activeEntry &&
-					auth.isAuthenticated &&
-					myMember &&
-					!myMember.authSubject}
+				{#if activeEntry && auth.isAuthenticated && myMember && !myMember.authSubject}
 					<div
 						class="flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-3 py-2"
 					>
 						<p
 							class="m-0 min-w-0 flex-1 text-xs text-muted-foreground"
 						>
-							This member isn't linked to your sign-in yet —
-							link it to sync your name and picture.
+							This member isn't linked to your sign-in yet — link
+							it to sync your name and picture.
 						</p>
 						<Button
 							variant="outline"
@@ -817,22 +854,14 @@
 							disabled={linkingAccount}
 							onclick={() => void handleLinkAccount()}
 						>
-						{linkingAccount
-							? "Linking…"
-							: "Link to my sign-in"}
-					</Button>
-				</div>
-			{/if}
+							{linkingAccount ? "Linking…" : "Link to my sign-in"}
+						</Button>
+					</div>
+				{/if}
 
-			<Card.Root>
-				<Card.Header>
-					<Card.Title>Current household</Card.Title>
-						<Card.Description>
-							{activeEntry.memberCount}
-							{activeEntry.memberCount === 1
-								? "member"
-								: "members"} · rename or share the invite code
-						</Card.Description>
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>Current household</Card.Title>
 					</Card.Header>
 					<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
 						<div class="grid content-start gap-1.5">
@@ -908,7 +937,6 @@
 								</p>
 							{/if}
 						</div>
-						<Separator class="sm:col-span-2" />
 						<div class="grid gap-2 sm:col-span-2">
 							<span
 								class="text-xs font-semibold text-muted-foreground"
@@ -930,7 +958,7 @@
 								{#each members as member (member._id)}
 									{@const isSelf = member._id === myId}
 									<div
-										class="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5"
+										class="flex items-center justify-between gap-3 rounded-lg py-1.5"
 									>
 										<div
 											class="flex min-w-0 flex-wrap items-center gap-1.5"
@@ -1009,7 +1037,7 @@
 									Owner settings
 								</span>
 								<div class="flex items-start gap-2.5">
-									<Checkbox
+									<Switch
 										id="owner-manages-plans"
 										checked={pendingOwnerManagesPlans}
 										onCheckedChange={(value) => {
@@ -1019,7 +1047,8 @@
 										}}
 										disabled={!editingProfile ||
 											savingProfile}
-										class="mt-0.5"
+										aria-label="Plan for everyone"
+										class="mt-0.5 shrink-0"
 									/>
 									<span class="grid gap-0.5">
 										<label
@@ -1029,8 +1058,7 @@
 												editingProfile &&
 													!savingProfile &&
 													"cursor-pointer",
-											)}
-											>Owner can plan for everyone</label
+											)}>Plan for everyone</label
 										>
 										<span
 											class="text-xs text-muted-foreground"
@@ -1039,8 +1067,39 @@
 											between members' plans and pick
 											meals for them. Everyone else only
 											ever sees and edits their own plan.
-											Changes apply when profile edits are
-											saved.
+										</span>
+									</span>
+								</div>
+								<div class="flex items-start gap-2.5">
+									<Switch
+										id="owner-reviews-meals"
+										checked={pendingOwnerReviewsMeals}
+										onCheckedChange={(value) => {
+											if (typeof value === "boolean") {
+												ownerReviewsMealsDraft = value;
+											}
+										}}
+										disabled={!editingProfile ||
+											savingProfile}
+										aria-label="Review all leftovers"
+										class="mt-0.5 shrink-0"
+									/>
+									<span class="grid gap-0.5">
+										<label
+											for="owner-reviews-meals"
+											class={cn(
+												"text-sm font-medium",
+												editingProfile &&
+													!savingProfile &&
+													"cursor-pointer",
+											)}>Review all leftovers</label
+										>
+										<span
+											class="text-xs text-muted-foreground"
+										>
+											When on, the owner's leftover review
+											covers every member's plan instead
+											of just their own.
 										</span>
 									</span>
 								</div>
@@ -1254,56 +1313,58 @@
 							{@const highlighted =
 								isPending ||
 								(isActive && !householdSwitchPending)}
-						<div
-							class={cn(
-								"flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
-								highlighted && "border-primary bg-muted/50",
-								editingProfile &&
-									!highlighted &&
-									"transition-colors hover:border-muted-foreground/50",
-							)}
-						>
-							<button
-								type="button"
-								disabled={!editingProfile}
-								aria-pressed={isPending}
-								aria-label={isActive && !isPending
-									? `Current household: ${entry.household.name}`
-									: isPending
-										? `Selected household: ${entry.household.name} (applies on save)`
-										: editingProfile
-											? `Select ${entry.household.name}`
-											: entry.household.name}
-								onclick={() => {
-									pendingHouseholdKey = isPending ? null : key;
-								}}
+							<div
 								class={cn(
-									"grid min-w-0 flex-1 justify-items-start gap-0 text-left",
-									editingProfile && "cursor-pointer",
+									"flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
+									highlighted && "border-primary bg-muted/50",
+									editingProfile &&
+										!highlighted &&
+										"transition-colors hover:border-muted-foreground/50",
 								)}
 							>
-								<span
-									class="flex max-w-full flex-wrap items-center gap-1.5"
+								<button
+									type="button"
+									disabled={!editingProfile}
+									aria-pressed={isPending}
+									aria-label={isActive && !isPending
+										? `Current household: ${entry.household.name}`
+										: isPending
+											? `Selected household: ${entry.household.name} (applies on save)`
+											: editingProfile
+												? `Select ${entry.household.name}`
+												: entry.household.name}
+									onclick={() => {
+										pendingHouseholdKey = isPending
+											? null
+											: key;
+									}}
+									class={cn(
+										"grid min-w-0 flex-1 justify-items-start gap-0 text-left",
+										editingProfile && "cursor-pointer",
+									)}
 								>
-									<strong class="truncate"
-										>{entry.household.name}</strong
+									<span
+										class="flex max-w-full flex-wrap items-center gap-1.5"
 									>
-									<Badge variant="secondary">
-										{entry.isOwner ? "Owner" : "Member"}
-									</Badge>
-								</span>
-								<span
-									class="mt-1 font-mono text-xs text-muted-foreground"
-								>
-									{entry.household.inviteCode} · {entry.memberCount}
-									{entry.memberCount === 1
-										? "member"
-										: "members"} · as {entry.member
-										.name}
-								</span>
-							</button>
-							<div class="flex shrink-0 gap-2">
-								<AlertDialog.Root>
+										<strong class="truncate"
+											>{entry.household.name}</strong
+										>
+										<Badge variant="secondary">
+											{entry.isOwner ? "Owner" : "Member"}
+										</Badge>
+									</span>
+									<span
+										class="mt-1 font-mono text-xs text-muted-foreground"
+									>
+										{entry.household.inviteCode} · {entry.memberCount}
+										{entry.memberCount === 1
+											? "member"
+											: "members"} · as {entry.member
+											.name}
+									</span>
+								</button>
+								<div class="flex shrink-0 gap-2">
+									<AlertDialog.Root>
 										<AlertDialog.Trigger>
 											{#snippet child({ props })}
 												<Button

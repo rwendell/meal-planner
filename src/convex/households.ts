@@ -582,6 +582,32 @@ export const setOwnerManagesPlans = mutation({
 	returns: v.null(),
 });
 
+export const setOwnerReviewsMeals = mutation({
+	args: {
+		householdId: v.id("households"),
+		callerMemberId: v.id("householdMembers"),
+		enabled: v.boolean(),
+	},
+	handler: async (ctx, args) => {
+		const [household, caller] = await Promise.all([
+			ctx.db.get("households", args.householdId),
+			ctx.db.get("householdMembers", args.callerMemberId),
+		]);
+		if (!household || !caller || caller.householdId !== args.householdId) {
+			throw new Error("Household member not found.");
+		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
+		if (!canManage(household, args.callerMemberId)) {
+			throw new Error("Only the kitchen owner can change this setting.");
+		}
+		await ctx.db.patch("households", args.householdId, {
+			ownerReviewsMeals: args.enabled,
+		});
+		return null;
+	},
+	returns: v.null(),
+});
+
 export const removeMember = mutation({
 	args: {
 		householdId: v.id("households"),
