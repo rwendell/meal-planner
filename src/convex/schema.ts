@@ -69,9 +69,6 @@ export default defineSchema({
 		// When true, the owner may view and plan for other members.
 		// Unset means members plan only for themselves.
 		ownerManagesPlans: v.optional(v.boolean()),
-		// New meals publish to the community cookbook automatically.
-		// Unset (and true) means public by default; false opts out.
-		autoShareMeals: v.optional(v.boolean()),
 	}).index("by_inviteCode", ["inviteCode"]),
 	householdMembers: defineTable({
 		householdId: v.id("households"),
@@ -82,6 +79,9 @@ export default defineSchema({
 		// safe to replace with the OAuth profile name on first link.
 		// Any explicit rename clears it.
 		autoNamed: v.optional(v.boolean()),
+		// New meals this member creates publish automatically.
+		// Unset (and true) means public by default; false opts out.
+		autoShareMeals: v.optional(v.boolean()),
 		// Convex Auth identity (tokenIdentifier) of the signed-in user
 		// this member belongs to. Unset on anonymous/invite-code rows
 		// until claimed at first sign-in.
@@ -104,6 +104,9 @@ export default defineSchema({
 		// Prep time in whole minutes. Null/unset means no prep time given.
 		time: v.optional(v.union(v.number(), v.null())),
 		color: v.string(),
+		// Heat-and-eat product (bought whole) rather than cooked from
+		// ingredients. Unset means cooked from ingredients.
+		premade: v.optional(v.boolean()),
 		// Original recipe site, when imported or recorded. Display-only.
 		// Null/unset means none given.
 		sourceUrl: v.optional(v.union(v.string(), v.null())),
@@ -142,6 +145,7 @@ export default defineSchema({
 		note: v.string(),
 		time: v.optional(v.union(v.number(), v.null())),
 		color: v.string(),
+		premade: v.optional(v.boolean()),
 		ingredients: v.array(ingredient),
 		mealTimes: v.array(mealSlot),
 	}).index("by_household", ["sourceHouseholdId"]),
@@ -157,4 +161,28 @@ export default defineSchema({
 	})
 		.index("by_household", ["householdId"])
 		.index("by_household_key", ["householdId", "key"]),
+	// Pantry inventory: ingredients already on hand. Matching shopping
+	// items auto-check (name-level match; amounts are ignored).
+	pantryItems: defineTable({
+		householdId: v.id("households"),
+		key: v.string(),
+		name: v.string(),
+		amount: v.optional(v.union(v.string(), v.null())),
+		group: groceryGroup,
+	})
+		.index("by_household", ["householdId"])
+		.index("by_household_key", ["householdId", "key"]),
+	// Ready-made meals: "eat" rows are heat-and-eat products to buy;
+	// "made" rows are already prepared, so their ingredients auto-check.
+	// Unset means "made" (original behavior).
+	readyMeals: defineTable({
+		householdId: v.id("households"),
+		mealId: v.id("meals"),
+		kind: v.optional(v.union(v.literal("eat"), v.literal("made"))),
+		note: v.optional(v.union(v.string(), v.null())),
+		// ISO date; null/unset means no expiry.
+		expiresOn: v.optional(v.union(v.string(), v.null())),
+	})
+		.index("by_household", ["householdId"])
+		.index("by_household_meal", ["householdId", "mealId"]),
 });

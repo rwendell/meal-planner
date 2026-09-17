@@ -96,7 +96,7 @@
 	const setOwnerManagesPlans = useMutation(
 		api.households.setOwnerManagesPlans,
 	);
-	const setAutoShareMeals = useMutation(api.households.setAutoShareMeals);
+	const setAutoShareMeals = useMutation(api.households.setMemberAutoShare);
 	const renameMember = useMutation(api.households.renameMember);
 	const removeMember = useMutation(api.households.removeMember);
 	const createHousehold = useMutation(api.households.create);
@@ -355,7 +355,7 @@
 		ownerManagesPlansDraft ?? household?.ownerManagesPlans ?? false,
 	);
 	let pendingAutoShareMeals = $derived(
-		autoShareMealsDraft ?? household?.autoShareMeals ?? true,
+		autoShareMealsDraft ?? myMember?.autoShareMeals ?? true,
 	);
 	let pendingInviteCode = $derived(inviteCodeEdit.trim().toUpperCase());
 	let inviteCodeError = $derived(
@@ -378,10 +378,9 @@
 					ownerManagesPlansDraft !== null &&
 					ownerManagesPlansDraft !==
 						(household?.ownerManagesPlans ?? false)) ||
-				(isManager &&
-					autoShareMealsDraft !== null &&
+				(autoShareMealsDraft !== null &&
 					autoShareMealsDraft !==
-						(household?.autoShareMeals ?? true)) ||
+						(myMember?.autoShareMeals ?? true)) ||
 				exclusionsDirty ||
 				householdSwitchPending
 			) ||
@@ -444,7 +443,7 @@
 		}
 		const baselineOwnerPlans = household?.ownerManagesPlans ?? false;
 		const pendingOwnerPlans = ownerManagesPlansDraft;
-		const baselineAutoShare = household?.autoShareMeals ?? true;
+		const baselineAutoShare = myMember?.autoShareMeals ?? true;
 		const pendingAutoShare = autoShareMealsDraft;
 		const memberChanged = memberName !== entry.member.name;
 		const householdChanged = householdName !== entry.household.name;
@@ -455,7 +454,6 @@
 			pendingOwnerPlans !== null &&
 			pendingOwnerPlans !== baselineOwnerPlans;
 		const autoShareChanged =
-			isManager &&
 			pendingAutoShare !== null &&
 			pendingAutoShare !== baselineAutoShare;
 		if (
@@ -547,14 +545,15 @@
 				try {
 					await setAutoShareMeals({
 						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
 						callerMemberId:
 							current.memberId as Id<"householdMembers">,
 						enabled: pendingAutoShare,
 					});
 					toast.success(
 						pendingAutoShare
-							? "New meals will be shared publicly"
-							: "New meals will stay private",
+							? "Meals you add will be shared publicly"
+							: "Meals you add will stay private",
 					);
 				} catch (error) {
 					failed = true;
@@ -721,45 +720,82 @@
 			</div>
 			{#if activeEntry}
 				<div
-					class="flex items-center gap-3 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs"
+					class="grid gap-2 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs"
 				>
-					<MemberAvatar
-						name={myName}
-						image={myMember?.image ?? null}
-						size="lg"
-					/>
-					{#if !editingProfile}
-						<div class="min-w-0 flex-1">
-							<p class="m-0 truncate font-semibold">{myName}</p>
-							<p
-								class="m-0 truncate text-xs text-muted-foreground"
+					<div class="flex items-center gap-3">
+						<MemberAvatar
+							name={myName}
+							image={myMember?.image ?? null}
+							size="lg"
+						/>
+						{#if !editingProfile}
+							<div class="min-w-0 flex-1">
+								<p class="m-0 truncate font-semibold">{myName}</p>
+								<p
+									class="m-0 truncate text-xs text-muted-foreground"
+								>
+									{activeEntry.isOwner ? "Owner" : "Member"} · Member
+									of {activeEntry.household.name}
+								</p>
+							</div>
+						{:else}
+							<form
+								class="flex min-w-0 flex-1 items-center gap-1.5"
+								onsubmit={(event) => void saveProfileEdits(event)}
 							>
-								{activeEntry.isOwner ? "Owner" : "Member"} · Member
-								of {activeEntry.household.name}
-							</p>
-						</div>
-					{:else}
-						<form
-							class="flex min-w-0 flex-1 items-center gap-1.5"
-							onsubmit={(event) => void saveProfileEdits(event)}
-						>
-							<Input
-								bind:ref={nameInput}
-								id="my-name"
-								bind:value={myNameEdit}
-								required
-								maxlength={40}
-								placeholder="Your name"
-								autocomplete="given-name"
-								aria-label="Display name"
-								class="h-8"
-								disabled={savingProfile}
-								onkeydown={(event) => {
-									if (event.key === "Escape")
-										cancelEditingProfile();
+								<Input
+									bind:ref={nameInput}
+									id="my-name"
+									bind:value={myNameEdit}
+									required
+									maxlength={40}
+									placeholder="Your name"
+									autocomplete="given-name"
+									aria-label="Display name"
+									class="h-8"
+									disabled={savingProfile}
+									onkeydown={(event) => {
+										if (event.key === "Escape")
+											cancelEditingProfile();
+									}}
+								/>
+							</form>
+						{/if}
+					</div>
+					{#if myMember}
+						<Separator />
+						<div class="flex items-start gap-2.5">
+							<Checkbox
+								id="auto-share-meals"
+								checked={pendingAutoShareMeals}
+								onCheckedChange={(value) => {
+									if (typeof value === "boolean") {
+										autoShareMealsDraft = value;
+									}
 								}}
+								disabled={!editingProfile || savingProfile}
+								class="mt-0.5"
 							/>
-						</form>
+							<span class="grid gap-0.5">
+								<label
+									for="auto-share-meals"
+									class={cn(
+										"text-sm font-medium",
+										editingProfile &&
+											!savingProfile &&
+											"cursor-pointer",
+									)}
+									>Share my new meals publicly</label
+								>
+								<span class="text-xs text-muted-foreground">
+									When on, meals you add appear in the community
+									cookbook automatically. Turn off to keep them
+									private; any meal can still be shared from its
+									editor. Changes apply when profile edits are
+									saved.
+								</span>
+							</span>
+						</div>
 					{/if}
 				</div>
 				{#if activeEntry &&
@@ -781,16 +817,16 @@
 							disabled={linkingAccount}
 							onclick={() => void handleLinkAccount()}
 						>
-							{linkingAccount
-								? "Linking…"
-								: "Link to my sign-in"}
-						</Button>
-					</div>
-				{/if}
+						{linkingAccount
+							? "Linking…"
+							: "Link to my sign-in"}
+					</Button>
+				</div>
+			{/if}
 
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>Current household</Card.Title>
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Current household</Card.Title>
 						<Card.Description>
 							{activeEntry.memberCount}
 							{activeEntry.memberCount === 1
@@ -1005,42 +1041,6 @@
 											ever sees and edits their own plan.
 											Changes apply when profile edits are
 											saved.
-										</span>
-									</span>
-								</div>
-								<div class="flex items-start gap-2.5">
-									<Checkbox
-										id="auto-share-meals"
-										checked={pendingAutoShareMeals}
-										onCheckedChange={(value) => {
-											if (typeof value === "boolean") {
-												autoShareMealsDraft = value;
-											}
-										}}
-										disabled={!editingProfile ||
-											savingProfile}
-										class="mt-0.5"
-									/>
-									<span class="grid gap-0.5">
-										<label
-											for="auto-share-meals"
-											class={cn(
-												"text-sm font-medium",
-												editingProfile &&
-													!savingProfile &&
-													"cursor-pointer",
-											)}
-											>Share new meals publicly</label
-										>
-										<span
-											class="text-xs text-muted-foreground"
-										>
-											When on, new meals appear in the
-											community cookbook automatically.
-											Turn off to keep new meals private;
-											any meal can still be shared from
-											its editor. Changes apply when
-											profile edits are saved.
 										</span>
 									</span>
 								</div>

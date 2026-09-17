@@ -1,10 +1,12 @@
 <script lang="ts">
 	import PlusIcon from "@lucide/svelte/icons/plus";
+	import RefrigeratorIcon from "@lucide/svelte/icons/refrigerator";
 	import SearchXIcon from "@lucide/svelte/icons/search-x";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { useQuery } from "convex-svelte";
 	import { resolve } from "$app/paths";
 	import MealEditor from "$lib/components/MealEditor.svelte";
+	import PickerOptionButton from "$lib/components/PickerOptionButton.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Empty from "$lib/components/ui/empty";
@@ -13,6 +15,7 @@
 		MealType,
 		PickerMeal,
 	} from "$lib/meal-types.js";
+	import { session } from "$lib/session.svelte.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -63,13 +66,27 @@
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 
-	// New meals share publicly unless the household opted out; the
+	// New meals share publicly unless this member opted out; the
 	// editor passes the switch through on create.
 	const householdQuery = useQuery(api.households.get, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
+	// Ready-made meals get a fridge icon next to the household picks.
+	const readyQuery = useQuery(api.pantry.listReady, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	let readyMadeIds = $derived(
+		new Set<string>(
+			(readyQuery.data ?? [])
+				.filter((row) => row.kind !== "eat")
+				.map((row) => row.mealId),
+		),
+	);
+	let selfMemberId = $derived(session.session?.memberId ?? null);
 	let autoShareDefault = $derived(
-		householdQuery.data?.household.autoShareMeals ?? true,
+		householdQuery.data?.members.find(
+			(member) => member._id === selfMemberId,
+		)?.autoShareMeals ?? true,
 	);
 
 	let pickerMeals = $derived.by(() => {
@@ -157,6 +174,7 @@
 					initialName={editorName}
 					initialMealTimes={slot ? [slot] : ["dinner"]}
 					initialShared={autoShareDefault}
+					initialPremade={false}
 					existingMeals={meals.map((meal) => ({
 						id: meal.id,
 						name: meal.name,
@@ -173,9 +191,9 @@
 				aria-label="Search meals"
 			/>
 			{#if showSkip}
-				<Button
+				<PickerOptionButton
 					variant="outline"
-					class="w-full justify-start gap-2.5"
+					label="Skip this meal"
 					onclick={handleSkip}
 				>
 					<span
@@ -187,26 +205,31 @@
 							>No cooking, no groceries</small
 						></span
 					>
-				</Button>
+				</PickerOptionButton>
 			{/if}
 			{#if pickerMeals.length}
 				<div class="mt-3.5 grid max-h-80 gap-2 overflow-y-auto">
-					{#each pickerMeals as meal (meal.id)}
-						<Button
-							variant="ghost"
-							class="h-auto w-full justify-start gap-2.5 px-3 py-2.5 text-left"
+				{#each pickerMeals as meal (meal.id)}
+						<PickerOptionButton
+							label={meal.name}
 							onclick={() => handleSelect(meal.id)}
 						>
-							<span
-								class="size-3 shrink-0 rounded-[4px]"
-								style={`background: ${meal.color}`}
-							></span>
 							<span class="min-w-0 flex-1"
 								>{meal.name}<small
 									class="block text-[10px] font-semibold text-muted-foreground"
 									>{meal.category}</small
 								></span
 							>
+							{#if readyMadeIds.has(meal.id)}
+								<span
+									class="inline-flex shrink-0 items-center text-muted-foreground"
+									title="Already made — no need to shop"
+									role="img"
+									aria-label={`${meal.name} is already made`}
+								>
+									<RefrigeratorIcon size={13} />
+								</span>
+							{/if}
 							{@const others = othersByMeal?.get(meal.id)}
 							{#if others?.length}
 								<span
@@ -220,7 +243,7 @@
 								</span>
 							{/if}
 							<PlusIcon />
-						</Button>
+						</PickerOptionButton>
 					{/each}
 				</div>
 			{:else}

@@ -14,6 +14,7 @@ import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as listPlans from "../listPlans.js";
 import type * as meals from "../meals.js";
+import type * as pantry from "../pantry.js";
 import type * as plan from "../plan.js";
 import type * as recipeImport from "../recipeImport.js";
 import type * as recipes from "../recipes.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   listPlans: typeof listPlans;
   meals: typeof meals;
+  pantry: typeof pantry;
   plan: typeof plan;
   recipeImport: typeof recipeImport;
   recipes: typeof recipes;

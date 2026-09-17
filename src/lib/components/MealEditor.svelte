@@ -46,6 +46,7 @@
 		initialTime = undefined,
 		initialSourceUrl = "",
 		initialShared = false,
+		initialPremade = false,
 		initialMealTimes = ["dinner"],
 		initialIngredients = [],
 		editingMeal = null,
@@ -61,6 +62,7 @@
 		initialTime?: number;
 		initialSourceUrl?: string;
 		initialShared?: boolean;
+		initialPremade?: boolean;
 		initialMealTimes?: MealType[];
 		initialIngredients?: MealEditorIngredient[];
 		editingMeal?: MealEditorEditingMeal | null;
@@ -103,6 +105,10 @@
 		return initialShared;
 	}
 
+	function getInitialPremade(): boolean {
+		return initialPremade;
+	}
+
 	function getInitialTimes(): MealType[] {
 		return initialMealTimes.length > 0 ? [...initialMealTimes] : ["dinner"];
 	}
@@ -123,6 +129,7 @@
 	let timeValue = $state(getInitialTime());
 	let sourceValue = $state(getInitialSourceUrl());
 	let shared = $state(getInitialShared());
+	let premade = $state(getInitialPremade());
 	let selectedTimes = $state<MealType[]>(getInitialTimes());
 	let formError = $state("");
 	let saving = $state(false);
@@ -228,6 +235,7 @@
 					note: noteValue.trim() || undefined,
 					time: prepMinutes,
 					sourceUrl: sourceValue.trim() || null,
+					premade,
 					ingredients,
 					mealTimes: selectedTimes,
 				});
@@ -243,6 +251,7 @@
 					ingredients,
 					mealTimes: selectedTimes,
 					shared,
+					premade,
 				});
 				onSaved(mealId, name, shared);
 			}
@@ -292,6 +301,26 @@
 			{/each}
 		</div>
 	</fieldset>
+	<div class="flex items-start gap-2.5">
+		<Checkbox
+			id={`${prefix}-meal-premade`}
+			checked={premade}
+			onCheckedChange={(value) => {
+				if (typeof value === "boolean") premade = value;
+			}}
+			class="mt-0.5"
+		/>
+		<span class="grid gap-0.5">
+			<label
+				for={`${prefix}-meal-premade`}
+				class="cursor-pointer text-sm font-semibold"
+				>Premade meal</label
+			>
+			<span class="text-xs text-muted-foreground">
+				Bought ready-made instead of cooked from ingredients
+			</span>
+		</span>
+	</div>
 	<label
 		for={`${prefix}-meal-note`}
 		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
@@ -340,6 +369,10 @@
 				<Select.Root
 					type="single"
 					value={row.group}
+					items={groceryGroups.map((group) => ({
+						value: group,
+						label: group,
+					}))}
 					onValueChange={(value) => {
 						if (value) row.group = value as GroceryGroup;
 					}}

@@ -1,7 +1,8 @@
 <script lang="ts">
-	import BanIcon from "@lucide/svelte/icons/ban";
-	import PlusIcon from "@lucide/svelte/icons/plus";
-	import XIcon from "@lucide/svelte/icons/x";
+import BanIcon from "@lucide/svelte/icons/ban";
+import PlusIcon from "@lucide/svelte/icons/plus";
+import RefrigeratorIcon from "@lucide/svelte/icons/refrigerator";
+import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
@@ -245,6 +246,18 @@
 					dates: [pickerTarget.date],
 				}
 			: "skip",
+	);
+
+	// Meals marked as already made get an icon on their planner slots.
+	const readyQuery = useQuery(api.pantry.listReady, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	let readyMadeIds = $derived(
+		new Set<string>(
+			(readyQuery.data ?? [])
+				.filter((row) => row.kind !== "eat")
+				.map((row) => row.mealId),
+		),
 	);
 
 	let othersByMeal = $derived.by(() => {
@@ -743,12 +756,20 @@
 													class="group flex min-h-[46px] items-start justify-between gap-1.5 rounded-[11px] p-2 text-[10px] leading-[1.25] font-extrabold text-[#32433b]"
 													style={`background: ${meal.color}`}
 												>
-													<span class="min-w-0"
-														>{meal.name}{#if meal.ingredientCount === 0}<span
-																class="mt-[3px] block text-[8px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
-																>No list</span
-															>{/if}</span
-													>
+												<span class="min-w-0"
+													>{#if readyMadeIds.has(meal.id)}<span
+															role="img"
+															aria-label={`${meal.name} is already made`}
+															title="Already made — no need to shop"
+															class="mr-[3px] inline-block align-[-1px]"
+															><RefrigeratorIcon
+																size={11}
+															/></span
+														>{/if}{meal.name}{#if meal.ingredientCount === 0}<span
+															class="mt-[3px] block text-[8px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
+															>No list</span
+														>{/if}</span
+												>
 													{#if canEditViewing}
 														<button
 															type="button"

@@ -83,6 +83,7 @@ export async function upsertPublishedSnapshot(
 		note: meal.note,
 		time: meal.time,
 		color: meal.color,
+		premade: meal.premade ?? false,
 		ingredients: meal.ingredients,
 		mealTimes: meal.mealTimes ?? [],
 	};
@@ -355,6 +356,7 @@ export const adopt = mutation({
 			note: recipe.note,
 			time: recipe.time,
 			color: recipe.color,
+			...(recipe.premade === undefined ? {} : { premade: recipe.premade }),
 			ingredients: recipe.ingredients,
 			mealTimes: recipe.mealTimes,
 		});

@@ -362,6 +362,42 @@ export const setPlannerMode = mutation({
 	returns: v.id("householdMembers"),
 });
 
+/**
+ * A member's own default for sharing newly created meals. Self-only,
+ * like planner mode: nobody sets another member's default.
+ */
+export const setMemberAutoShare = mutation({
+	args: {
+		householdId: v.id("households"),
+		memberId: v.id("householdMembers"),
+		callerMemberId: v.id("householdMembers"),
+		enabled: v.boolean(),
+	},
+	handler: async (ctx, args) => {
+		if (args.memberId !== args.callerMemberId) {
+			throw new Error("You can only change your own sharing default.");
+		}
+		const [target, caller] = await Promise.all([
+			ctx.db.get("householdMembers", args.memberId),
+			ctx.db.get("householdMembers", args.callerMemberId),
+		]);
+		if (
+			!target ||
+			target.householdId !== args.householdId ||
+			!caller ||
+			caller.householdId !== args.householdId
+		) {
+			throw new Error("Household member not found.");
+		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
+		await ctx.db.patch("householdMembers", args.memberId, {
+			autoShareMeals: args.enabled,
+		});
+		return args.memberId;
+	},
+	returns: v.id("householdMembers"),
+});
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLAN_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 // At most one cell per weekday × slot.
@@ -540,32 +576,6 @@ export const setOwnerManagesPlans = mutation({
 		}
 		await ctx.db.patch("households", args.householdId, {
 			ownerManagesPlans: args.enabled,
-		});
-		return null;
-	},
-	returns: v.null(),
-});
-
-export const setAutoShareMeals = mutation({
-	args: {
-		householdId: v.id("households"),
-		callerMemberId: v.id("householdMembers"),
-		enabled: v.boolean(),
-	},
-	handler: async (ctx, args) => {
-		const [household, caller] = await Promise.all([
-			ctx.db.get("households", args.householdId),
-			ctx.db.get("householdMembers", args.callerMemberId),
-		]);
-		if (!household || !caller || caller.householdId !== args.householdId) {
-			throw new Error("Household member not found.");
-		}
-		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
-		if (!canManage(household, args.callerMemberId)) {
-			throw new Error("Only the kitchen owner can change this setting.");
-		}
-		await ctx.db.patch("households", args.householdId, {
-			autoShareMeals: args.enabled,
 		});
 		return null;
 	},

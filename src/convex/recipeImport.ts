@@ -378,7 +378,7 @@ const GROUP_KEYWORDS: Array<{ group: GroceryGroup; words: string[] }> = [
 ];
 
 /** Best-effort grocery group from the ingredient name. */
-function guessGroup(name: string): GroceryGroup {
+export function guessGroup(name: string): GroceryGroup {
 	const lower = name.toLowerCase();
 	for (const { group, words } of GROUP_KEYWORDS) {
 		if (words.some((word) => lower.includes(word))) return group;

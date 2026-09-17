@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PlusIcon from "@lucide/svelte/icons/plus";
+	import RefrigeratorIcon from "@lucide/svelte/icons/refrigerator";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
@@ -68,6 +69,18 @@
 			: "skip",
 	);
 	const applyList = useMutation(api.listPlans.apply);
+
+	// Meals marked as already made get an icon on their rows.
+	const readyQuery = useQuery(api.pantry.listReady, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	let readyMadeIds = $derived(
+		new Set<string>(
+			(readyQuery.data ?? [])
+				.filter((row) => row.kind !== "eat")
+				.map((row) => row.mealId),
+		),
+	);
 
 	let pickerSlot = $state<MealSlot | null>(null);
 	let mealsById = $derived(
@@ -334,8 +347,14 @@
 										<XIcon size={14} />
 									</button>
 								{/if}
-								<span class="min-w-0 truncate">{meal.name}</span
-								>
+							<span class="min-w-0 truncate">{#if readyMadeIds.has(entry.id)}<span
+										role="img"
+										aria-label={`${meal.name} is already made`}
+										title="Already made — no need to shop"
+										class="mr-1 inline-block align-[-1px]"
+										><RefrigeratorIcon size={13} /></span
+									>{/if}{meal.name}</span
+							>
 								{#if canEdit && editing}
 									<span
 										class="flex w-20 shrink-0 items-center justify-end gap-0"

@@ -17,6 +17,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Input } from "$lib/components/ui/input";
+	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import * as Tabs from "$lib/components/ui/tabs";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
@@ -49,6 +50,7 @@
 		time: number | null | undefined;
 		color: string;
 		sourceUrl: string | null;
+		premade: boolean;
 		ingredientCount: number;
 		ingredients: Ingredient[];
 		mealTimes: MealTime[];
@@ -177,9 +179,10 @@
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 
-	// New meals share publicly unless the household opted out.
+	// New meals share publicly unless this member opted out.
 	let autoShareDefault = $derived(
-		householdQuery.data?.household.autoShareMeals ?? true,
+		householdQuery.data?.members.find((m) => m._id === selfMemberId)
+			?.autoShareMeals ?? true,
 	);
 
 	let publishedMealIds = $derived(
@@ -220,6 +223,7 @@
 			time: meal.time,
 			color: meal.color,
 			sourceUrl: meal.sourceUrl ?? null,
+			premade: meal.premade ?? false,
 			ingredientCount: meal.ingredients.length,
 			ingredients: meal.ingredients.map((ingredient) => ({
 				name: ingredient.name,
@@ -346,6 +350,9 @@
 				...ingredient,
 			})),
 			mealTimes: [...meal.mealTimes],
+			// Duplicates keep the source meal's visibility and kind.
+			shared: publishedMealIds.has(meal.id),
+			premade: meal.premade,
 		});
 		toast.success(`Duplicated as "${name}"`);
 		openEditMeal({ ...meal, id, name });
@@ -497,20 +504,20 @@
 														duplicateMeal(meal)}
 													><CopyIcon /></Button
 												>
-												{#if publishedMealIds.has(meal.id)}
-													<span
-														class="grid size-7 place-items-center text-muted-foreground"
-														title="Shared publicly"
-														role="img"
-														aria-label={`${meal.name} is shared publicly`}
-													>
-														<ShareIcon size={14} />
-													</span>
-												{/if}
-												<Button
-													variant="ghost"
-													size="icon-sm"
-													aria-label={`Delete ${meal.name} from the database`}
+											{#if publishedMealIds.has(meal.id)}
+												<span
+													class="grid size-7 place-items-center text-muted-foreground"
+													title="Shared publicly"
+													role="img"
+													aria-label={`${meal.name} is shared publicly`}
+												>
+													<ShareIcon size={14} />
+												</span>
+											{/if}
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												aria-label={`Delete ${meal.name} from the database`}
 													title={`Delete ${meal.name}`}
 													onclick={() =>
 														deleteMealFromDatabase(
@@ -685,6 +692,7 @@
 						</p>
 					{/if}
 				</form>
+				<Separator />
 			{/if}
 			<MealEditor
 				{householdId}
@@ -699,6 +707,7 @@
 				initialShared={editingMeal
 					? publishedMealIds.has(editingMeal.id)
 					: autoShareDefault}
+				initialPremade={editingMeal?.premade ?? false}
 				initialMealTimes={editingMeal
 					? [...editingMeal.mealTimes]
 					: ["dinner"]}

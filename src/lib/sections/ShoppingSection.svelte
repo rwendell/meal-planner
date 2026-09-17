@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
+	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import { copyText } from "$lib/clipboard.js";
@@ -8,9 +9,12 @@
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Empty from "$lib/components/ui/empty";
+	import { Input } from "$lib/components/ui/input";
 	import { Progress } from "$lib/components/ui/progress";
+	import * as Select from "$lib/components/ui/select";
 	import { Skeleton } from "$lib/components/ui/skeleton";
-	import { weekDates } from "$lib/dates.js";
+	import { todayISO, weekDates } from "$lib/dates.js";
+	import { errorMessage } from "$lib/errors.js";
 	import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
 	import { plannerWeek } from "$lib/planner-week.svelte.js";
 	import { session } from "$lib/session.svelte.js";
@@ -24,6 +28,7 @@
 		amount: string;
 		group: GroceryGroup;
 		checked: boolean;
+		coveredBy: "pantry" | "leftovers" | null;
 	}
 
 	let householdId = $derived(session.session?.householdId ?? null);
@@ -40,21 +45,128 @@
 			? {
 					householdId: householdId as Id<"households">,
 					dates: listDates,
+					today: todayISO(),
 				}
 			: "skip",
 	);
 
 	const setItemChecked = useMutation(api.shopping.setChecked);
+	const mealsQuery = useQuery(api.meals.list, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	const pantryQuery = useQuery(api.pantry.list, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	const readyQuery = useQuery(api.pantry.listReady, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	const addPantryItem = useMutation(api.pantry.add);
+	const removePantryItem = useMutation(api.pantry.remove);
+	const setReadyMeal = useMutation(api.pantry.setReady);
+
+	let pantryName = $state("");
+	let pantryAmount = $state("");
+	let pantryError = $state("");
+	let readyMealPick = $state<string | null>(null);
+
+	let readyMealIds = $derived(
+		new Set<string>((readyQuery.data ?? []).map((row) => row.mealId)),
+	);
+	let markableMeals = $derived(
+		(mealsQuery.data ?? []).filter((meal) => !readyMealIds.has(meal._id)),
+	);
+
+	async function handleMarkReady(event: SubmitEvent): Promise<void> {
+		event.preventDefault();
+		if (!householdId || !readyMealPick) return;
+		const picked = (mealsQuery.data ?? []).find(
+			(meal) => meal._id === readyMealPick,
+		);
+		try {
+			await setReadyMeal({
+				householdId: householdId as Id<"households">,
+				mealId: readyMealPick as Id<"meals">,
+				on: true,
+			});
+			readyMealPick = null;
+			toast.success(
+				picked?.premade
+					? "Added to the list — buy it ready-made"
+					: "Marked as made — ingredients checked off",
+			);
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't mark that meal."));
+		}
+	}
+
+	async function handleAddPantry(event: SubmitEvent): Promise<void> {
+		event.preventDefault();
+		if (!householdId || !pantryName.trim()) return;
+		pantryError = "";
+		try {
+			await addPantryItem({
+				householdId: householdId as Id<"households">,
+				name: pantryName.trim(),
+				amount: pantryAmount.trim() || undefined,
+			});
+			pantryName = "";
+			pantryAmount = "";
+			toast.success("Added to on-hand staples");
+		} catch (error) {
+			pantryError = errorMessage(error, "Couldn't add that staple.");
+		}
+	}
+
+	async function handleRemovePantry(id: string): Promise<void> {
+		try {
+			await removePantryItem({ id: id as Id<"pantryItems"> });
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't remove that staple."));
+		}
+	}
+
+	async function handleUseUpReady(mealId: string): Promise<void> {
+		if (!householdId) return;
+		try {
+			await setReadyMeal({
+				householdId: householdId as Id<"households">,
+				mealId: mealId as Id<"meals">,
+				on: false,
+			});
+			toast.success("Marked as used up");
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't update that meal."));
+		}
+	}
+
+	async function handleExpiryChange(
+		mealId: string,
+		expiresOn: string,
+	): Promise<void> {
+		if (!householdId) return;
+		try {
+			await setReadyMeal({
+				householdId: householdId as Id<"households">,
+				mealId: mealId as Id<"meals">,
+				on: true,
+				expiresOn: expiresOn || null,
+			});
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't set the expiry."));
+		}
+	}
 
 	let listItems = $derived<GroceryItem[]>(
-		(shoppingQuery.data ?? []).map((item) => ({
+		(shoppingQuery.data?.items ?? []).map((item) => ({
 			key: item.key,
 			name: item.name,
 			amount: item.amount ?? "",
 			group: item.group,
 			checked: item.checked,
+			coveredBy: item.coveredBy,
 		})),
 	);
+	let naturallyReady = $derived(shoppingQuery.data?.naturallyReady ?? []);
 	let groupedList = $derived(
 		groceryGroups.map((group) => ({
 			group,
@@ -131,6 +243,79 @@
 	{#if hero}<PlannerHero />{/if}
 	<Card.Root>
 		<Card.Header>
+			<Card.Title>On hand</Card.Title>
+			<Card.Description>
+				Staples you already own check themselves off the list.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="grid gap-3">
+			<form class="flex gap-1.5" onsubmit={handleAddPantry}>
+				<Input
+					bind:value={pantryName}
+					required
+					maxlength={80}
+					placeholder="Flour"
+					autocomplete="off"
+					aria-label="Staple name"
+					class="min-w-0 flex-1"
+				/>
+				<Input
+					bind:value={pantryAmount}
+					maxlength={40}
+					placeholder="1 bag"
+					autocomplete="off"
+					aria-label="Staple amount (optional)"
+					class="w-24 shrink-0"
+				/>
+				<Button
+					type="submit"
+					disabled={!pantryName.trim()}
+					class="shrink-0"
+					>Add</Button
+				>
+			</form>
+			{#if pantryError}
+				<p
+					class="m-0 text-xs font-semibold text-destructive"
+					role="alert"
+				>
+					{pantryError}
+				</p>
+			{/if}
+			{#if (pantryQuery.data ?? []).length > 0}
+				<ul class="m-0 grid list-none gap-1 p-0">
+					{#each pantryQuery.data ?? [] as item (item._id)}
+						<li
+							class="flex min-w-0 items-center gap-2 text-[13px]"
+						>
+							<span class="min-w-0 flex-1 truncate font-medium"
+								>{item.name}</span
+							>
+							{#if item.amount}<span
+									class="shrink-0 text-xs text-muted-foreground"
+									>{item.amount}</span
+								>{/if}
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label={`Remove ${item.name} from on-hand staples`}
+								title="Remove"
+								onclick={() => handleRemovePantry(item._id)}
+							>
+								<XIcon />
+							</Button>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="m-0 text-xs text-muted-foreground">
+					Nothing logged yet — add flour, rice, oil, and friends.
+				</p>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+	<Card.Root>
+		<Card.Header>
 			<Card.Title id="shopping-title">Shopping list</Card.Title>
 			{#if listItems.length > 0}
 				<Card.Action>
@@ -141,6 +326,110 @@
 			{/if}
 		</Card.Header>
 		<Card.Content>
+			<div class="mb-4">
+				<h3
+					class="m-0 mb-1.5 text-[10px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"
+				>
+					Ready to eat
+				</h3>
+				<p class="m-0 mb-2 text-[11px] text-muted-foreground">
+					Meals already made — their ingredients stay checked off.
+				</p>
+				<form class="mb-2 flex gap-1.5" onsubmit={handleMarkReady}>
+					<Select.Root
+						type="single"
+						value={readyMealPick ?? undefined}
+						items={markableMeals.map((meal) => ({
+							value: meal._id,
+							label: meal.name,
+						}))}
+						onValueChange={(value) => {
+							readyMealPick = value;
+						}}
+					>
+						<Select.Trigger
+							aria-label="Choose a ready-made meal"
+							class="min-w-0 flex-1"
+						>
+							<Select.Value placeholder="Mark a meal ready…" />
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each markableMeals as meal (meal._id)}
+									<Select.Item
+										value={meal._id}
+										label={meal.name}
+									/>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+					<Button
+						type="submit"
+						disabled={!readyMealPick}
+						class="shrink-0"
+						>Mark</Button
+					>
+				</form>
+				{#if (readyQuery.data ?? []).length > 0 || naturallyReady.length > 0}
+					<ul class="m-0 grid list-none gap-2 p-0">
+						{#each naturallyReady as name (name)}
+							<li
+								class="grid items-center gap-1.5 rounded-xl border border-dashed p-2.5"
+							>
+								<div class="min-w-0">
+									<p class="m-0 truncate text-sm font-semibold">
+										{name}
+									</p>
+									<p
+										class="m-0 truncate text-xs text-muted-foreground"
+									>
+										Nothing to buy
+									</p>
+								</div>
+							</li>
+						{/each}
+						{#each readyQuery.data ?? [] as row (row._id)}
+							<li
+								class="grid items-center gap-1.5 rounded-xl border p-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+							>
+								<div class="min-w-0">
+									<p class="m-0 truncate text-sm font-semibold">
+										{row.mealName}
+									</p>
+									{#if row.note}<p
+											class="m-0 truncate text-xs text-muted-foreground"
+											>{row.note}</p
+										>{/if}
+								</div>
+								<label
+									for={`ready-expiry-${row._id}`}
+									class="grid gap-1 text-[11px] font-semibold text-muted-foreground"
+									>Use by<Input
+										id={`ready-expiry-${row._id}`}
+										type="date"
+										value={row.expiresOn ?? ""}
+										onchange={(event) =>
+											handleExpiryChange(
+												row.mealId,
+												event.currentTarget.value,
+											)}
+										class="w-36"
+									/></label
+								>
+								<Button
+									variant="ghost"
+									size="sm"
+									class="text-muted-foreground hover:text-destructive"
+									onclick={() => handleUseUpReady(row.mealId)}
+								>
+									Use up
+								</Button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
 			{#if dataLoading}
 				<div class="grid gap-2" role="status">
 					<span class="sr-only">Syncing shopping list</span>
@@ -185,10 +474,16 @@
 											item.checked && "text-muted-foreground line-through",
 										)}>{item.name}</span
 									>
-									{#if item.amount}<small
-											class="text-[10px] text-muted-foreground"
-											>{item.amount}</small
-										>{/if}
+								{#if item.amount}<small
+										class="text-[10px] text-muted-foreground"
+										>{item.amount}</small
+									>{/if}
+								{#if item.coveredBy}<small
+										class="text-[10px] font-semibold text-muted-foreground"
+										>· {item.coveredBy === "pantry"
+											? "on hand"
+											: "leftovers"}</small
+									>{/if}
 								</button>
 							</div>
 						{/each}

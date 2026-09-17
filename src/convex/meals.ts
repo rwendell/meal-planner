@@ -71,9 +71,10 @@ export const create = mutation({
 		sourceUrl: v.optional(v.string()),
 		ingredients: v.optional(v.array(ingredient)),
 		mealTimes: v.array(mealSlot),
-		// Explicit share choice wins; otherwise the household default
-		// applies (public unless opted out).
+		// Explicit share choice wins; otherwise public by default.
 		shared: v.optional(v.boolean()),
+		// Heat-and-eat product rather than cooked from ingredients.
+		premade: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const household = await ctx.db.get("households", args.householdId);
@@ -94,10 +95,11 @@ export const create = mutation({
 			...(time === undefined ? {} : { time }),
 			color: args.color ?? "#f2cbb9",
 			...(sourceUrl === undefined ? {} : { sourceUrl }),
+			...(args.premade === undefined ? {} : { premade: args.premade }),
 			ingredients: args.ingredients ?? [],
 			mealTimes: args.mealTimes,
 		});
-		const shared = args.shared ?? household.autoShareMeals ?? true;
+		const shared = args.shared ?? true;
 		if (shared) {
 			await upsertPublishedSnapshot(ctx, args.householdId, mealId);
 		}
@@ -117,6 +119,8 @@ export const update = mutation({
 		color: v.optional(v.string()),
 		// Undefined leaves the link unchanged; null clears it.
 		sourceUrl: v.optional(v.union(v.string(), v.null())),
+		// Undefined leaves premade unchanged.
+		premade: v.optional(v.boolean()),
 		ingredients: v.array(ingredient),
 		mealTimes: v.array(mealSlot),
 	},
@@ -142,6 +146,7 @@ export const update = mutation({
 			...(args.sourceUrl === undefined
 				? {}
 				: { sourceUrl: normalizeSourceUrl(args.sourceUrl) ?? null }),
+			...(args.premade === undefined ? {} : { premade: args.premade }),
 			ingredients: args.ingredients,
 			mealTimes: args.mealTimes,
 		});
