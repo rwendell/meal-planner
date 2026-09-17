@@ -96,6 +96,7 @@
 	const setOwnerManagesPlans = useMutation(
 		api.households.setOwnerManagesPlans,
 	);
+	const setAutoShareMeals = useMutation(api.households.setAutoShareMeals);
 	const renameMember = useMutation(api.households.renameMember);
 	const removeMember = useMutation(api.households.removeMember);
 	const createHousehold = useMutation(api.households.create);
@@ -187,6 +188,7 @@
 	let householdNameEdit = $state("");
 	let householdNameEditKey = $state<string | null>(null);
 	let ownerManagesPlansDraft = $state<boolean | null>(null);
+	let autoShareMealsDraft = $state<boolean | null>(null);
 	let inviteCodeEdit = $state("");
 	let joinCode = $state("");
 	let newHouseholdName = $state("");
@@ -327,6 +329,7 @@
 				householdNameEdit = house.name;
 				inviteCodeEdit = house.inviteCode;
 				ownerManagesPlansDraft = null;
+				autoShareMealsDraft = null;
 			}
 			editingProfile = false;
 			pendingHouseholdKey = null;
@@ -341,6 +344,7 @@
 			householdNameEdit = house.name;
 			inviteCodeEdit = house.inviteCode;
 			ownerManagesPlansDraft = null;
+				autoShareMealsDraft = null;
 			editingProfile = false;
 			pendingHouseholdKey = null;
 			savingProfile = false;
@@ -349,6 +353,9 @@
 
 	let pendingOwnerManagesPlans = $derived(
 		ownerManagesPlansDraft ?? household?.ownerManagesPlans ?? false,
+	);
+	let pendingAutoShareMeals = $derived(
+		autoShareMealsDraft ?? household?.autoShareMeals ?? true,
 	);
 	let pendingInviteCode = $derived(inviteCodeEdit.trim().toUpperCase());
 	let inviteCodeError = $derived(
@@ -371,6 +378,10 @@
 					ownerManagesPlansDraft !== null &&
 					ownerManagesPlansDraft !==
 						(household?.ownerManagesPlans ?? false)) ||
+				(isManager &&
+					autoShareMealsDraft !== null &&
+					autoShareMealsDraft !==
+						(household?.autoShareMeals ?? true)) ||
 				exclusionsDirty ||
 				householdSwitchPending
 			) ||
@@ -395,6 +406,7 @@
 			inviteCodeEdit = activeEntry.household.inviteCode;
 		}
 		ownerManagesPlansDraft = null;
+		autoShareMealsDraft = null;
 		exclusionDraft = null;
 		confirmExclusionsOpen = false;
 		pendingHouseholdKey = null;
@@ -432,6 +444,8 @@
 		}
 		const baselineOwnerPlans = household?.ownerManagesPlans ?? false;
 		const pendingOwnerPlans = ownerManagesPlansDraft;
+		const baselineAutoShare = household?.autoShareMeals ?? true;
+		const pendingAutoShare = autoShareMealsDraft;
 		const memberChanged = memberName !== entry.member.name;
 		const householdChanged = householdName !== entry.household.name;
 		const inviteCodeChanged =
@@ -440,11 +454,16 @@
 			isManager &&
 			pendingOwnerPlans !== null &&
 			pendingOwnerPlans !== baselineOwnerPlans;
+		const autoShareChanged =
+			isManager &&
+			pendingAutoShare !== null &&
+			pendingAutoShare !== baselineAutoShare;
 		if (
 			!memberChanged &&
 			!householdChanged &&
 			!inviteCodeChanged &&
 			!ownerPlansChanged &&
+			!autoShareChanged &&
 			!switchTarget
 		) {
 			editingProfile = false;
@@ -524,8 +543,29 @@
 					);
 				}
 			}
+			if (autoShareChanged) {
+				try {
+					await setAutoShareMeals({
+						householdId: current.householdId as Id<"households">,
+						callerMemberId:
+							current.memberId as Id<"householdMembers">,
+						enabled: pendingAutoShare,
+					});
+					toast.success(
+						pendingAutoShare
+							? "New meals will be shared publicly"
+							: "New meals will stay private",
+					);
+				} catch (error) {
+					failed = true;
+					toast.error(
+						errorMessage(error, "Couldn't update the setting."),
+					);
+				}
+			}
 			if (!failed) {
 				ownerManagesPlansDraft = null;
+				autoShareMealsDraft = null;
 				editingProfile = false;
 				pendingHouseholdKey = null;
 				// Staged switch commits last: server saves above ran
@@ -965,6 +1005,42 @@
 											ever sees and edits their own plan.
 											Changes apply when profile edits are
 											saved.
+										</span>
+									</span>
+								</div>
+								<div class="flex items-start gap-2.5">
+									<Checkbox
+										id="auto-share-meals"
+										checked={pendingAutoShareMeals}
+										onCheckedChange={(value) => {
+											if (typeof value === "boolean") {
+												autoShareMealsDraft = value;
+											}
+										}}
+										disabled={!editingProfile ||
+											savingProfile}
+										class="mt-0.5"
+									/>
+									<span class="grid gap-0.5">
+										<label
+											for="auto-share-meals"
+											class={cn(
+												"text-sm font-medium",
+												editingProfile &&
+													!savingProfile &&
+													"cursor-pointer",
+											)}
+											>Share new meals publicly</label
+										>
+										<span
+											class="text-xs text-muted-foreground"
+										>
+											When on, new meals appear in the
+											community cookbook automatically.
+											Turn off to keep new meals private;
+											any meal can still be shared from
+											its editor. Changes apply when
+											profile edits are saved.
 										</span>
 									</span>
 								</div>

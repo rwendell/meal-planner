@@ -63,6 +63,15 @@
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 
+	// New meals share publicly unless the household opted out; the
+	// editor passes the switch through on create.
+	const householdQuery = useQuery(api.households.get, () =>
+		householdId ? { householdId: householdId as Id<"households"> } : "skip",
+	);
+	let autoShareDefault = $derived(
+		householdQuery.data?.household.autoShareMeals ?? true,
+	);
+
 	let pickerMeals = $derived.by(() => {
 		const query = search.trim().toLowerCase();
 		return meals.filter((meal) => {
@@ -147,6 +156,7 @@
 					{householdId}
 					initialName={editorName}
 					initialMealTimes={slot ? [slot] : ["dinner"]}
+					initialShared={autoShareDefault}
 					existingMeals={meals.map((meal) => ({
 						id: meal.id,
 						name: meal.name,

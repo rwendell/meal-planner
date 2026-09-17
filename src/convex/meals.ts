@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { type MutationCtx, mutation, query } from "./_generated/server";
+import { upsertPublishedSnapshot } from "./recipes";
 import schema, { ingredient, mealCategory, mealSlot } from "./schema";
 
 const mealDoc = schema.doc("meals");
@@ -21,6 +22,16 @@ async function assertUniqueName(
 			meal.name.trim().toLowerCase() === name.toLowerCase(),
 	);
 	if (clash) throw new Error("A meal with this name already exists.");
+}
+
+function normalizeSourceUrl(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const url = value.trim().slice(0, 500);
+	if (!url) return undefined;
+	if (!/^https?:\/\//i.test(url)) {
+		throw new Error("Recipe links must start with http.");
+	}
+	return url;
 }
 
 /**
@@ -57,8 +68,12 @@ export const create = mutation({
 		note: v.optional(v.string()),
 		time: v.optional(v.union(v.number(), v.null())),
 		color: v.optional(v.string()),
+		sourceUrl: v.optional(v.string()),
 		ingredients: v.optional(v.array(ingredient)),
 		mealTimes: v.array(mealSlot),
+		// Explicit share choice wins; otherwise the household default
+		// applies (public unless opted out).
+		shared: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const household = await ctx.db.get("households", args.householdId);
@@ -69,17 +84,24 @@ export const create = mutation({
 			throw new Error("Pick at least one meal time.");
 		}
 		const time = normalizePrepMinutes(args.time);
+		const sourceUrl = normalizeSourceUrl(args.sourceUrl);
 		await assertUniqueName(ctx, args.householdId, name);
-		return await ctx.db.insert("meals", {
+		const mealId = await ctx.db.insert("meals", {
 			householdId: args.householdId,
 			name,
 			category: args.category,
 			note: args.note?.trim() || "No description",
 			...(time === undefined ? {} : { time }),
 			color: args.color ?? "#f2cbb9",
+			...(sourceUrl === undefined ? {} : { sourceUrl }),
 			ingredients: args.ingredients ?? [],
 			mealTimes: args.mealTimes,
 		});
+		const shared = args.shared ?? household.autoShareMeals ?? true;
+		if (shared) {
+			await upsertPublishedSnapshot(ctx, args.householdId, mealId);
+		}
+		return mealId;
 	},
 	returns: v.id("meals"),
 });
@@ -93,6 +115,8 @@ export const update = mutation({
 		// Undefined leaves prep time unchanged; null clears it.
 		time: v.optional(v.union(v.number(), v.null())),
 		color: v.optional(v.string()),
+		// Undefined leaves the link unchanged; null clears it.
+		sourceUrl: v.optional(v.union(v.string(), v.null())),
 		ingredients: v.array(ingredient),
 		mealTimes: v.array(mealSlot),
 	},
@@ -115,6 +139,9 @@ export const update = mutation({
 				? {}
 				: { time: normalizePrepMinutes(args.time) ?? null }),
 			color: args.color ?? existing.color,
+			...(args.sourceUrl === undefined
+				? {}
+				: { sourceUrl: normalizeSourceUrl(args.sourceUrl) ?? null }),
 			ingredients: args.ingredients,
 			mealTimes: args.mealTimes,
 		});

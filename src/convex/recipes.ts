@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { type MutationCtx, mutation, query } from "./_generated/server";
 import schema, { mealCategory } from "./schema";
 
 const recipeDoc = schema.doc("publishedRecipes");
@@ -48,39 +49,50 @@ export const mine = query({
 export const publish = mutation({
 	args: { householdId: v.id("households"), mealId: v.id("meals") },
 	handler: async (ctx, args) => {
-		const household = await ctx.db.get("households", args.householdId);
-		if (!household) throw new Error("Household not found.");
-		const meal = await ctx.db.get("meals", args.mealId);
-		if (!meal || meal.householdId !== args.householdId) {
-			throw new Error("That meal no longer exists.");
-		}
-		const existing = await ctx.db
-			.query("publishedRecipes")
-			.withIndex("by_household", (q) =>
-				q.eq("sourceHouseholdId", args.householdId),
-			)
-			.collect();
-		const snapshot = {
-			sourceHouseholdId: args.householdId,
-			sourceMealId: args.mealId,
-			householdName: household.name,
-			name: meal.name,
-			category: meal.category,
-			note: meal.note,
-			time: meal.time,
-			color: meal.color,
-			ingredients: meal.ingredients,
-			mealTimes: meal.mealTimes ?? [],
-		};
-		const current = existing.find((row) => row.sourceMealId === args.mealId);
-		if (current) {
-			await ctx.db.replace("publishedRecipes", current._id, snapshot);
-			return current._id;
-		}
-		return await ctx.db.insert("publishedRecipes", snapshot);
+		return await upsertPublishedSnapshot(ctx, args.householdId, args.mealId);
 	},
 	returns: v.id("publishedRecipes"),
 });
+
+/**
+ * Snapshot a meal into the community cookbook, refreshing the snapshot
+ * when one already exists. Shared by explicit publish and automatic
+ * sharing on meal creation.
+ */
+export async function upsertPublishedSnapshot(
+	ctx: MutationCtx,
+	householdId: Id<"households">,
+	mealId: Id<"meals">,
+): Promise<Id<"publishedRecipes">> {
+	const household = await ctx.db.get("households", householdId);
+	if (!household) throw new Error("Household not found.");
+	const meal = await ctx.db.get("meals", mealId);
+	if (!meal || meal.householdId !== householdId) {
+		throw new Error("That meal no longer exists.");
+	}
+	const existing = await ctx.db
+		.query("publishedRecipes")
+		.withIndex("by_household", (q) => q.eq("sourceHouseholdId", householdId))
+		.collect();
+	const snapshot = {
+		sourceHouseholdId: householdId,
+		sourceMealId: mealId,
+		householdName: household.name,
+		name: meal.name,
+		category: meal.category,
+		note: meal.note,
+		time: meal.time,
+		color: meal.color,
+		ingredients: meal.ingredients,
+		mealTimes: meal.mealTimes ?? [],
+	};
+	const current = existing.find((row) => row.sourceMealId === mealId);
+	if (current) {
+		await ctx.db.replace("publishedRecipes", current._id, snapshot);
+		return current._id;
+	}
+	return await ctx.db.insert("publishedRecipes", snapshot);
+}
 
 export const unpublish = mutation({
 	args: { householdId: v.id("households"), mealId: v.id("meals") },

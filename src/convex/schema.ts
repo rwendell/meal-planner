@@ -69,6 +69,9 @@ export default defineSchema({
 		// When true, the owner may view and plan for other members.
 		// Unset means members plan only for themselves.
 		ownerManagesPlans: v.optional(v.boolean()),
+		// New meals publish to the community cookbook automatically.
+		// Unset (and true) means public by default; false opts out.
+		autoShareMeals: v.optional(v.boolean()),
 	}).index("by_inviteCode", ["inviteCode"]),
 	householdMembers: defineTable({
 		householdId: v.id("households"),
@@ -101,6 +104,9 @@ export default defineSchema({
 		// Prep time in whole minutes. Null/unset means no prep time given.
 		time: v.optional(v.union(v.number(), v.null())),
 		color: v.string(),
+		// Original recipe site, when imported or recorded. Display-only.
+		// Null/unset means none given.
+		sourceUrl: v.optional(v.union(v.string(), v.null())),
 		ingredients: v.array(ingredient),
 		// Which planner slots this meal can fill. Optional so meals
 		// created before this field existed still validate; clients

@@ -7,6 +7,8 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
 	import * as Select from "$lib/components/ui/select";
+	import { Separator } from "$lib/components/ui/separator";
+	import { Switch } from "$lib/components/ui/switch";
 	import { errorMessage } from "$lib/errors.js";
 	import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
 	import {
@@ -42,6 +44,8 @@
 		initialName = "",
 		initialNote = "",
 		initialTime = undefined,
+		initialSourceUrl = "",
+		initialShared = false,
 		initialMealTimes = ["dinner"],
 		initialIngredients = [],
 		editingMeal = null,
@@ -55,13 +59,15 @@
 		initialName?: string;
 		initialNote?: string;
 		initialTime?: number;
+		initialSourceUrl?: string;
+		initialShared?: boolean;
 		initialMealTimes?: MealType[];
 		initialIngredients?: MealEditorIngredient[];
 		editingMeal?: MealEditorEditingMeal | null;
 		existingMeals?: { id: string; name: string }[];
 		idPrefix?: string;
 		submitLabel?: string;
-		onSaved: (mealId: string, name: string) => void;
+		onSaved: (mealId: string, name: string, shared: boolean) => void;
 		onCancel: () => void;
 	} = $props();
 
@@ -89,6 +95,14 @@
 		return initialTime === undefined ? "" : String(initialTime);
 	}
 
+	function getInitialSourceUrl(): string {
+		return initialSourceUrl;
+	}
+
+	function getInitialShared(): boolean {
+		return initialShared;
+	}
+
 	function getInitialTimes(): MealType[] {
 		return initialMealTimes.length > 0 ? [...initialMealTimes] : ["dinner"];
 	}
@@ -107,6 +121,8 @@
 	let nameValue = $state(getInitialName());
 	let noteValue = $state(getInitialNote());
 	let timeValue = $state(getInitialTime());
+	let sourceValue = $state(getInitialSourceUrl());
+	let shared = $state(getInitialShared());
 	let selectedTimes = $state<MealType[]>(getInitialTimes());
 	let formError = $state("");
 	let saving = $state(false);
@@ -211,10 +227,11 @@
 					category,
 					note: noteValue.trim() || undefined,
 					time: prepMinutes,
+					sourceUrl: sourceValue.trim() || null,
 					ingredients,
 					mealTimes: selectedTimes,
 				});
-				onSaved(mealId, name);
+				onSaved(mealId, name, shared);
 			} else {
 				const mealId = await createMeal({
 					householdId: household,
@@ -222,10 +239,12 @@
 					category,
 					note: noteValue.trim() || undefined,
 					time: prepMinutes,
+					sourceUrl: sourceValue.trim() || undefined,
 					ingredients,
 					mealTimes: selectedTimes,
+					shared,
 				});
-				onSaved(mealId, name);
+				onSaved(mealId, name, shared);
 			}
 		} catch (error) {
 			formError = errorMessage(error, "Couldn't save the meal.");
@@ -242,17 +261,16 @@
 <form onsubmit={saveMeal} class="grid gap-3.5" aria-busy={saving}>
 	<label
 		for={`${prefix}-meal-name`}
-		class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
 		>Meal name<Input
 			id={`${prefix}-meal-name`}
 			bind:value={nameValue}
 			required
-			placeholder="Crispy chickpea salad"
 		/></label
 	>
 	<fieldset class="m-0 grid min-w-0 gap-2 border-0 p-0">
 		<legend
-			class="mb-2 p-0 text-[11px] font-extrabold text-muted-foreground"
+			class="mb-2 p-0 text-[11px] font-extrabold text-foreground"
 			>Meal times</legend
 		>
 		<div class="flex flex-wrap gap-2">
@@ -276,23 +294,21 @@
 	</fieldset>
 	<label
 		for={`${prefix}-meal-note`}
-		class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
 		>Short description<Input
-			id={`${prefix}-meal-note`}
-			bind:value={noteValue}
-			placeholder="A few words to jog your memory"
-		/></label
-	>
+				id={`${prefix}-meal-note`}
+				bind:value={noteValue}
+			/></label
+		>
 	<label
 		for={`${prefix}-meal-time`}
-		class="grid gap-1.5 text-[11px] font-extrabold text-muted-foreground"
+		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
 		>Prep time (minutes)
 		<Input
 			id={`${prefix}-meal-time`}
-			type="number"
-			bind:value={timeValue}
-			placeholder="25"
-			min={0}
+				type="number"
+				bind:value={timeValue}
+				min={0}
 			max={999}
 			step={1}
 			autocomplete="off"
@@ -300,7 +316,7 @@
 	>
 	<div class="grid gap-2">
 		<span
-			class="text-[11px] font-extrabold text-muted-foreground"
+			class="text-[11px] font-extrabold text-foreground"
 			id={`${prefix}-ingredients-label`}>Ingredients</span
 		>
 		<div
@@ -315,12 +331,10 @@
 			>
 				<Input
 					bind:value={row.name}
-					placeholder="Flour"
 					aria-label={`Ingredient ${i + 1} name`}
 				/>
 				<Input
 					bind:value={row.amount}
-					placeholder="1 bag"
 					aria-label={`Ingredient ${i + 1} amount`}
 				/>
 				<Select.Root
@@ -356,8 +370,25 @@
 			size="sm"
 			class="justify-self-start"
 			onclick={addIngredientRow}
-			><PlusIcon data-icon="inline-start" /> Add ingredient</Button
-		>
+		><PlusIcon data-icon="inline-start" /> Add ingredient</Button>
+	</div>
+	<Separator />
+	<div class="flex items-center justify-between gap-3 rounded-xl border p-3">
+		<span class="grid gap-0.5">
+			<label
+				for={`${prefix}-meal-shared`}
+				class="cursor-pointer text-sm font-semibold"
+				>Share publicly</label
+			>
+			<span class="text-xs text-muted-foreground">
+				Show in the community cookbook
+			</span>
+		</span>
+		<Switch
+			id={`${prefix}-meal-shared`}
+			bind:checked={shared}
+			aria-label="Share publicly"
+		/>
 	</div>
 	{#if formError}
 		<p class="m-0 text-xs font-semibold text-destructive" role="alert">

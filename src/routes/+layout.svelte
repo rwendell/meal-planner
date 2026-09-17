@@ -1,5 +1,6 @@
 <script lang="ts">
 	import "./layout.css";
+	import { MonitorCogIcon } from "@lucide/svelte";
 	import BookIcon from "@lucide/svelte/icons/book";
 	import CalendarIcon from "@lucide/svelte/icons/calendar";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
@@ -7,10 +8,12 @@
 	import LogInIcon from "@lucide/svelte/icons/log-in";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
-	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import UtensilsIcon from "@lucide/svelte/icons/utensils";
-	import { setupConvexAuth, useAuth } from "@mmailaender/convex-auth-svelte/svelte";
+	import {
+		setupConvexAuth,
+		useAuth,
+	} from "@mmailaender/convex-auth-svelte/svelte";
 	import { setupConvex, useMutation, useQuery } from "convex-svelte";
 	import type { Component } from "svelte";
 	import { tick } from "svelte";
@@ -586,7 +589,9 @@
 
 {#if session.session && householdQuery.data === undefined && !householdQuery.error}
 	<div class="min-h-screen max-lg:[touch-action:pan-y]">
-		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
+		<div
+			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
+		>
 			<main class="grid min-h-[60vh] place-items-center">
 				<div class="flex w-full max-w-xs flex-col gap-3">
 					<Skeleton class="h-4 w-3/4" />
@@ -598,7 +603,9 @@
 	</div>
 {:else if householdQuery.error}
 	<div class="min-h-screen max-lg:[touch-action:pan-y]">
-		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
+		<div
+			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
+		>
 			<main class="grid min-h-[60vh] place-items-center">
 				<p role="alert" class="text-sm text-destructive">
 					Couldn't reach the database. Check your connection and
@@ -609,12 +616,16 @@
 	</div>
 {:else}
 	<div class="min-h-screen max-lg:[touch-action:pan-y]">
-		<div class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0">
+		<div
+			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
+		>
 			<Popover.Root
 				bind:open={profileOpen}
 				onOpenChange={handleProfileOpenChange}
 			>
-				<header class="sticky top-0 z-10 flex items-center justify-start gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-4 py-3 backdrop-blur-[10px]">
+				<header
+					class="sticky top-0 z-10 flex items-center justify-start gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-4 py-3 backdrop-blur-[10px]"
+				>
 					<a
 						class="flex items-center gap-[9px] text-inherit no-underline"
 						href={resolve(
@@ -791,8 +802,7 @@
 									}}
 								>
 									<UserIcon data-icon="inline-start" />
-									<span class="flex-1 text-left"
-										>Profile & households</span
+									<span class="flex-1 text-left">Profile</span
 									>
 									<span
 										class="grid shrink-0 -rotate-90 text-muted-foreground"
@@ -804,9 +814,9 @@
 									class="w-full justify-start gap-2 px-2"
 									onclick={openPreferences}
 								>
-									<SparklesIcon data-icon="inline-start" />
+									<MonitorCogIcon data-icon="inline-start" />
 									<span class="flex-1 text-left"
-										>Preferences</span
+										>Display Preferences</span
 									>
 									<span
 										class="grid shrink-0 -rotate-90 text-muted-foreground"
@@ -837,7 +847,9 @@
 												class="animate-spin"
 											/>
 										{:else}
-											<LogInIcon data-icon="inline-start" />
+											<LogInIcon
+												data-icon="inline-start"
+											/>
 										{/if}
 										<span class="flex-1 text-left"
 											>{signingIn
@@ -1004,7 +1016,9 @@
 				</Popover.Content>
 			</Popover.Root>
 
-			<div class="relative overflow-x-clip [view-transition-name:route-content]">
+			<div
+				class="relative overflow-x-clip [view-transition-name:route-content]"
+			>
 				{@render children()}
 			</div>
 			<TabBar active={activeSection} />
