@@ -10,6 +10,10 @@ export const STORAGE_KEY = "meal-planner-session";
 const LOCK_KEY = "meal-planner-provisioning";
 const DEVICE_NAME_KEY = "meal-planner-device-name";
 
+// In-memory fallback so one page lifecycle never shows two different
+// names even if storage throws partway through.
+let memoryDeviceName: string | null = null;
+
 /**
  * Stable per-browser anonymous display name ("Sunny Tomato"), generated
  * once and persisted. Used for auto-provisioned members and anywhere a
@@ -21,11 +25,12 @@ export function deviceName(): string {
 	try {
 		const stored = localStorage.getItem(DEVICE_NAME_KEY);
 		if (stored?.trim()) return stored;
-		const name = randomAnonName();
-		localStorage.setItem(DEVICE_NAME_KEY, name);
-		return name;
+		memoryDeviceName ??= randomAnonName();
+		localStorage.setItem(DEVICE_NAME_KEY, memoryDeviceName);
+		return memoryDeviceName;
 	} catch {
-		return randomAnonName();
+		memoryDeviceName ??= randomAnonName();
+		return memoryDeviceName;
 	}
 }
 

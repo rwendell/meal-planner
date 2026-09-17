@@ -163,6 +163,14 @@
 	const claimHouseholds = useMutation(api.households.claimHouseholds);
 	let signingIn = $state(false);
 
+	// Set on explicit sign-out for the rest of the page lifecycle.
+	// The token clear races these effects: without the guard, cached
+	// memberships plus a still-valid token resurrect the old session
+	// before sign-out lands. It also blocks auto-provision, so signing
+	// out is a clean slate instead of spawning an empty kitchen.
+	// (Re-sign-in always reloads via Google, resetting lifecycle state.)
+	let signingOut = $state(false);
+
 	async function handleSignIn(): Promise<void> {
 		signingIn = true;
 		try {
@@ -179,6 +187,7 @@
 		closeProfileMenu();
 		// Local first so the UI flips instantly; the server cleanup
 		// finishing a moment later doesn't matter.
+		signingOut = true;
 		session.disconnect();
 		void auth.signOut().catch(() => {});
 	}
@@ -189,7 +198,7 @@
 	// instead of retriggering itself.
 	$effect(() => {
 		const memberships = membershipsQuery.data;
-		if (!memberships || !auth.isAuthenticated) return;
+		if (!memberships || !auth.isAuthenticated || signingOut) return;
 		roster.mergeServerMemberships(
 			memberships.map((membership) => ({
 				householdId: membership.householdId,
@@ -205,11 +214,24 @@
 	});
 
 	// One-time migration: link this device's roster rows to the sign-in.
-	// Memberships refresh reactively once the claim commits. Skips the
-	// server roundtrip entirely when every roster row is already linked.
+	// Re-arms when the membership set changes (stale-token miss,
+	// re-sign-in): claiming only ever grows that set, so this converges
+	// instead of looping.
 	let claimAttempted = $state(false);
+	let lastMembershipsKey = $state<string | null>(null);
 	$effect(() => {
-		if (!auth.isAuthenticated || claimAttempted) return;
+		if (membershipsQuery.data === undefined) return;
+		const key = membershipsQuery.data
+			.map((m) => `${m.householdId}:${m.memberId}`)
+			.sort()
+			.join(",");
+		if (lastMembershipsKey !== key) {
+			lastMembershipsKey = key;
+			claimAttempted = false;
+		}
+	});
+	$effect(() => {
+		if (!auth.isAuthenticated || claimAttempted || signingOut) return;
 		const memberships = membershipsQuery.data;
 		if (memberships === undefined || roster.refs.length === 0) {
 			return;
@@ -240,7 +262,7 @@
 	let provisionTick = $state(0);
 	$effect(() => {
 		provisionTick;
-		if (!browser || session.session) return;
+		if (!browser || session.session || signingOut) return;
 		// Wait for auth to resolve: anonymous visitors provision as
 		// before, but signed-in users provision only when no membership
 		// exists anywhere (claim/reconcile effects run first).
@@ -250,6 +272,14 @@
 			if (membershipsQuery.data.length > 0 || roster.refs.length > 0) {
 				return;
 			}
+		}
+		// Anonymous with known kitchens rejoins the first instead of
+		// spawning a new one every reload (e.g. after sign-out). Only a
+		// true first visit provisions.
+		const known = roster.refs[0];
+		if (known) {
+			roster.switchTo(known);
+			return;
 		}
 		const onStorage = (event: StorageEvent) => {
 			if (event.key === STORAGE_KEY) session.reload();

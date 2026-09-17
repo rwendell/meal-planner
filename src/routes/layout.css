@@ -147,8 +147,16 @@ body {
 	min-width: 320px;
 }
 
-button {
+button:not(:disabled) {
 	cursor: pointer;
+}
+
+/* Disabled controls keep the default arrow instead of the not-allowed
+   cursor from component styles. This file is unlayered, so it wins over
+   Tailwind's layered utilities without !important. */
+:disabled,
+[data-disabled] {
+	cursor: default;
 }
 
 /* Swipe-driven route transitions. Keyframes and view-transition

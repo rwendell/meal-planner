@@ -75,7 +75,9 @@
 					},
 				],
 			});
-			if (result.claimed > 0 || result.alreadyMine > 0) {
+			if (!result.signedIn) {
+				toast.error("Sign in first, then link this member.");
+			} else if (result.claimed > 0 || result.alreadyMine > 0) {
 				toast.success("Member linked to your sign-in");
 			} else {
 				toast.error(
@@ -946,7 +948,12 @@
 									<span class="grid gap-0.5">
 										<label
 											for="owner-manages-plans"
-											class="cursor-pointer text-sm font-medium"
+											class={cn(
+												"text-sm font-medium",
+												editingProfile &&
+													!savingProfile &&
+													"cursor-pointer",
+											)}
 											>Owner can plan for everyone</label
 										>
 										<span

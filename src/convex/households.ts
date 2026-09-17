@@ -712,7 +712,12 @@ export const claimHouseholds = mutation({
 	},
 	handler: async (ctx, args) => {
 		const userId = await callerUserId(ctx);
-		if (!userId) throw new Error("Sign in to link your households.");
+		// No throw: the client fires this on auth transitions and a
+		// stale token can beat the refresh here. The client retries on
+		// the next transition; the manual button toasts on signedIn.
+		if (!userId) {
+			return { claimed: 0, alreadyMine: 0, skipped: 0, signedIn: false };
+		}
 		let claimed = 0;
 		let alreadyMine = 0;
 		let skipped = 0;
@@ -740,12 +745,13 @@ export const claimHouseholds = mutation({
 			}
 			skipped += 1;
 		}
-		return { claimed, alreadyMine, skipped };
+		return { claimed, alreadyMine, skipped, signedIn: true };
 	},
 	returns: v.object({
 		claimed: v.number(),
 		alreadyMine: v.number(),
 		skipped: v.number(),
+		signedIn: v.boolean(),
 	}),
 });
 
