@@ -1,22 +1,20 @@
 <script lang="ts">
-	import PlusIcon from "@lucide/svelte/icons/plus";
-	import XIcon from "@lucide/svelte/icons/x";
 	import { useMutation, useQuery } from "convex-svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
-	import * as Select from "$lib/components/ui/select";
-	import { Separator } from "$lib/components/ui/separator";
-	import { Switch } from "$lib/components/ui/switch";
 	import { errorMessage } from "$lib/errors.js";
-	import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
+	import type { GroceryGroup } from "$lib/grocery.js";
 	import {
 		ALL_MEAL_TIMES,
 		categoryFromMealTimes,
 		type MealCategory,
 		type MealType,
 	} from "$lib/meal-types.js";
+	import IngredientRows from "$lib/meals/IngredientRows.svelte";
+	import MealShareToggle from "$lib/meals/MealShareToggle.svelte";
+	import { hasNameClash, parsePrepMinutes } from "$lib/meals/meal-form.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -82,37 +80,27 @@
 		return { key: rowKey, name: "", amount: "", group: "Produce" };
 	}
 
-	// Initial props are snapshots for this keyed-remount instance: the parent
-	// resets state via {#key}, so read them inside closures to populate
-	// editable state once without tracking later prop updates.
 	function getInitialName(): string {
 		return initialName;
 	}
-
 	function getInitialNote(): string {
 		return initialNote;
 	}
-
 	function getInitialTime(): string {
 		return initialTime === undefined ? "" : String(initialTime);
 	}
-
 	function getInitialSourceUrl(): string {
 		return initialSourceUrl;
 	}
-
 	function getInitialShared(): boolean {
 		return initialShared;
 	}
-
 	function getInitialPremade(): boolean {
 		return initialPremade;
 	}
-
 	function getInitialTimes(): MealType[] {
 		return initialMealTimes.length > 0 ? [...initialMealTimes] : ["dinner"];
 	}
-
 	function getInitialRows(): IngredientRow[] {
 		return initialIngredients.length > 0
 			? initialIngredients.map((ingredient) => ({
@@ -139,8 +127,6 @@
 	const createMeal = useMutation(api.meals.create);
 	const updateMeal = useMutation(api.meals.update);
 
-	// Full household list for duplicate-name safety, even when the caller
-	// only passes a filtered subset via `existingMeals`.
 	const fullListQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
@@ -167,50 +153,22 @@
 		return categoryFromMealTimes(selectedTimes);
 	}
 
-	function hasNameClash(name: string): boolean {
-		const normalized = name.trim().toLowerCase();
-		if (!normalized) return false;
-		const fullList = fullListQuery.data;
+	function isNameClash(name: string): boolean {
 		const candidates =
-			fullList !== undefined
-				? fullList.map((meal) => ({
+			fullListQuery.data !== undefined
+				? fullListQuery.data.map((meal) => ({
 						id: meal._id,
 						name: meal.name,
 					}))
 				: existingMeals;
-		return candidates.some(
-			(meal) =>
-				meal.id !== editingMeal?.id &&
-				meal.name.trim().toLowerCase() === normalized,
-		);
-	}
-
-	function addIngredientRow(): void {
-		ingredientRows.push(blankRow());
-	}
-
-	function removeIngredientRow(key: number): void {
-		ingredientRows = ingredientRows.filter((row) => row.key !== key);
-	}
-
-	/**
-	 * The number input binds a string, but Svelte coerces it to a number
-	 * at runtime — accept both. Empty/invalid/negative becomes null (no
-	 * prep time); anything else is floored to whole minutes.
-	 */
-	function parsePrepMinutes(value: string | number | null | undefined): number | null {
-		if (value === null || value === undefined) return null;
-		if (typeof value === "string" && value.trim() === "") return null;
-		const minutes = Math.floor(Number(value));
-		if (!Number.isFinite(minutes) || minutes < 0) return null;
-		return minutes;
+		return hasNameClash(name, candidates, editingMeal?.id);
 	}
 
 	async function saveMeal(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		const name = nameValue.trim();
 		if (!name || saving) return;
-		if (hasNameClash(name)) {
+		if (isNameClash(name)) {
 			formError = "A meal with this name already exists.";
 			return;
 		}
@@ -343,86 +301,21 @@
 			autocomplete="off"
 		/></label
 	>
-	<div class="grid gap-2">
-		<span
-			class="text-[11px] font-extrabold text-foreground"
-			id={`${prefix}-ingredients-label`}>Ingredients</span
-		>
-		<div
-			class="grid grid-cols-[1fr_72px_88px_30px] gap-1.5 text-[9px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
-			aria-hidden="true"
-		>
-			<span>Name</span><span>Amount</span><span>Group</span><span></span>
-		</div>
-		{#each ingredientRows as row, i (row.key)}
-			<div
-				class="grid grid-cols-[1fr_72px_88px_30px] items-center gap-1.5"
-			>
-				<Input
-					bind:value={row.name}
-					aria-label={`Ingredient ${i + 1} name`}
-				/>
-				<Input
-					bind:value={row.amount}
-					aria-label={`Ingredient ${i + 1} amount`}
-				/>
-				<Select.Root
-					type="single"
-					value={row.group}
-					items={groceryGroups.map((group) => ({
-						value: group,
-						label: group,
-					}))}
-					onValueChange={(value) => {
-						if (value) row.group = value as GroceryGroup;
-					}}
-				>
-					<Select.Trigger aria-label={`Ingredient ${i + 1} group`}>
-						<Select.Value placeholder="Group" />
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Group>
-							{#each groceryGroups as group (group)}<Select.Item
-									value={group}
-									label={group}
-								/>{/each}
-						</Select.Group>
-					</Select.Content>
-				</Select.Root>
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					aria-label={`Remove ingredient ${i + 1}`}
-					onclick={() => removeIngredientRow(row.key)}
-					><XIcon /></Button
-				>
-			</div>
-		{/each}
-		<Button
-			variant="outline"
-			size="sm"
-			class="justify-self-start"
-			onclick={addIngredientRow}
-		><PlusIcon data-icon="inline-start" /> Add ingredient</Button>
-	</div>
-	<Separator />
-	<div class="flex items-center justify-between gap-3 rounded-xl border p-3">
-		<span class="grid gap-0.5">
-			<label
-				for={`${prefix}-meal-shared`}
-				class="cursor-pointer text-sm font-semibold"
-				>Share publicly</label
-			>
-			<span class="text-xs text-muted-foreground">
-				Show in the community cookbook
-			</span>
-		</span>
-		<Switch
-			id={`${prefix}-meal-shared`}
-			bind:checked={shared}
-			aria-label="Share publicly"
-		/>
-	</div>
+	<IngredientRows
+		bind:rows={ingredientRows}
+		{prefix}
+		onAdd={() => {
+			ingredientRows = [...ingredientRows, blankRow()];
+		}}
+		onRemove={(key) => {
+			ingredientRows = ingredientRows.filter((row) => row.key !== key);
+		}}
+	/>
+	<MealShareToggle
+		{prefix}
+		{shared}
+		onChange={(v) => (shared = v)}
+	/>
 	{#if formError}
 		<p class="m-0 text-xs font-semibold text-destructive" role="alert">
 			{formError}

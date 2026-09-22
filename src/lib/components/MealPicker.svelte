@@ -230,7 +230,7 @@
 									<RefrigeratorIcon size={13} />
 								</span>
 							{/if}
-							{@const others = othersByMeal?.get(meal.id)}
+							{const others = $derived(othersByMeal?.get(meal.id))}
 							{#if others?.length}
 								<span
 									class="inline-flex max-w-[38%] min-w-0 items-center gap-1 overflow-hidden text-[11px] font-semibold whitespace-nowrap text-muted-foreground"

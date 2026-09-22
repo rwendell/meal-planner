@@ -3,6 +3,7 @@
 	import { browser } from "$app/environment";
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
+	import PageMain from "$lib/components/PageMain.svelte";
 	import { prefs } from "$lib/prefs.svelte.js";
 	import PlannerSection from "$lib/sections/PlannerSection.svelte";
 
@@ -29,5 +30,7 @@
 </svelte:head>
 
 {#if !dashboardActive}
-	<PlannerSection />
+	<PageMain class="lg:px-7 lg:pt-7">
+		<PlannerSection />
+	</PageMain>
 {/if}

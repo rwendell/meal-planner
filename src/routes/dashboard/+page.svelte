@@ -12,9 +12,7 @@
 	/>
 </svelte:head>
 
-<div
-	class="mx-auto grid max-w-[1180px] gap-7 px-7 pt-7 pb-20 [&>section>main]:m-0 [&>section>main]:max-w-none [&>section>main]:p-0 [&>section>main>.panel:first-child]:mt-0"
->
+<main class="mx-auto grid max-w-[1180px] gap-7 px-7 pt-7 pb-20">
 	<section id="dashboard-planner" aria-label="Weekly planner">
 		<PlannerSection />
 	</section>
@@ -24,4 +22,4 @@
 	<section id="dashboard-shopping" aria-label="Shopping list">
 		<ShoppingSection hero={false} />
 	</section>
-</div>
+</main>

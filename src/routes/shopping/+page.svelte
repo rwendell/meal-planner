@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageMain from "$lib/components/PageMain.svelte";
 	import ShoppingSection from "$lib/sections/ShoppingSection.svelte";
 </script>
 
@@ -10,4 +11,6 @@
 	/>
 </svelte:head>
 
-<ShoppingSection />
+<PageMain class="lg:px-10 lg:pt-[34px]">
+	<ShoppingSection />
+</PageMain>
