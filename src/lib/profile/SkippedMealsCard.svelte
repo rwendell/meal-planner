@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TextButton from "$lib/components/TextButton.svelte";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -8,7 +9,6 @@
 		type SkippedDay,
 		skippedKey,
 	} from "$lib/utils/skipped.js";
-	import { cn } from "$lib/utils.js";
 
 	let {
 		loading,
@@ -43,12 +43,6 @@
 		slotSkippedCount: (slot: MealType) => number;
 		daySkippedCount: (day: SkippedDay) => number;
 	} = $props();
-
-	// Header labels double as select-all buttons (ghost text with a
-	// border on hover, like the Leave button): tapping one skips or
-	// restores its whole row or column.
-	const headerButton =
-		"rounded-md border border-transparent transition-colors hover:border-border hover:bg-muted/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-60";
 </script>
 
 <Card.Root>
@@ -82,25 +76,17 @@
 								<span
 									class="flex items-start justify-center text-center"
 								>
-									<button
-										type="button"
-										class={cn(
-											headerButton,
-											"px-1 py-0.5 text-[10px] font-semibold",
-											dayFull
-												? "text-foreground"
-												: "text-muted-foreground",
-										)}
+									<TextButton
+										label={dayFull
+											? `Include all ${row.label} meals`
+											: `Skip all ${row.label} meals`}
+										pressed={dayFull}
 										disabled={!editing || saving}
-										aria-pressed={dayFull}
-										aria-label={dayFull
-											? `Include all ${row.label} meals`
-											: `Skip all ${row.label} meals`}
-										title={dayFull
-											? `Include all ${row.label} meals`
-											: `Skip all ${row.label} meals`}
 										onclick={() =>
 											onToggleDay(row.day, !dayFull)}
+										class={dayFull
+											? "px-1 py-0.5 text-[10px] font-semibold text-foreground"
+											: "px-1 py-0.5 text-[10px] font-semibold text-muted-foreground"}
 									>
 										<span class="hidden sm:inline">
 											{row.label}
@@ -108,7 +94,7 @@
 										<span class="sm:hidden">
 											{row.label.slice(0, 3)}
 										</span>
-									</button>
+									</TextButton>
 								</span>
 							{/each}
 						</div>
@@ -122,28 +108,20 @@
 							<div
 								class="grid grid-cols-[minmax(5.5rem,1.2fr)_repeat(7,minmax(1.25rem,1fr))] items-center gap-1 rounded-lg px-1 py-1 odd:bg-muted/40"
 							>
-								<button
-									type="button"
-									class={cn(
-										headerButton,
-										"min-w-0 flex-1 truncate px-1.5 py-0.5 text-left text-sm",
-										rowFull
-											? "font-semibold text-foreground"
-											: "font-medium text-muted-foreground",
-									)}
+								<TextButton
+									label={rowFull
+										? `Include all ${slot.label.toLowerCase()} meals`
+										: `Skip all ${slot.label.toLowerCase()} meals`}
+									pressed={rowFull}
 									disabled={!editing || saving}
-									aria-pressed={rowFull}
-									aria-label={rowFull
-										? `Include all ${slot.label.toLowerCase()} meals`
-										: `Skip all ${slot.label.toLowerCase()} meals`}
-									title={rowFull
-										? `Include all ${slot.label.toLowerCase()} meals`
-										: `Skip all ${slot.label.toLowerCase()} meals`}
 									onclick={() =>
 										onToggleSlot(slot.id, !rowFull)}
+									class={rowFull
+										? "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-semibold text-foreground"
+										: "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-medium text-muted-foreground"}
 								>
 									{slot.label}
-								</button>
+								</TextButton>
 								{#each SKIPPED_WEEKDAYS as row (row.day)}
 									<span
 										class="flex justify-center"

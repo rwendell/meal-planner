@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Button } from "$lib/components/ui/button";
+	import TextButton from "$lib/components/TextButton.svelte";
+import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import * as Select from "$lib/components/ui/select";
 
@@ -130,14 +131,13 @@
 							class="w-36"
 						/></label
 					>
-					<Button
-						variant="ghost"
-						size="sm"
-						class="text-muted-foreground hover:text-destructive"
+					<TextButton
+						tone="destructive"
+						label={`Use up ${row.mealName}`}
 						onclick={() => onUseUp(row.mealId)}
 					>
 						Use up
-					</Button>
+					</TextButton>
 				</li>
 			{/each}
 		</ul>

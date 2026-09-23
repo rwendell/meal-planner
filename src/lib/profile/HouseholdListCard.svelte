@@ -1,7 +1,7 @@
 <script lang="ts">
+	import TextButton from "$lib/components/TextButton.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
-	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { refKey } from "$lib/stores/households.svelte.js";
 	import { cn } from "$lib/utils.js";
@@ -122,14 +122,13 @@
 						<AlertDialog.Root>
 							<AlertDialog.Trigger>
 								{#snippet child({ props })}
-									<Button
-										variant="ghost"
-										size="sm"
-										class="text-muted-foreground hover:text-destructive"
+									<TextButton
+										tone="destructive"
+										label="Leave"
 										{...props}
 									>
 										Leave
-									</Button>
+									</TextButton>
 								{/snippet}
 							</AlertDialog.Trigger>
 							<AlertDialog.Content>
