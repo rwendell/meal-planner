@@ -159,10 +159,10 @@ export const setSlot = mutation({
 		);
 		if (args.mealId !== null) {
 			const member = await ctx.db.get("householdMembers", args.memberId);
-			const excluded = new Set(
-				(member?.excludedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+			const skipped = new Set(
+				(member?.skippedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
 			);
-			if (excluded.has(`${weekdayOf(args.date)}:${args.slot}`)) {
+			if (skipped.has(`${weekdayOf(args.date)}:${args.slot}`)) {
 				throw new Error("That day is skipped in your planner.");
 			}
 		}
@@ -316,15 +316,15 @@ export const applyList = mutation({
 				throw new Error("That meal no longer exists.");
 			}
 		}
-		// Excluded cells are never written: spreading happens over the
-		// eligible dates only, and excluded positions keep their values
-		// (null after applyPlannerExclusions runs).
+		// Skipped cells are never written: spreading happens over the
+		// eligible dates only, and skipped positions keep their values
+		// (null after applySkippedCells runs).
 		const member = await ctx.db.get("householdMembers", args.memberId);
-		const excluded = new Set(
-			(member?.excludedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+		const skipped = new Set(
+			(member?.skippedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
 		);
 		const eligible = dates.filter(
-			(date) => !excluded.has(`${weekdayOf(date)}:${args.slot}`),
+			(date) => !skipped.has(`${weekdayOf(date)}:${args.slot}`),
 		);
 		const surviving = meals.filter((meal) => meal.count > 0);
 		const spread: (Id<"meals"> | "skip" | null)[] =

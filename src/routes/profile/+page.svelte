@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import EditActions from "$lib/components/EditActions.svelte";
-	import ExclusionConfirmDialog from "$lib/profile/ExclusionConfirmDialog.svelte";
-	import ExclusionsCard from "$lib/profile/ExclusionsCard.svelte";
 	import HouseholdCard from "$lib/profile/HouseholdCard.svelte";
 	import HouseholdListCard from "$lib/profile/HouseholdListCard.svelte";
 	import { HeaderVisibility } from "$lib/profile/header-visibility.svelte.js";
@@ -14,6 +12,8 @@
 	import ProfileLoadingState from "$lib/profile/ProfileLoadingState.svelte";
 	import { ProfileEditor } from "$lib/profile/profile-editor.svelte.js";
 	import { RosterState } from "$lib/profile/roster-state.svelte.js";
+	import SkippedConfirmDialog from "$lib/profile/SkippedConfirmDialog.svelte";
+	import SkippedMealsCard from "$lib/profile/SkippedMealsCard.svelte";
 	import { session } from "$lib/stores/session.svelte.js";
 
 	const auth = useAuth();
@@ -106,29 +106,32 @@
 			{/if}
 
 			{#if rosterState.activeEntry}
-				<ExclusionsCard
+				<SkippedMealsCard
 					loading={rosterState.householdLoading}
 					editing={editor.editing}
 					saving={editor.saving}
-					shownSet={editor.shownExclusionSet}
-					dirty={editor.exclusionsDirty}
+					shownSet={editor.shownSkipsSet}
+					dirty={editor.skipsDirty}
 					impactMeals={editor.impactMeals}
 					impactPending={editor.impactPending}
 					impactError={editor.impactError}
 					onToggleCell={(day, slot, value) =>
 						editor.setCells([{ day, slot }], value)}
 					onToggleSlot={(slot, value) =>
-						editor.setSlotExcluded(slot, value)}
-					slotExcludedCount={(slot) =>
-						editor.slotExcludedCount(slot)}
+						editor.setSlotSkipped(slot, value)}
+					onToggleDay={(day, value) =>
+						editor.setDaySkipped(day, value)}
+					slotSkippedCount={(slot) =>
+						editor.slotSkippedCount(slot)}
+					daySkippedCount={(day) => editor.daySkippedCount(day)}
 				/>
 			{/if}
 
-			<ExclusionConfirmDialog
-				open={editor.confirmExclusionsOpen}
+			<SkippedConfirmDialog
+				open={editor.confirmSkipsOpen}
 				impactMeals={editor.impactMeals}
 				saving={editor.saving}
-				onOpen={(v) => (editor.confirmExclusionsOpen = v)}
+				onOpen={(v) => (editor.confirmSkipsOpen = v)}
 				onConfirm={() => void editor.save()}
 			/>
 

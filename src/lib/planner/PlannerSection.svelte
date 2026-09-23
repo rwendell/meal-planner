@@ -10,12 +10,6 @@
 		type PlannerMeal,
 	} from "$lib/cookbook/meal-mappers.js";
 	import DayPlanGrid from "$lib/planner/DayPlanGrid.svelte";
-	import {
-		filterVisibleDates,
-		isCellExcludedSet,
-		isDayFullyExcluded,
-		visibleSlotsForDates,
-	} from "$lib/planner/exclusion-view.js";
 	import LeftoverReviewBanner from "$lib/planner/LeftoverReviewBanner.svelte";
 	import LeftoverReviewDialog from "$lib/planner/LeftoverReviewDialog.svelte";
 	import {
@@ -23,6 +17,12 @@
 		writeReviewDismissal,
 	} from "$lib/planner/leftover-review.svelte.js";
 	import PlannerViewControls from "$lib/planner/PlannerViewControls.svelte";
+	import {
+		filterVisibleDates,
+		isCellSkippedSet,
+		isDayFullySkipped,
+		visibleSlotsForDates,
+	} from "$lib/planner/skipped-view.js";
 	import WeekPlanGrid from "$lib/planner/WeekPlanGrid.svelte";
 	import { plannerView } from "$lib/stores/planner-view.svelte.js";
 	import { plannerWeek } from "$lib/stores/planner-week.svelte.js";
@@ -39,11 +39,11 @@
 	} from "$lib/utils/dates.js";
 	import { createDbErrorDeduper } from "$lib/utils/db-errors.js";
 	import { errorMessage } from "$lib/utils/errors.js";
-	import { excludedCellSet } from "$lib/utils/exclusions.js";
 	import {
 		MEAL_TYPES,
 		type MealType,
 	} from "$lib/utils/meal-types.js";
+	import { skippedCellSet } from "$lib/utils/skipped.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 	import ListPlanSection from "./ListPlanSection.svelte";
@@ -172,19 +172,19 @@
 		return count;
 	});
 	let savingMode = $state(false);
-	let exclusionSet = $derived(
-		excludedCellSet(viewingMember?.excludedCells),
+	let skippedSet = $derived(
+		skippedCellSet(viewingMember?.skippedCells),
 	);
-	function cellExcluded(date: string, slot: MealType): boolean {
-		return isCellExcludedSet(exclusionSet, date, slot);
+	function cellSkipped(date: string, slot: MealType): boolean {
+		return isCellSkippedSet(skippedSet, date, slot);
 	}
-	function dayFullyExcluded(date: string): boolean {
-		return isDayFullyExcluded(exclusionSet, date);
+	function dayFullySkipped(date: string): boolean {
+		return isDayFullySkipped(skippedSet, date);
 	}
-	let displayWeekDates = $derived(filterVisibleDates(currentWeek, exclusionSet));
-	let daySlotTypes = $derived(visibleSlotsForDates(exclusionSet, [anchorDate]));
+	let displayWeekDates = $derived(filterVisibleDates(currentWeek, skippedSet));
+	let daySlotTypes = $derived(visibleSlotsForDates(skippedSet, [anchorDate]));
 	let weekSlotTypes = $derived(
-		visibleSlotsForDates(exclusionSet, displayWeekDates),
+		visibleSlotsForDates(skippedSet, displayWeekDates),
 	);
 
 	const daysQuery = useQuery(api.plans.getDays, () =>
@@ -503,8 +503,8 @@
 						slotTypes={daySlotTypes}
 						isSkipped={isSkipped}
 						getMeal={slotMeal}
-						isCellExcluded={cellExcluded}
-						isDayFullyExcluded={dayFullyExcluded}
+						isCellSkipped={cellSkipped}
+						isDayFullySkipped={dayFullySkipped}
 						canEdit={canEditViewing}
 						onAdd={openPicker}
 						onRemove={removeMeal}
@@ -517,7 +517,7 @@
 						slotTypes={weekSlotTypes}
 						getMeal={slotMeal}
 						isSkipped={isSkipped}
-						isCellExcluded={cellExcluded}
+						isCellSkipped={cellSkipped}
 						canEdit={canEditViewing}
 						{readyMadeIds}
 						{dayMealCount}
@@ -547,7 +547,7 @@
 				callerMemberId={selfMemberId}
 				week={currentWeek}
 				canEdit={canEditViewing}
-				excludedCells={viewingMember.excludedCells ?? []}
+				skippedCells={viewingMember.skippedCells ?? []}
 			/>
 		</Card.Root>
 	{/if}

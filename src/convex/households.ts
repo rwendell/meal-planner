@@ -15,7 +15,7 @@ import {
 	linkMatches,
 	linkNewMember,
 } from "./authCheck";
-import schema, { excludedCell } from "./schema";
+import schema, { skippedCell } from "./schema";
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 // Generated codes stay unambiguous (no 0/O, 1/I/L). Custom codes set by
@@ -401,7 +401,7 @@ export const setMemberAutoShare = mutation({
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLAN_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
 // At most one cell per weekday × slot.
-const MAX_EXCLUDED_CELLS = 28;
+const MAX_SKIPPED_CELLS = 28;
 
 function assertDate(date: string): void {
 	if (!ISO_DATE.test(date)) throw new Error("Invalid date.");
@@ -412,28 +412,28 @@ function weekdayOf(date: string): number {
 	return new Date(`${date}T12:00:00Z`).getUTCDay();
 }
 
-type ExclusionCell = { day: number; slot: (typeof PLAN_SLOTS)[number] };
+type SkippedCell = { day: number; slot: (typeof PLAN_SLOTS)[number] };
 
-function exclusionKeys(cells: ExclusionCell[]): Set<string> {
+function skippedKeys(cells: SkippedCell[]): Set<string> {
 	return new Set(cells.map((cell) => `${cell.day}:${cell.slot}`));
 }
 
-async function assertOwnExclusions(
+async function assertOwnSkips(
 	ctx: QueryCtx,
 	householdId: Id<"households">,
 	memberId: Id<"householdMembers">,
 	callerMemberId: Id<"householdMembers">,
-	cells: ExclusionCell[],
+	cells: SkippedCell[],
 	fromDate: string,
 ): Promise<void> {
-	// A member may only change their own exclusions — never another
+	// A member may only change their own skips — never another
 	// member's.
 	if (memberId !== callerMemberId) {
 		throw new Error("You can only change your own planner.");
 	}
 	assertDate(fromDate);
-	if (cells.length > MAX_EXCLUDED_CELLS) {
-		throw new Error("Too many exclusions.");
+	if (cells.length > MAX_SKIPPED_CELLS) {
+		throw new Error("Too many skipped meals.");
 	}
 	const [target, caller] = await Promise.all([
 		ctx.db.get("householdMembers", memberId),
@@ -454,19 +454,19 @@ async function assertOwnExclusions(
 
 /**
  * How many planned meals (from `fromDate` onward) fall on the given
- * exclusion cells. Drives the "this will unplan N meals" confirmation
- * before applyPlannerExclusions commits.
+ * skipped cells. Drives the "this will unplan N meals" confirmation
+ * before applySkippedCells commits.
  */
-export const exclusionImpact = query({
+export const skipImpact = query({
 	args: {
 		householdId: v.id("households"),
 		memberId: v.id("householdMembers"),
 		callerMemberId: v.id("householdMembers"),
 		fromDate: v.string(),
-		cells: v.array(excludedCell),
+		cells: v.array(skippedCell),
 	},
 	handler: async (ctx, args) => {
-		await assertOwnExclusions(
+		await assertOwnSkips(
 			ctx,
 			args.householdId,
 			args.memberId,
@@ -474,7 +474,7 @@ export const exclusionImpact = query({
 			args.cells,
 			args.fromDate,
 		);
-		const excluded = exclusionKeys(args.cells);
+		const skipped = skippedKeys(args.cells);
 		const rows = await ctx.db
 			.query("weekDays")
 			.withIndex("by_member", (q) => q.eq("memberId", args.memberId))
@@ -485,7 +485,7 @@ export const exclusionImpact = query({
 			if (row.date < args.fromDate) continue;
 			const day = weekdayOf(row.date);
 			for (const slot of PLAN_SLOTS) {
-				if (!excluded.has(`${day}:${slot}`)) continue;
+				if (!skipped.has(`${day}:${slot}`)) continue;
 				const value = row[slot] ?? null;
 				if (value === null) continue;
 				slots += 1;
@@ -498,19 +498,19 @@ export const exclusionImpact = query({
 });
 
 /**
- * Saves the member's planner exclusions and unplans every affected
- * slot from `fromDate` onward, so excluded cells never hold meals.
+ * Saves the member's skipped meals and unplans every affected
+ * slot from `fromDate` onward, so skipped cells never hold meals.
  */
-export const applyPlannerExclusions = mutation({
+export const applySkippedCells = mutation({
 	args: {
 		householdId: v.id("households"),
 		memberId: v.id("householdMembers"),
 		callerMemberId: v.id("householdMembers"),
 		fromDate: v.string(),
-		cells: v.array(excludedCell),
+		cells: v.array(skippedCell),
 	},
 	handler: async (ctx, args) => {
-		await assertOwnExclusions(
+		await assertOwnSkips(
 			ctx,
 			args.householdId,
 			args.memberId,
@@ -521,9 +521,9 @@ export const applyPlannerExclusions = mutation({
 		// Link the caller's row to their sign-in before writing.
 		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
 		await ctx.db.patch("householdMembers", args.memberId, {
-			excludedCells: args.cells,
+			skippedCells: args.cells,
 		});
-		const excluded = exclusionKeys(args.cells);
+		const skipped = skippedKeys(args.cells);
 		const rows = await ctx.db
 			.query("weekDays")
 			.withIndex("by_member", (q) => q.eq("memberId", args.memberId))
@@ -540,7 +540,7 @@ export const applyPlannerExclusions = mutation({
 				snack?: typeof row.snack;
 			} = {};
 			for (const slot of PLAN_SLOTS) {
-				if (!excluded.has(`${day}:${slot}`)) continue;
+				if (!skipped.has(`${day}:${slot}`)) continue;
 				const value = row[slot] ?? null;
 				if (value === null) continue;
 				patch[slot] = null;

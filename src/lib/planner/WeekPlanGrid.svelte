@@ -20,7 +20,7 @@
 		slotTypes: Array<{ id: MealType; label: string }>;
 		getMeal: (date: string, slot: MealType) => WeekMeal | null;
 		isSkipped: (date: string, slot: MealType) => boolean;
-		isCellExcluded: (date: string, slot: MealType) => boolean;
+		isCellSkipped: (date: string, slot: MealType) => boolean;
 		canEdit: boolean;
 		readyMadeIds: Set<string>;
 		dayMealCount: (date: string) => number;
@@ -36,7 +36,7 @@
 		slotTypes,
 		getMeal,
 		isSkipped,
-		isCellExcluded,
+		isCellSkipped,
 		canEdit,
 		readyMadeIds,
 		dayMealCount,
@@ -62,7 +62,7 @@
 			<p
 				class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
 			>
-				<BanIcon size={13} /> This whole week is excluded
+				<BanIcon size={13} /> This whole week is skipped
 			</p>
 		</div>
 	{:else}
@@ -97,7 +97,7 @@
 								class="mx-0.5 mt-0 mb-1 block text-[9px] font-extrabold tracking-[0.1em] text-muted-foreground uppercase"
 								>{type.label}</small
 							>
-							{#if isCellExcluded(date, type.id)}
+							{#if isCellSkipped(date, type.id)}
 								<span
 									class="flex min-h-[46px] w-full cursor-default items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground opacity-70"
 									title="Skipped in profile settings"

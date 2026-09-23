@@ -5,15 +5,16 @@ import { refKey } from "$lib/stores/households.svelte.js";
 import { session } from "$lib/stores/session.svelte.js";
 import { todayISO } from "$lib/utils/dates.js";
 import { errorMessage } from "$lib/utils/errors.js";
+import { MEAL_TYPES, type MealType } from "$lib/utils/meal-types.js";
 import {
-	EXCLUSION_WEEKDAYS,
-	type ExcludedCell,
-	excludedCellSet,
-	exclusionKey,
-	sameExcludedCells,
-	sortExcludedCells,
-} from "$lib/utils/exclusions.js";
-import type { MealType } from "$lib/utils/meal-types.js";
+	SKIPPED_WEEKDAYS,
+	type SkippedCell,
+	type SkippedDay,
+	sameSkippedCells,
+	skippedCellSet,
+	skippedKey,
+	sortSkippedCells,
+} from "$lib/utils/skipped.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 import { CUSTOM_INVITE_CODE_PATTERN } from "./profile-utils.js";
@@ -21,7 +22,7 @@ import type { RosterState } from "./roster-state.svelte.js";
 
 /**
  * The profile edit session: name / household / invite-code / owner-flag
- * / auto-share drafts, planner-exclusion drafts with impact preview,
+ * / auto-share drafts, skipped-meal drafts with impact preview,
  * staged household switching, validation, and the multi-mutation save.
  * Read-only roster data comes from `RosterState`; committing a staged
  * switch is delegated to the caller so this class never imports
@@ -41,12 +42,12 @@ export class ProfileEditor {
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
 	autoShareMealsDraft = $state<boolean | null>(null);
 	nameInput = $state<HTMLInputElement | null>(null);
-	confirmExclusionsOpen = $state(false);
+	confirmSkipsOpen = $state(false);
 	pendingHouseholdKey = $state<string | null>(null);
 
 	private myNameEditKey = $state<string | null>(null);
 	private householdNameEditKey = $state<string | null>(null);
-	private exclusionDraft = $state<ExcludedCell[] | null>(null);
+	private skippedDraft = $state<SkippedCell[] | null>(null);
 
 	private renameHousehold = useMutation(api.households.renameHousehold);
 	private setInviteCode = useMutation(api.households.setInviteCode);
@@ -58,18 +59,16 @@ export class ProfileEditor {
 	);
 	private setAutoShareMeals = useMutation(api.households.setMemberAutoShare);
 	private renameMember = useMutation(api.households.renameMember);
-	private applyPlannerExclusions = useMutation(
-		api.households.applyPlannerExclusions,
-	);
+	private applySkippedCells = useMutation(api.households.applySkippedCells);
 
-	private exclusionImpactQuery = useQuery(api.households.exclusionImpact, () =>
-		session.session && this.exclusionsDirty
+	private skipImpactQuery = useQuery(api.households.skipImpact, () =>
+		session.session && this.skipsDirty
 			? {
 					householdId: session.session.householdId as Id<"households">,
 					memberId: session.session.memberId as Id<"householdMembers">,
 					callerMemberId: session.session.memberId as Id<"householdMembers">,
 					fromDate: todayISO(),
-					cells: sortExcludedCells(this.exclusionDraft ?? []),
+					cells: sortSkippedCells(this.skippedDraft ?? []),
 				}
 			: "skip",
 	);
@@ -111,37 +110,37 @@ export class ProfileEditor {
 	// draft means no local edits yet — it initializes from the server
 	// state on first toggle, so a slow member load can't clobber it.
 	// Saving removes affected meals after confirmation.
-	private get savedExclusions(): ExcludedCell[] {
-		return this.roster.myMember?.excludedCells ?? [];
+	private get savedSkips(): SkippedCell[] {
+		return this.roster.myMember?.skippedCells ?? [];
 	}
-	private get shownExclusions(): ExcludedCell[] {
+	private get shownSkips(): SkippedCell[] {
 		return this.editing
-			? (this.exclusionDraft ?? this.savedExclusions)
-			: this.savedExclusions;
+			? (this.skippedDraft ?? this.savedSkips)
+			: this.savedSkips;
 	}
-	get shownExclusionSet(): Set<string> {
-		return excludedCellSet(this.shownExclusions);
+	get shownSkipsSet(): Set<string> {
+		return skippedCellSet(this.shownSkips);
 	}
-	get exclusionsDirty(): boolean {
+	get skipsDirty(): boolean {
 		return (
 			this.editing &&
-			this.exclusionDraft !== null &&
-			!sameExcludedCells(this.exclusionDraft, this.savedExclusions)
+			this.skippedDraft !== null &&
+			!sameSkippedCells(this.skippedDraft, this.savedSkips)
 		);
 	}
 
 	get impactMeals(): number {
-		return this.exclusionImpactQuery.data?.meals ?? 0;
+		return this.skipImpactQuery.data?.meals ?? 0;
 	}
 	get impactPending(): boolean {
 		return (
-			this.exclusionsDirty &&
-			this.exclusionImpactQuery.data === undefined &&
-			!this.exclusionImpactQuery.error
+			this.skipsDirty &&
+			this.skipImpactQuery.data === undefined &&
+			!this.skipImpactQuery.error
 		);
 	}
 	get impactError(): boolean {
-		return Boolean(this.exclusionImpactQuery.error);
+		return Boolean(this.skipImpactQuery.error);
 	}
 
 	get pendingOwnerManagesPlans(): boolean {
@@ -196,7 +195,7 @@ export class ProfileEditor {
 				(this.autoShareMealsDraft !== null &&
 					this.autoShareMealsDraft !==
 						(this.roster.myMember?.autoShareMeals ?? true)) ||
-				this.exclusionsDirty ||
+				this.skipsDirty ||
 				this.householdSwitchPending
 			) ||
 			this.impactPending ||
@@ -255,72 +254,83 @@ export class ProfileEditor {
 		this.pendingHouseholdKey = this.pendingHouseholdKey === key ? null : key;
 	}
 
-	private draftCells(): ExcludedCell[] {
-		return (this.exclusionDraft ?? this.savedExclusions).map((cell) => ({
+	private draftCells(): SkippedCell[] {
+		return (this.skippedDraft ?? this.savedSkips).map((cell) => ({
 			...cell,
 		}));
 	}
 
-	setCells(cells: ExcludedCell[], excluded: boolean): void {
-		const keys = new Set(
-			cells.map((cell) => exclusionKey(cell.day, cell.slot)),
-		);
+	setCells(cells: SkippedCell[], skipped: boolean): void {
+		const keys = new Set(cells.map((cell) => skippedKey(cell.day, cell.slot)));
 		const kept = this.draftCells().filter(
-			(cell) => !keys.has(exclusionKey(cell.day, cell.slot)),
+			(cell) => !keys.has(skippedKey(cell.day, cell.slot)),
 		);
-		this.exclusionDraft = excluded ? [...kept, ...cells] : kept;
+		this.skippedDraft = skipped ? [...kept, ...cells] : kept;
 	}
 
-	setSlotExcluded(slot: MealType, excluded: boolean): void {
+	setSlotSkipped(slot: MealType, skipped: boolean): void {
 		this.setCells(
-			EXCLUSION_WEEKDAYS.map((row) => ({ day: row.day, slot })),
-			excluded,
+			SKIPPED_WEEKDAYS.map((row) => ({ day: row.day, slot })),
+			skipped,
 		);
 	}
 
-	slotExcludedCount(slot: MealType): number {
-		return EXCLUSION_WEEKDAYS.filter((row) =>
-			this.shownExclusionSet.has(exclusionKey(row.day, slot)),
+	setDaySkipped(day: SkippedDay, skipped: boolean): void {
+		this.setCells(
+			MEAL_TYPES.map((type) => ({ day, slot: type.id })),
+			skipped,
+		);
+	}
+
+	slotSkippedCount(slot: MealType): number {
+		return SKIPPED_WEEKDAYS.filter((row) =>
+			this.shownSkipsSet.has(skippedKey(row.day, slot)),
 		).length;
 	}
 
-	private async requestSaveExclusions(): Promise<void> {
-		if (!this.exclusionsDirty) return;
-		if (this.impactMeals > 0 && !this.confirmExclusionsOpen) {
-			this.confirmExclusionsOpen = true;
-			return;
-		}
-		await this.saveExclusions();
+	daySkippedCount(day: SkippedDay): number {
+		return MEAL_TYPES.filter((type) =>
+			this.shownSkipsSet.has(skippedKey(day, type.id)),
+		).length;
 	}
 
-	private async saveExclusions(): Promise<boolean> {
+	private async requestSaveSkips(): Promise<void> {
+		if (!this.skipsDirty) return;
+		if (this.impactMeals > 0 && !this.confirmSkipsOpen) {
+			this.confirmSkipsOpen = true;
+			return;
+		}
+		await this.saveSkips();
+	}
+
+	private async saveSkips(): Promise<boolean> {
 		const current = session.session;
 		if (!current) return false;
 		try {
-			const result = await this.applyPlannerExclusions({
+			const result = await this.applySkippedCells({
 				householdId: current.householdId as Id<"households">,
 				memberId: current.memberId as Id<"householdMembers">,
 				callerMemberId: current.memberId as Id<"householdMembers">,
 				fromDate: todayISO(),
-				cells: sortExcludedCells(this.exclusionDraft ?? []),
+				cells: sortSkippedCells(this.skippedDraft ?? []),
 			});
-			this.confirmExclusionsOpen = false;
-			this.exclusionDraft = null;
+			this.confirmSkipsOpen = false;
+			this.skippedDraft = null;
 			toast.success(
 				result.meals > 0
-					? `Exclusions saved — removed ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
-					: "Exclusions saved",
+					? `Skipped meals saved — removed ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
+					: "Skipped meals saved",
 			);
 			return true;
 		} catch (error) {
-			toast.error(errorMessage(error, "Couldn't save exclusions."));
+			toast.error(errorMessage(error, "Couldn't save skipped meals."));
 			return false;
 		}
 	}
 
 	async startEditing(): Promise<void> {
 		if (!this.roster.activeEntry) return;
-		this.exclusionDraft = null;
+		this.skippedDraft = null;
 		this.pendingHouseholdKey = null;
 		this.editing = true;
 		await tick();
@@ -337,8 +347,8 @@ export class ProfileEditor {
 		this.ownerManagesPlansDraft = null;
 		this.ownerReviewsMealsDraft = null;
 		this.autoShareMealsDraft = null;
-		this.exclusionDraft = null;
-		this.confirmExclusionsOpen = false;
+		this.skippedDraft = null;
+		this.confirmSkipsOpen = false;
 		this.pendingHouseholdKey = null;
 		this.editing = false;
 	}
@@ -365,12 +375,12 @@ export class ProfileEditor {
 			toast.error("Use exactly 6 letters or digits.");
 			return;
 		}
-		// Exclusions confirm first: nothing else saves until the user
+		// Skipped-meals confirm first: nothing else saves until the user
 		// confirms the remove (or there is nothing to confirm). The
 		// confirm dialog re-enters here with the dialog already open.
-		if (this.exclusionsDirty) {
-			await this.requestSaveExclusions();
-			if (this.confirmExclusionsOpen || this.exclusionsDirty) return;
+		if (this.skipsDirty) {
+			await this.requestSaveSkips();
+			if (this.confirmSkipsOpen || this.skipsDirty) return;
 		}
 		const baselineOwnerPlans =
 			this.roster.household?.ownerManagesPlans ?? false;

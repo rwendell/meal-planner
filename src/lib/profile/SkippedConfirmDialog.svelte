@@ -24,7 +24,7 @@
 				{impactMeals === 1 ? "meal" : "meals"}?
 			</AlertDialog.Title>
 			<AlertDialog.Description>
-				These planned meals fall on days you're excluding.
+				These planned meals fall on days you're skipping.
 				Saving will remove them from today onward and update
 				groceries. This can't be undone.
 			</AlertDialog.Description>

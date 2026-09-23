@@ -12,16 +12,16 @@
 	import PlanSlotColumn from "$lib/planner/PlanSlotColumn.svelte";
 	import { errorMessage } from "$lib/utils/errors.js";
 	import {
-		type ExcludedCell,
-		excludedCellSet,
-		weekdayIndex,
-	} from "$lib/utils/exclusions.js";
-	import {
 		fallbackMealTimes,
 		MEAL_TYPES,
 		type MealType,
 		type PickerMeal,
 	} from "$lib/utils/meal-types.js";
+	import {
+		type SkippedCell,
+		skippedCellSet,
+		weekdayIndex,
+	} from "$lib/utils/skipped.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -33,20 +33,20 @@
 		callerMemberId,
 		week,
 		canEdit = true,
-		excludedCells = [],
+		skippedCells = [],
 	}: {
 		householdId: string;
 		memberId: string;
 		callerMemberId: string;
 		week: string[];
 		canEdit?: boolean;
-		excludedCells?: ExcludedCell[];
+		skippedCells?: SkippedCell[];
 	} = $props();
 
-	let exclusionSet = $derived(excludedCellSet(excludedCells));
+	let skippedSet = $derived(skippedCellSet(skippedCells));
 	function eligibleDates(slot: MealSlot): string[] {
 		return week.filter(
-			(date) => !exclusionSet.has(`${weekdayIndex(date)}:${slot}`),
+			(date) => !skippedSet.has(`${weekdayIndex(date)}:${slot}`),
 		);
 	}
 

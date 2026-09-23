@@ -38,8 +38,8 @@ export const weekday = v.union(
 	v.literal(6),
 );
 
-// A (weekday, meal-slot) cell the member opted out of planning.
-export const excludedCell = v.object({ day: weekday, slot: mealSlot });
+// A (weekday, meal-slot) cell the member skips planning.
+export const skippedCell = v.object({ day: weekday, slot: mealSlot });
 
 // A planner slot holds a meal, is unplanned (null), or is deliberately
 // skipped ("skip"). Skips are first-class values — never meal rows — so
@@ -95,7 +95,7 @@ export default defineSchema({
 		// Planner cells the member opted out of (e.g. no weekends, no
 		// snacks). Unset/empty means everything is plannable. Only the
 		// member themselves may change it.
-		excludedCells: v.optional(v.array(excludedCell)),
+		skippedCells: v.optional(v.array(skippedCell)),
 	})
 		.index("by_household", ["householdId"])
 		.index("by_authSubject", ["authSubject"]),

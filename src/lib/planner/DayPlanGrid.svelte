@@ -25,8 +25,8 @@
 		slotTypes: Array<{ id: MealType; label: string }>;
 		isSkipped: (date: string, slot: MealType) => boolean;
 		getMeal: (date: string, slot: MealType) => DayMeal | null;
-		isCellExcluded: (date: string, slot: MealType) => boolean;
-		isDayFullyExcluded: (date: string) => boolean;
+		isCellSkipped: (date: string, slot: MealType) => boolean;
+		isDayFullySkipped: (date: string) => boolean;
 		canEdit: boolean;
 		onAdd: (date: string, slot: MealType) => void;
 		onRemove: (date: string, slot: MealType) => void;
@@ -39,8 +39,8 @@
 		slotTypes,
 		isSkipped,
 		getMeal,
-		isCellExcluded,
-		isDayFullyExcluded,
+		isCellSkipped,
+		isDayFullySkipped,
 		canEdit,
 		onAdd,
 		onRemove,
@@ -59,7 +59,7 @@
 			<Badge>Today</Badge>
 		{/if}
 	</div>
-	{#if isDayFullyExcluded(anchorDate)}
+	{#if isDayFullySkipped(anchorDate)}
 		<div
 			class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
 			title="Skipped in profile settings"
@@ -79,7 +79,7 @@
 				>
 					{type.label}
 				</h3>
-				{#if isCellExcluded(anchorDate, type.id)}
+				{#if isCellSkipped(anchorDate, type.id)}
 					<div
 						class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
 						title="Skipped in profile settings"
