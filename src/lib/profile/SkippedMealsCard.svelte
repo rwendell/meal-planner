@@ -84,9 +84,7 @@
 										disabled={!editing || saving}
 										onclick={() =>
 											onToggleDay(row.day, !dayFull)}
-										class={dayFull
-											? "px-1 py-0.5 text-[10px] font-semibold text-foreground"
-											: "px-1 py-0.5 text-[10px] font-semibold text-muted-foreground"}
+										class="px-1 py-0.5 text-[10px] font-semibold text-foreground disabled:opacity-100"
 									>
 										<span class="hidden sm:inline">
 											{row.label}
@@ -117,8 +115,8 @@
 									onclick={() =>
 										onToggleSlot(slot.id, !rowFull)}
 									class={rowFull
-										? "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-semibold text-foreground"
-										: "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-medium text-muted-foreground"}
+										? "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-semibold text-foreground disabled:opacity-100"
+										: "min-w-0 justify-self-start truncate px-1.5 py-0.5 text-left text-sm font-medium text-foreground disabled:opacity-100"}
 								>
 									{slot.label}
 								</TextButton>
