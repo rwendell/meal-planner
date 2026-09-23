@@ -1,11 +1,11 @@
 <script lang="ts">
-	import MealEditor from "$lib/components/MealEditor.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
-	import type { GroceryGroup } from "$lib/grocery.js";
-	import type { DatabaseMeal } from "$lib/meals/meal-mappers.js";
+	import MealEditor from "$lib/cookbook/MealEditor.svelte";
+	import type { CookbookMeal } from "$lib/cookbook/meal-mappers.js";
+	import type { GroceryGroup } from "$lib/utils/grocery.js";
 
 	interface ImportedDraft {
 		name: string;
@@ -34,7 +34,7 @@
 	}: {
 		open: boolean;
 		householdId: string | null;
-		editingMeal: DatabaseMeal | null;
+		editingMeal: CookbookMeal | null;
 		publishedIds: Set<string>;
 		autoShareDefault: boolean;
 		meals: { id: string; name: string }[];

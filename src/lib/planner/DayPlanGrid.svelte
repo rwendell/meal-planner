@@ -4,11 +4,11 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
-	import { weekdayLabel } from "$lib/dates.js";
+	import { weekdayLabel } from "$lib/utils/dates.js";
 	import {
 		displayMealTime,
 		type MealType
-	} from "$lib/meal-types.js";
+	} from "$lib/utils/meal-types.js";
 
 	interface DayMeal {
 		id: string;
@@ -62,7 +62,7 @@
 	{#if isDayFullyExcluded(anchorDate)}
 		<div
 			class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
-			title="Excluded in planner settings"
+			title="Skipped in profile settings"
 		>
 			<p
 				class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
@@ -82,12 +82,12 @@
 				{#if isCellExcluded(anchorDate, type.id)}
 					<div
 						class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
-						title="Excluded in planner settings"
+						title="Skipped in profile settings"
 					>
 						<p
 							class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
 						>
-							<BanIcon size={12} /> Excluded
+							<BanIcon size={12} /> Skipped
 						</p>
 					</div>
 				{:else if isSkipped(anchorDate, type.id)}

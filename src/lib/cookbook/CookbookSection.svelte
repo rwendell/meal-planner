@@ -11,20 +11,20 @@
 	import * as Empty from "$lib/components/ui/empty";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import * as Tabs from "$lib/components/ui/tabs";
-	import { createDbErrorDeduper } from "$lib/data/db-errors.js";
-	import { errorMessage } from "$lib/errors.js";
-	import type { GroceryGroup } from "$lib/grocery.js";
-	import type { MealCategory } from "$lib/meal-types.js";
-	import MealCard from "$lib/meals/MealCard.svelte";
-	import MealDialog from "$lib/meals/MealDialog.svelte";
-	import MealsToolbar from "$lib/meals/MealsToolbar.svelte";
-	import { suggestCopyName, validateRecipeUrl } from "$lib/meals/meal-form.js";
+	import MealCard from "$lib/cookbook/MealCard.svelte";
+	import MealDialog from "$lib/cookbook/MealDialog.svelte";
+	import MealsToolbar from "$lib/cookbook/MealsToolbar.svelte";
+	import { suggestCopyName, validateRecipeUrl } from "$lib/cookbook/meal-form.js";
 	import {
-		type DatabaseMeal,
-		mapToDatabaseMeals,
-	} from "$lib/meals/meal-mappers.js";
-	import RecipeCard from "$lib/meals/RecipeCard.svelte";
-	import { session } from "$lib/session.svelte.js";
+		type CookbookMeal,
+		mapToCookbookMeals,
+	} from "$lib/cookbook/meal-mappers.js";
+	import RecipeCard from "$lib/cookbook/RecipeCard.svelte";
+	import { session } from "$lib/stores/session.svelte.js";
+	import { createDbErrorDeduper } from "$lib/utils/db-errors.js";
+	import { errorMessage } from "$lib/utils/errors.js";
+	import type { GroceryGroup } from "$lib/utils/grocery.js";
+	import type { MealCategory } from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -32,10 +32,10 @@
 
 	let search = $state("");
 	let category = $state<"All" | MealCategory>("All");
-	let dbTab = $state<"mine" | "discover">("mine");
+	let cookbookTab = $state<"cookbook" | "discover">("cookbook");
 	let discoverSearch = $state("");
 	let showMealDialog = $state(false);
-	let editingMeal = $state<DatabaseMeal | null>(null);
+	let editingMeal = $state<CookbookMeal | null>(null);
 	let mealDialogKey = $state(0);
 
 	interface ImportedDraft {
@@ -104,8 +104,8 @@
 	);
 
 	const createMeal = useMutation(api.meals.create);
-	const deleteMeal = useMutation(api.meals.remove);
-	const seedDatabase = useMutation(api.seed.ensureSeed);
+	const removeMeal = useMutation(api.meals.remove);
+	const ensureSamples = useMutation(api.seed.ensureSamples);
 	const publishRecipe = useMutation(api.recipes.publish);
 	const unpublishRecipe = useMutation(api.recipes.unpublish);
 	const adoptRecipe = useMutation(api.recipes.adopt);
@@ -114,7 +114,7 @@
 	let sampleSeedAttempted = $state(false);
 
 	$effect(() => {
-		if (dbTab !== "discover" || sampleSeedAttempted) return;
+		if (cookbookTab !== "discover" || sampleSeedAttempted) return;
 		const data = recipesQuery.data;
 		if (data !== undefined && data.length === 0) {
 			sampleSeedAttempted = true;
@@ -163,11 +163,11 @@
 			householdId: householdId as Id<"households">,
 			recipeId: recipeId as Id<"publishedRecipes">,
 		});
-		toast.success(`${result.name} added to your database`);
+		toast.success(`${result.name} added to your cookbook`);
 	}
 
-	let meals = $derived<DatabaseMeal[]>(
-		mapToDatabaseMeals((mealsQuery.data ?? []) as never[]),
+	let meals = $derived<CookbookMeal[]>(
+		mapToCookbookMeals((mealsQuery.data ?? []) as never[]),
 	);
 
 	const dbErrors = createDbErrorDeduper();
@@ -197,7 +197,7 @@
 		showMealDialog = true;
 	}
 
-	function openEditMeal(meal: DatabaseMeal): void {
+	function openEditMeal(meal: CookbookMeal): void {
 		editingMeal = meal;
 		importUrl = "";
 		importError = "";
@@ -238,12 +238,12 @@
 			}
 		}
 		toast.success(
-			wasEditing ? `${name} updated` : `${name} added to the database`,
+			wasEditing ? `${name} updated` : `${name} added to your cookbook`,
 		);
 		closeMealDialog();
 	}
 
-	async function duplicateMeal(meal: DatabaseMeal): Promise<void> {
+	async function duplicateMeal(meal: CookbookMeal): Promise<void> {
 		if (!householdId) return;
 		const name = suggestCopyName(
 			meal.name,
@@ -267,17 +267,17 @@
 		openEditMeal({ ...meal, id, name });
 	}
 
-	async function deleteMealFromDatabase(
+	async function deleteMeal(
 		id: string,
 		name: string,
 	): Promise<void> {
-		await deleteMeal({ id: id as Id<"meals"> });
+		await removeMeal({ id: id as Id<"meals"> });
 		toast.success(`${name} deleted`);
 	}
 
 	async function loadSamples(): Promise<void> {
 		if (!householdId || !selfMemberId) return;
-		await seedDatabase({
+		await ensureSamples({
 			householdId: householdId as Id<"households">,
 			memberId: selfMemberId as Id<"householdMembers">,
 		});
@@ -304,26 +304,26 @@
 		</Card.Header>
 		<Card.Content>
 			<Tabs.Root
-				value={dbTab}
+				value={cookbookTab}
 				onValueChange={(value) => {
-					if (value === "mine" || value === "discover") dbTab = value;
+					if (value === "cookbook" || value === "discover") cookbookTab = value;
 				}}
 			>
-				<Tabs.List aria-label="Database view">
-					<Tabs.Trigger value="mine">My meals</Tabs.Trigger>
+				<Tabs.List aria-label="Cookbook view">
+					<Tabs.Trigger value="cookbook">My meals</Tabs.Trigger>
 					<Tabs.Trigger value="discover">Discover</Tabs.Trigger>
 				</Tabs.List>
 				<MealsToolbar
 					{category}
-					{dbTab}
-					searchValue={dbTab === "mine" ? search : discoverSearch}
+					activeTab={cookbookTab}
+					searchValue={cookbookTab === "cookbook" ? search : discoverSearch}
 					onCategory={(c) => (category = c)}
 					onSearch={(v) => {
-						if (dbTab === "mine") search = v;
+						if (cookbookTab === "cookbook") search = v;
 						else discoverSearch = v;
 					}}
 				/>
-				<Tabs.Content value="mine">
+				<Tabs.Content value="cookbook">
 					{#if visibleMeals.length}
 						<div class="grid gap-2.5 min-[560px]:grid-cols-2">
 							{#each visibleMeals as meal (meal.id)}
@@ -333,7 +333,7 @@
 									onEdit={openEditMeal}
 									onDuplicate={(m) => void duplicateMeal(m)}
 									onDelete={(id, name) =>
-										void deleteMealFromDatabase(id, name)}
+										void deleteMeal(id, name)}
 								/>
 							{/each}
 						</div>
@@ -347,7 +347,7 @@
 						<Empty.Root>
 							<Empty.Header>
 								<Empty.Media><CookingPotIcon /></Empty.Media>
-								<Empty.Title>Your database is empty</Empty.Title>
+								<Empty.Title>Your cookbook is empty</Empty.Title>
 								<Empty.Description>
 									Add your first meal, or load the sample data
 									to explore.

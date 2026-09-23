@@ -1,8 +1,8 @@
 import { useMutation } from "convex-svelte";
 import { toast } from "svelte-sonner";
-import { errorMessage } from "$lib/errors.js";
-import { roster } from "$lib/households.svelte.js";
-import { session } from "$lib/session.svelte.js";
+import { roster } from "$lib/stores/households.svelte.js";
+import { session } from "$lib/stores/session.svelte.js";
+import { errorMessage } from "$lib/utils/errors.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { RosterEntry, RosterState } from "./roster-state.svelte.js";

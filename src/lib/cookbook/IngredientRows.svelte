@@ -4,7 +4,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import * as Select from "$lib/components/ui/select";
-	import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
+	import { type GroceryGroup, groceryGroups } from "$lib/utils/grocery.js";
 
 	interface IngredientRow {
 		key: number;

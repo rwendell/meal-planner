@@ -41,7 +41,7 @@
 				<Button
 					variant="outline"
 					size="icon-sm"
-					aria-label={`Add ${recipe.name} to your database`}
+					aria-label={`Add ${recipe.name} to your cookbook`}
 					title={`Add ${recipe.name}`}
 					onclick={() => onAdopt(recipe._id)}><PlusIcon /></Button
 				>

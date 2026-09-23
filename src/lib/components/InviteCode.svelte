@@ -2,8 +2,8 @@
 	import CheckIcon from "@lucide/svelte/icons/check";
 	import CopyIcon from "@lucide/svelte/icons/copy";
 	import { toast } from "svelte-sonner";
-	import { copyText } from "$lib/clipboard.js";
 	import { Button } from "$lib/components/ui/button";
+	import { copyText } from "$lib/utils/clipboard.js";
 
 	let { code }: { code: string } = $props();
 

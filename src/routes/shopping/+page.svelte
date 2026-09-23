@@ -1,6 +1,6 @@
 <script lang="ts">
 	import PageMain from "$lib/components/PageMain.svelte";
-	import ShoppingSection from "$lib/sections/ShoppingSection.svelte";
+	import ShoppingSection from "$lib/shopping/ShoppingSection.svelte";
 </script>
 
 <svelte:head>

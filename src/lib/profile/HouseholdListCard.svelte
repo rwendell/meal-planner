@@ -3,7 +3,7 @@
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { refKey } from "$lib/households.svelte.js";
+	import { refKey } from "$lib/stores/households.svelte.js";
 	import { cn } from "$lib/utils.js";
 
 	type Entry = {

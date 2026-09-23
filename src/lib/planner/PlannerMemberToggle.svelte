@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
-	import { memberColor } from "$lib/members.js";
+	import { memberColor } from "$lib/utils/members.js";
 
 	interface Props {
 		members: Array<{ _id: string; name: string }>;

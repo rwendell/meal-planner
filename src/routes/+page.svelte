@@ -4,8 +4,8 @@
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import PageMain from "$lib/components/PageMain.svelte";
-	import { prefs } from "$lib/prefs.svelte.js";
-	import PlannerSection from "$lib/sections/PlannerSection.svelte";
+	import PlannerSection from "$lib/planner/PlannerSection.svelte";
+	import { prefs } from "$lib/stores/prefs.svelte.js";
 
 	const wideScreen = new MediaQuery("(min-width: 1024px)", true);
 	const dashboardActive = $derived(

@@ -36,10 +36,9 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
-	import { roster } from "$lib/households.svelte.js";
-	import { memberColor } from "$lib/members.js";
-	import { plannerView } from "$lib/planner-view.svelte.js";
-	import { prefs } from "$lib/prefs.svelte.js";
+	import { roster } from "$lib/stores/households.svelte.js";
+	import { plannerView } from "$lib/stores/planner-view.svelte.js";
+	import { prefs } from "$lib/stores/prefs.svelte.js";
 	import {
 		clearProvisioningLock,
 		deviceName,
@@ -47,7 +46,8 @@
 		STORAGE_KEY,
 		session,
 		setProvisioningLock,
-	} from "$lib/session.svelte.js";
+	} from "$lib/stores/session.svelte.js";
+	import { memberColor } from "$lib/utils/members.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
@@ -66,7 +66,7 @@
 		id: string;
 		label: string;
 		Icon: Component;
-		href: "/#planner" | "/meals" | "/shopping";
+		href: "/#planner" | "/cookbook" | "/shopping";
 	}
 
 	type ViewTransitionDocument = Document & {
@@ -82,7 +82,7 @@
 			Icon: CalendarIcon,
 			href: "/#planner",
 		},
-		{ id: "meals", label: "Meal database", Icon: BookIcon, href: "/meals" },
+		{ id: "meals", label: "Cookbook", Icon: BookIcon, href: "/cookbook" },
 		{
 			id: "shopping",
 			label: "Shopping list",
@@ -123,7 +123,7 @@
 	});
 
 	let activeSection = $derived(
-		page.url.pathname === "/meals"
+		page.url.pathname === "/cookbook"
 			? "meals"
 			: page.url.pathname === "/shopping"
 				? "shopping"
@@ -495,7 +495,7 @@
 		}
 
 		const currentIndex =
-			page.url.pathname === "/meals"
+			page.url.pathname === "/cookbook"
 				? 1
 				: page.url.pathname === "/shopping"
 					? 2
@@ -608,7 +608,7 @@
 		>
 			<main class="grid min-h-[60vh] place-items-center">
 				<p role="alert" class="text-sm text-destructive">
-					Couldn't reach the database. Check your connection and
+					Couldn't load your data. Check your connection and
 					reload.
 				</p>
 			</main>

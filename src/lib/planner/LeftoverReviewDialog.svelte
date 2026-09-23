@@ -6,7 +6,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Skeleton } from "$lib/components/ui/skeleton";
-	import { errorMessage } from "$lib/errors.js";
+	import { errorMessage } from "$lib/utils/errors.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -36,7 +36,7 @@
 		onClose: () => void;
 	} = $props();
 
-	const daysQuery = useQuery(api.plan.getDays, () => {
+	const daysQuery = useQuery(api.plans.getDays, () => {
 		if (!householdId) return "skip";
 		if (memberId) {
 			return {

@@ -3,14 +3,14 @@
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
+	import { plannerWeek } from "$lib/stores/planner-week.svelte.js";
 	import {
 		addDays,
 		todayISO,
 		weekDates,
 		weekLabel,
 		weekLabelShort,
-	} from "$lib/dates.js";
-	import { plannerWeek } from "$lib/planner-week.svelte.js";
+	} from "$lib/utils/dates.js";
 
 	/**
 	 * Page hero: big week/day heading plus prev/today/next navigation.

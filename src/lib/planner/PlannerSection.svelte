@@ -2,11 +2,31 @@
 	import { useMutation, useQuery } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { toast } from "svelte-sonner";
-	import LeftoverReview from "$lib/components/LeftoverReview.svelte";
-	import MealPicker from "$lib/components/MealPicker.svelte";
 	import PlannerHero from "$lib/components/PlannerHero.svelte";
 	import * as Card from "$lib/components/ui/card";
-	import { createDbErrorDeduper } from "$lib/data/db-errors.js";
+	import MealPicker from "$lib/cookbook/MealPicker.svelte";
+	import {
+		mapToPlannerMeals,
+		type PlannerMeal,
+	} from "$lib/cookbook/meal-mappers.js";
+	import DayPlanGrid from "$lib/planner/DayPlanGrid.svelte";
+	import {
+		filterVisibleDates,
+		isCellExcludedSet,
+		isDayFullyExcluded,
+		visibleSlotsForDates,
+	} from "$lib/planner/exclusion-view.js";
+	import LeftoverReviewBanner from "$lib/planner/LeftoverReviewBanner.svelte";
+	import LeftoverReviewDialog from "$lib/planner/LeftoverReviewDialog.svelte";
+	import {
+		readReviewDismissal,
+		writeReviewDismissal,
+	} from "$lib/planner/leftover-review.svelte.js";
+	import PlannerViewControls from "$lib/planner/PlannerViewControls.svelte";
+	import WeekPlanGrid from "$lib/planner/WeekPlanGrid.svelte";
+	import { plannerView } from "$lib/stores/planner-view.svelte.js";
+	import { plannerWeek } from "$lib/stores/planner-week.svelte.js";
+	import { session } from "$lib/stores/session.svelte.js";
 	import {
 		addDays,
 		formatMonthDay,
@@ -16,34 +36,14 @@
 		weekdayLabel,
 		weekLabel,
 		weekLabelShort,
-	} from "$lib/dates.js";
-	import { errorMessage } from "$lib/errors.js";
-	import { excludedCellSet } from "$lib/exclusions.js";
+	} from "$lib/utils/dates.js";
+	import { createDbErrorDeduper } from "$lib/utils/db-errors.js";
+	import { errorMessage } from "$lib/utils/errors.js";
+	import { excludedCellSet } from "$lib/utils/exclusions.js";
 	import {
 		MEAL_TYPES,
 		type MealType,
-	} from "$lib/meal-types.js";
-	import {
-		mapToPlannerMeals,
-		type PlannerMeal,
-	} from "$lib/meals/meal-mappers.js";
-	import DayPlanGrid from "$lib/planner/DayPlanGrid.svelte";
-	import {
-		filterVisibleDates,
-		isCellExcludedSet,
-		isDayFullyExcluded,
-		visibleSlotsForDates,
-	} from "$lib/planner/exclusion-view.js";
-	import {
-		readReviewDismissal,
-		writeReviewDismissal,
-	} from "$lib/planner/leftover-review.svelte.js";
-	import PlannerViewControls from "$lib/planner/PlannerViewControls.svelte";
-	import ReviewNudge from "$lib/planner/ReviewNudge.svelte";
-	import WeekPlanGrid from "$lib/planner/WeekPlanGrid.svelte";
-	import { plannerView } from "$lib/planner-view.svelte.js";
-	import { plannerWeek } from "$lib/planner-week.svelte.js";
-	import { session } from "$lib/session.svelte.js";
+	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 	import ListPlanSection from "./ListPlanSection.svelte";
@@ -118,7 +118,7 @@
 			readReviewDismissal() !== lastWeekAnchor,
 	);
 
-	const lastWeekDaysQuery = useQuery(api.plan.getDays, () =>
+	const lastWeekDaysQuery = useQuery(api.plans.getDays, () =>
 		householdId && viewingMember
 			? {
 					householdId: householdId as Id<"households">,
@@ -127,7 +127,7 @@
 				}
 			: "skip",
 	);
-	const lastWeekDaysAllQuery = useQuery(api.plan.getDays, () =>
+	const lastWeekDaysAllQuery = useQuery(api.plans.getDays, () =>
 		householdId && reviewScopeAll
 			? {
 					householdId: householdId as Id<"households">,
@@ -187,7 +187,7 @@
 		visibleSlotsForDates(exclusionSet, displayWeekDates),
 	);
 
-	const daysQuery = useQuery(api.plan.getDays, () =>
+	const daysQuery = useQuery(api.plans.getDays, () =>
 		householdId && viewingMember
 			? {
 					householdId: householdId as Id<"households">,
@@ -197,8 +197,8 @@
 			: "skip",
 	);
 
-	const setSlot = useMutation(api.plan.setSlot);
-	const clearDayMutation = useMutation(api.plan.clearDay);
+	const setSlot = useMutation(api.plans.setSlot);
+	const clearDayMutation = useMutation(api.plans.clearDay);
 	const setPlannerMode = useMutation(api.households.setPlannerMode);
 
 	async function setMode(next: "planner" | "list"): Promise<void> {
@@ -267,7 +267,7 @@
 		);
 	});
 
-	const pickerDayQuery = useQuery(api.plan.getDays, () =>
+	const pickerDayQuery = useQuery(api.plans.getDays, () =>
 		householdId && pickerTarget
 			? {
 					householdId: householdId as Id<"households">,
@@ -474,7 +474,7 @@
 		dayStep={mode === "planner" && effectiveView === "day"}
 	/>
 
-	<ReviewNudge
+	<LeftoverReviewBanner
 		visible={Boolean(
 			householdId && viewingMember && selfMemberId && lastWeekReviewable > 0,
 		)}
@@ -570,7 +570,7 @@
 	onCreate={assignCreatedMeal}
 />
 
-<LeftoverReview
+<LeftoverReviewDialog
 	{householdId}
 	memberId={reviewScopeAll ? null : (viewingMember?._id ?? null)}
 	memberName={reviewScopeAll ? "everyone" : (viewingMember?.name ?? "your")}

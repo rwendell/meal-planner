@@ -1,5 +1,5 @@
 import { browser } from "$app/environment";
-import { session } from "$lib/session.svelte.js";
+import { session } from "$lib/stores/session.svelte.js";
 
 export interface HouseholdRef {
 	householdId: string;

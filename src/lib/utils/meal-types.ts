@@ -44,7 +44,7 @@ export function categoryFromMealTimes(times: MealType[]): MealCategory {
 }
 
 /**
- * Displayable prep time ("25 min"), or null when absent. The database
+ * Displayable prep time ("25 min"), or null when absent. The cookbook
  * stores whole minutes; null/undefined/NaN/non-positive all hide.
  */
 export function displayMealTime(

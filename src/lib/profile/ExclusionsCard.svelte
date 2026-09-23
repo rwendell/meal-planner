@@ -6,8 +6,8 @@
 		EXCLUSION_WEEKDAYS,
 		type ExclusionDay,
 		exclusionKey,
-	} from "$lib/exclusions.js";
-	import { MEAL_TYPES, type MealType } from "$lib/meal-types.js";
+	} from "$lib/utils/exclusions.js";
+	import { MEAL_TYPES, type MealType } from "$lib/utils/meal-types.js";
 
 	let {
 		loading,
@@ -42,7 +42,7 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Planner exclusions</Card.Title>
+		<Card.Title>Skipped meals</Card.Title>
 		<Card.Description>
 			Skip days or meals you never plan snacks, and so on.
 		</Card.Description>
@@ -53,7 +53,7 @@
 		{:else}
 			<fieldset class="m-0 grid gap-3 border-0 p-0">
 				<legend class="sr-only"
-					>Excluded days and meals</legend
+					>Skipped days and meals</legend
 				>
 				<div class="grid gap-3">
 					<div class="grid gap-1">
@@ -114,7 +114,7 @@
 										}}
 										disabled={!editing ||
 											saving}
-										aria-label={`Exclude all ${slot.label.toLowerCase()} meals`}
+										aria-label={`Skip all ${slot.label.toLowerCase()} meals`}
 									/>
 									<span
 										class="truncate text-sm font-medium"
@@ -148,7 +148,7 @@
 											}}
 											disabled={!editing ||
 												saving}
-											aria-label={`Exclude ${slot.label} on ${row.label}`}
+											aria-label={`Skip ${slot.label} on ${row.label}`}
 										/>
 									</span>
 								{/each}

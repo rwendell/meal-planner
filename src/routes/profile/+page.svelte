@@ -14,7 +14,7 @@
 	import ProfileLoadingState from "$lib/profile/ProfileLoadingState.svelte";
 	import { ProfileEditor } from "$lib/profile/profile-editor.svelte.js";
 	import { RosterState } from "$lib/profile/roster-state.svelte.js";
-	import { session } from "$lib/session.svelte.js";
+	import { session } from "$lib/stores/session.svelte.js";
 
 	const auth = useAuth();
 	const rosterState = new RosterState();

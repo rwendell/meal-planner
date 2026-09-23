@@ -8,7 +8,7 @@ import { ingredientKey } from "./shopping";
  * member's week plan, and initial check states. No-op once the household
  * has any meals.
  */
-export const ensureSeed = mutation({
+export const ensureSamples = mutation({
 	args: { householdId: v.id("households"), memberId: v.id("householdMembers") },
 	handler: async (ctx, args) => {
 		const member = await ctx.db.get("householdMembers", args.memberId);

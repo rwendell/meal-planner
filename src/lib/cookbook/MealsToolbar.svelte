@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Input } from "$lib/components/ui/input";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
-	import type { MealCategory } from "$lib/meal-types.js";
+	import type { MealCategory } from "$lib/utils/meal-types.js";
 
 	const categoryFilters: ("All" | MealCategory)[] = [
 		"All",
@@ -13,13 +13,13 @@
 
 	let {
 		category,
-		dbTab,
+		activeTab,
 		searchValue,
 		onCategory,
 		onSearch,
 	}: {
 		category: "All" | MealCategory;
-		dbTab: "mine" | "discover";
+		activeTab: "cookbook" | "discover";
 		searchValue: string;
 		onCategory: (c: "All" | MealCategory) => void;
 		onSearch: (v: string) => void;
@@ -47,8 +47,8 @@
 	</ToggleGroup.Root>
 	<Input
 		value={searchValue}
-		placeholder={dbTab === "mine" ? "Search meals" : "Search recipes"}
-		aria-label={dbTab === "mine" ? "Search meals" : "Search recipes"}
+		placeholder={activeTab === "cookbook" ? "Search meals" : "Search recipes"}
+		aria-label={activeTab === "cookbook" ? "Search meals" : "Search recipes"}
 		class="sm:w-55"
 		oninput={(event) => {
 			onSearch(event.currentTarget.value);

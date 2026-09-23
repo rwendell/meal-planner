@@ -4,17 +4,17 @@
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
-	import { errorMessage } from "$lib/errors.js";
-	import type { GroceryGroup } from "$lib/grocery.js";
+	import IngredientRows from "$lib/cookbook/IngredientRows.svelte";
+	import MealShareToggle from "$lib/cookbook/MealShareToggle.svelte";
+	import { hasNameClash, parsePrepMinutes } from "$lib/cookbook/meal-form.js";
+	import { errorMessage } from "$lib/utils/errors.js";
+	import type { GroceryGroup } from "$lib/utils/grocery.js";
 	import {
 		ALL_MEAL_TIMES,
 		categoryFromMealTimes,
 		type MealCategory,
 		type MealType,
-	} from "$lib/meal-types.js";
-	import IngredientRows from "$lib/meals/IngredientRows.svelte";
-	import MealShareToggle from "$lib/meals/MealShareToggle.svelte";
-	import { hasNameClash, parsePrepMinutes } from "$lib/meals/meal-form.js";
+	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 

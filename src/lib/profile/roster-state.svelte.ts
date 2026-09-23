@@ -1,7 +1,7 @@
 import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex-svelte";
-import { refKey, roster } from "$lib/households.svelte.js";
-import { deviceName, session } from "$lib/session.svelte.js";
+import { refKey, roster } from "$lib/stores/households.svelte.js";
+import { deviceName, session } from "$lib/stores/session.svelte.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 

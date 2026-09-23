@@ -1,4 +1,4 @@
-import { type GroceryGroup, groceryGroups } from "$lib/grocery.js";
+import { type GroceryGroup, groceryGroups } from "$lib/utils/grocery.js";
 
 export interface ShoppingListItem {
 	key: string;

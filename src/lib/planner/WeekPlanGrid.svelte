@@ -4,8 +4,8 @@
 	import RefrigeratorIcon from "@lucide/svelte/icons/refrigerator";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { Button } from "$lib/components/ui/button";
-	import { formatShort, weekdayLabel } from "$lib/dates.js";
-	import type { MealType } from "$lib/meal-types.js";
+	import { formatShort, weekdayLabel } from "$lib/utils/dates.js";
+	import type { MealType } from "$lib/utils/meal-types.js";
 
 	interface WeekMeal {
 		id: string;
@@ -57,7 +57,7 @@
 	{#if dates.length === 0}
 		<div
 			class="flex items-center justify-between gap-3 rounded-[14px] border border-dashed border-border bg-[color-mix(in_srgb,var(--foreground)_3%,transparent)] px-3 py-2.5 opacity-70"
-			title="Excluded in planner settings"
+			title="Skipped in profile settings"
 		>
 			<p
 				class="m-0 flex items-center gap-1.5 text-xs font-bold text-muted-foreground"
@@ -100,9 +100,9 @@
 							{#if isCellExcluded(date, type.id)}
 								<span
 									class="flex min-h-[46px] w-full cursor-default items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground opacity-70"
-									title="Excluded in planner settings"
+									title="Skipped in profile settings"
 									aria-disabled="true"
-									><BanIcon size={11} /> Excluded</span
+									><BanIcon size={11} /> Skipped</span>
 								>
 							{:else if isSkipped(date, type.id)}
 								{#if canEdit}

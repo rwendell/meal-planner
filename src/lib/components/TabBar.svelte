@@ -12,10 +12,10 @@
 		id: string;
 		label: string;
 		Icon: Component;
-		href: "/#planner" | "/meals" | "/shopping";
+		href: "/#planner" | "/cookbook" | "/shopping";
 	}[] = [
 		{ id: "planner", label: "Planner", Icon: CalendarIcon, href: "/#planner" },
-		{ id: "meals", label: "Meal database", Icon: BookIcon, href: "/meals" },
+		{ id: "meals", label: "Cookbook", Icon: BookIcon, href: "/cookbook" },
 		{ id: "shopping", label: "Shopping list", Icon: ShoppingCartIcon, href: "/shopping" },
 	];
 </script>

@@ -1,13 +1,7 @@
 <script lang="ts">
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
-	import { copyText } from "$lib/clipboard.js";
 	import PlannerHero from "$lib/components/PlannerHero.svelte";
-	import { createDbErrorDeduper } from "$lib/data/db-errors.js";
-	import { todayISO, weekDates } from "$lib/dates.js";
-	import { errorMessage } from "$lib/errors.js";
-	import { plannerWeek } from "$lib/planner-week.svelte.js";
-	import { session } from "$lib/session.svelte.js";
 	import GroceryListCard from "$lib/shopping/GroceryListCard.svelte";
 	import PantryCard from "$lib/shopping/PantryCard.svelte";
 	import ReadyMealsCard from "$lib/shopping/ReadyMealsCard.svelte";
@@ -17,6 +11,12 @@
 		type ShoppingListItem,
 		shoppingProgress,
 	} from "$lib/shopping/shopping-list.js";
+	import { plannerWeek } from "$lib/stores/planner-week.svelte.js";
+	import { session } from "$lib/stores/session.svelte.js";
+	import { copyText } from "$lib/utils/clipboard.js";
+	import { todayISO, weekDates } from "$lib/utils/dates.js";
+	import { createDbErrorDeduper } from "$lib/utils/db-errors.js";
+	import { errorMessage } from "$lib/utils/errors.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 

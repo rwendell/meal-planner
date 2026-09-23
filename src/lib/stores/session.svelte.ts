@@ -1,5 +1,5 @@
 import { browser } from "$app/environment";
-import { randomAnonName } from "$lib/anon-names.js";
+import { randomAnonName } from "$lib/utils/anon-names.js";
 
 export interface HouseholdSession {
 	householdId: string;

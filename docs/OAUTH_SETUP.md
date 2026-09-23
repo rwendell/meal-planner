@@ -26,7 +26,7 @@ they're still how new family members join, and anonymous use is unchanged.
   rows to the sign-in. Rows claimed by someone else count as skipped.
 - `authProfile` exposes the signer's email/name for the account UI.
 - Enforced (caller verified + auto-linked): all `households.ts`
-  mutations, `plan.setSlot` / `plan.clearDay`, `listPlans.apply`.
+  mutations, `plans.setSlot` / `plans.clearDay`, `plans.applyList`.
 - NOT yet enforced: `meals`, `shopping`, `recipes` mutations take no
   caller at all (household-scoped, as before). See follow-ups.
 

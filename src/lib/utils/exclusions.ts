@@ -1,6 +1,6 @@
-/** Planner exclusions: per-member (weekday, meal-slot) cells opted out of planning. */
-import { parseISODate } from "$lib/dates.js";
-import type { MealType } from "$lib/meal-types.js";
+/** Skipped meals: per-member (weekday, meal-slot) cells opted out of planning. */
+import { parseISODate } from "$lib/utils/dates.js";
+import type { MealType } from "$lib/utils/meal-types.js";
 
 /** JS Date#getDay() convention: 0 = Sunday … 6 = Saturday. */
 export type ExclusionDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;

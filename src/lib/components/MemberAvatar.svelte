@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Avatar from "$lib/components/ui/avatar";
-	import { initials } from "$lib/members.js";
+	import { initials } from "$lib/utils/members.js";
 	import { cn } from "$lib/utils.js";
 
 	type Size = "sm" | "md" | "lg";

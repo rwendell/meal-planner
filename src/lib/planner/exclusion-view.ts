@@ -1,5 +1,5 @@
-import { exclusionKey, weekdayIndex } from "$lib/exclusions.js";
-import { MEAL_TYPES, type MealType } from "$lib/meal-types.js";
+import { exclusionKey, weekdayIndex } from "$lib/utils/exclusions.js";
+import { MEAL_TYPES, type MealType } from "$lib/utils/meal-types.js";
 
 export function isCellExcludedSet(
 	set: Set<string>,

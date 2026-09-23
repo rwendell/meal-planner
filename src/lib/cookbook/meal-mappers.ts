@@ -1,9 +1,9 @@
-import type { GroceryGroup } from "$lib/grocery.js";
+import type { GroceryGroup } from "$lib/utils/grocery.js";
 import {
 	fallbackMealTimes,
 	type MealCategory,
 	type MealType,
-} from "$lib/meal-types.js";
+} from "$lib/utils/meal-types.js";
 
 export interface PlannerMeal {
 	id: string;
@@ -16,7 +16,7 @@ export interface PlannerMeal {
 	mealTimes: MealType[];
 }
 
-export interface DatabaseMeal extends PlannerMeal {
+export interface CookbookMeal extends PlannerMeal {
 	sourceUrl: string | null;
 	premade: boolean;
 	ingredients: { name: string; amount?: string; group: GroceryGroup }[];
@@ -52,7 +52,7 @@ export function mapToPlannerMeals(rows: readonly MealRow[]): PlannerMeal[] {
 	}));
 }
 
-export function mapToDatabaseMeals(rows: readonly MealRow[]): DatabaseMeal[] {
+export function mapToCookbookMeals(rows: readonly MealRow[]): CookbookMeal[] {
 	return rows.map((meal) => ({
 		id: meal._id,
 		name: meal.name,

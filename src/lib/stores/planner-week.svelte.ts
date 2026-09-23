@@ -1,5 +1,5 @@
 import { browser } from "$app/environment";
-import { todayISO } from "$lib/dates.js";
+import { todayISO } from "$lib/utils/dates.js";
 
 const STORAGE_KEY = "meal-planner-week";
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

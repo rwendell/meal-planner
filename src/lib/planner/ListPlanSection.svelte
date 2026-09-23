@@ -2,26 +2,26 @@
 	import { useMutation, useQuery } from "convex-svelte";
 	import { toast } from "svelte-sonner";
 	import EditActions from "$lib/components/EditActions.svelte";
-	import MealPicker from "$lib/components/MealPicker.svelte";
 	import * as Card from "$lib/components/ui/card";
-	import { errorMessage } from "$lib/errors.js";
-	import {
-		type ExcludedCell,
-		excludedCellSet,
-		weekdayIndex,
-	} from "$lib/exclusions.js";
+	import MealPicker from "$lib/cookbook/MealPicker.svelte";
 	import {
 		type CountedMeal,
 		pruneDraftMeals,
 		sameCountedMeals,
-	} from "$lib/list-plan/list-plan-utils.js";
-	import PlanSlotColumn from "$lib/list-plan/PlanSlotColumn.svelte";
+	} from "$lib/planner/list-plan-utils.js";
+	import PlanSlotColumn from "$lib/planner/PlanSlotColumn.svelte";
+	import { errorMessage } from "$lib/utils/errors.js";
+	import {
+		type ExcludedCell,
+		excludedCellSet,
+		weekdayIndex,
+	} from "$lib/utils/exclusions.js";
 	import {
 		fallbackMealTimes,
 		MEAL_TYPES,
 		type MealType,
 		type PickerMeal,
-	} from "$lib/meal-types.js";
+	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -53,7 +53,7 @@
 	const mealsQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
-	const daysQuery = useQuery(api.plan.getDays, () =>
+	const daysQuery = useQuery(api.plans.getDays, () =>
 		householdId && memberId
 			? {
 					householdId: householdId as Id<"households">,
@@ -62,7 +62,7 @@
 				}
 			: "skip",
 	);
-	const applyList = useMutation(api.listPlans.apply);
+	const applyList = useMutation(api.plans.applyList);
 
 	const readyQuery = useQuery(api.pantry.listReady, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",

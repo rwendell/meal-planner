@@ -1,8 +1,10 @@
 import { useMutation, useQuery } from "convex-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
-import { todayISO } from "$lib/dates.js";
-import { errorMessage } from "$lib/errors.js";
+import { refKey } from "$lib/stores/households.svelte.js";
+import { session } from "$lib/stores/session.svelte.js";
+import { todayISO } from "$lib/utils/dates.js";
+import { errorMessage } from "$lib/utils/errors.js";
 import {
 	EXCLUSION_WEEKDAYS,
 	type ExcludedCell,
@@ -10,10 +12,8 @@ import {
 	exclusionKey,
 	sameExcludedCells,
 	sortExcludedCells,
-} from "$lib/exclusions.js";
-import { refKey } from "$lib/households.svelte.js";
-import type { MealType } from "$lib/meal-types.js";
-import { session } from "$lib/session.svelte.js";
+} from "$lib/utils/exclusions.js";
+import type { MealType } from "$lib/utils/meal-types.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 import { CUSTOM_INVITE_CODE_PATTERN } from "./profile-utils.js";
@@ -106,7 +106,7 @@ export class ProfileEditor {
 		);
 	}
 
-	// Planner exclusions: the member's own opted-out (weekday, slot)
+	// Skipped meals: the member's own opted-out (weekday, slot)
 	// cells, edited through the page-level profile edit mode. A null
 	// draft means no local edits yet — it initializes from the server
 	// state on first toggle, so a slow member load can't clobber it.

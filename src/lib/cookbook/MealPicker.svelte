@@ -5,17 +5,17 @@
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { useQuery } from "convex-svelte";
 	import { resolve } from "$app/paths";
-	import MealEditor from "$lib/components/MealEditor.svelte";
-	import PickerOptionButton from "$lib/components/PickerOptionButton.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Input } from "$lib/components/ui/input";
+	import MealEditor from "$lib/cookbook/MealEditor.svelte";
+	import PickerOptionButton from "$lib/cookbook/PickerOptionButton.svelte";
+	import { session } from "$lib/stores/session.svelte.js";
 	import type {
 		MealType,
 		PickerMeal,
-	} from "$lib/meal-types.js";
-	import { session } from "$lib/session.svelte.js";
+	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 
@@ -256,7 +256,7 @@
 								No match for "{search.trim()}".
 							{:else}
 								Add meals in the
-								<a href={resolve("/meals")}>meal database</a> first.
+								<a href={resolve("/cookbook")}>cookbook</a> first.
 							{/if}
 						</Empty.Description>
 					</Empty.Header>

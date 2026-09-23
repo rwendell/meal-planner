@@ -6,8 +6,8 @@
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { displayMealTime, MEAL_TYPES } from "$lib/meal-types.js";
-	import type { DatabaseMeal } from "$lib/meals/meal-mappers.js";
+	import type { CookbookMeal } from "$lib/cookbook/meal-mappers.js";
+	import { displayMealTime, MEAL_TYPES } from "$lib/utils/meal-types.js";
 
 	let {
 		meal,
@@ -16,10 +16,10 @@
 		onDuplicate,
 		onDelete,
 	}: {
-		meal: DatabaseMeal;
+		meal: CookbookMeal;
 		shared: boolean;
-		onEdit: (meal: DatabaseMeal) => void;
-		onDuplicate: (meal: DatabaseMeal) => void;
+		onEdit: (meal: CookbookMeal) => void;
+		onDuplicate: (meal: CookbookMeal) => void;
 		onDelete: (id: string, name: string) => void;
 	} = $props();
 
@@ -80,7 +80,7 @@
 				<Button
 					variant="ghost"
 					size="icon-sm"
-					aria-label={`Delete ${meal.name} from the database`}
+					aria-label={`Delete ${meal.name} from your cookbook`}
 					title={`Delete ${meal.name}`}
 					onclick={() => onDelete(meal.id, meal.name)}><XIcon /></Button
 				>
