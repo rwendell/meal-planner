@@ -170,10 +170,13 @@
 
 	let dirty = $derived(
 		editing &&
-			MEAL_TYPES.some(
-				(slot) =>
-					!sameCountedMeals(plannedMeals(slot.id), drafts[slot.id]),
-			),
+			MEAL_TYPES.some((slot) => {
+				// Compare against the pruned drafts (zero-count meals don't
+				// persist), so save stays disabled until there is a real
+				// change — never a success toast for a no-op.
+				const after = pruneDraftMeals(drafts[slot.id], mealsById);
+				return !sameCountedMeals(plannedMeals(slot.id), after);
+			}),
 	);
 
 	function startEdit(): void {
@@ -220,11 +223,15 @@
 		}
 	}
 
+	// New meals join the draft at one day when a day is free (zero when
+	// the week is full) — dial counts up or down in the list.
 	function addDraftMeal(slot: MealSlot, mealId: string): void {
 		if (!mealId) return;
 		const current = drafts[slot];
 		if (current.some((meal) => meal.id === mealId)) return;
-		drafts[slot] = [...current, { id: mealId, count: 0 }];
+		const total = current.reduce((sum, meal) => sum + meal.count, 0);
+		const remaining = eligibleDates(slot).length - total;
+		drafts[slot] = [...current, { id: mealId, count: remaining > 0 ? 1 : 0 }];
 	}
 
 	function openPicker(slot: MealSlot): void {
