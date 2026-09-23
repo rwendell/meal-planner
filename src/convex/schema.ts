@@ -170,7 +170,6 @@ export default defineSchema({
 		householdId: v.id("households"),
 		key: v.string(),
 		name: v.string(),
-		amount: v.optional(v.union(v.string(), v.null())),
 		group: groceryGroup,
 	})
 		.index("by_household", ["householdId"])

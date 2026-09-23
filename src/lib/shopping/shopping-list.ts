@@ -14,6 +14,16 @@ export interface GroupedShoppingItems {
 	items: ShoppingListItem[];
 }
 
+/**
+ * Done means no trip needed: explicitly checked, or covered by the
+ * pantry / ready leftovers (on hand counts as enough, no units).
+ */
+export function isDone(
+	item: Pick<ShoppingListItem, "checked" | "coveredBy">,
+): boolean {
+	return item.checked || item.coveredBy !== null;
+}
+
 export function groupShoppingItems(
 	items: ShoppingListItem[],
 ): GroupedShoppingItems[] {
@@ -32,7 +42,7 @@ export function formatShoppingList(
 		if (group.items.length === 0) continue;
 		lines.push(group.group);
 		for (const item of group.items) {
-			const box = item.checked ? "[x]" : "[ ]";
+			const box = isDone(item) ? "[x]" : "[ ]";
 			lines.push(
 				`${box} ${item.name}${item.amount ? ` — ${item.amount}` : ""}`,
 			);
@@ -48,7 +58,7 @@ export function shoppingProgress(items: ShoppingListItem[]): {
 	pct: number;
 } {
 	const total = items.length;
-	const done = items.filter((item) => item.checked).length;
+	const done = items.filter(isDone).length;
 	const pct = total ? Math.round((done / total) * 100) : 0;
 	return { done, total, pct };
 }

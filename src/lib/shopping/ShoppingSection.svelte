@@ -49,7 +49,6 @@
 	const setReadyMeal = useMutation(api.pantry.setReady);
 
 	let pantryName = $state("");
-	let pantryAmount = $state("");
 	let pantryError = $state("");
 	let readyMealPick = $state<string | null>(null);
 
@@ -91,10 +90,8 @@
 			await addPantryItem({
 				householdId: householdId as Id<"households">,
 				name: pantryName.trim(),
-				amount: pantryAmount.trim() || undefined,
 			});
 			pantryName = "";
-			pantryAmount = "";
 			toast.success("Added to on-hand staples");
 		} catch (error) {
 			pantryError = errorMessage(error, "Couldn't add that staple.");
@@ -184,10 +181,8 @@
 	<PantryCard
 		items={pantryQuery.data ?? []}
 		{pantryName}
-		{pantryAmount}
 		{pantryError}
 		onName={(v) => (pantryName = v)}
-		onAmount={(v) => (pantryAmount = v)}
 		onSubmit={handleAddPantry}
 		onRemove={(id) => void handleRemovePantry(id)}
 	 />

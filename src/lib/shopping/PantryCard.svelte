@@ -7,16 +7,13 @@
 	interface PantryItem {
 		_id: string;
 		name: string;
-		amount?: string | null;
 	}
 
 	interface Props {
 		items: Array<PantryItem>;
 		pantryName: string;
-		pantryAmount: string;
 		pantryError: string;
 		onName: (v: string) => void;
-		onAmount: (v: string) => void;
 		onSubmit: (e: SubmitEvent) => void;
 		onRemove: (id: string) => void;
 	}
@@ -24,10 +21,8 @@
 	let {
 		items,
 		pantryName,
-		pantryAmount,
 		pantryError,
 		onName,
-		onAmount,
 		onSubmit,
 		onRemove
 	}: Props = $props();
@@ -51,15 +46,6 @@
 				autocomplete="off"
 				aria-label="Staple name"
 				class="min-w-0 flex-1"
-			/>
-			<Input
-				value={pantryAmount}
-				oninput={(event) => onAmount(event.currentTarget.value)}
-				maxlength={40}
-				placeholder="1 bag"
-				autocomplete="off"
-				aria-label="Staple amount (optional)"
-				class="w-24 shrink-0"
 			/>
 			<Button
 				type="submit"
@@ -85,10 +71,6 @@
 						<span class="min-w-0 flex-1 truncate font-medium"
 							>{item.name}</span
 						>
-						{#if item.amount}<span
-								class="shrink-0 text-xs text-muted-foreground"
-								>{item.amount}</span
-							>{/if}
 						<Button
 							variant="ghost"
 							size="icon-sm"

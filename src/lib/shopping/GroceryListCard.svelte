@@ -11,6 +11,7 @@
 		GroupedShoppingItems,
 		ShoppingListItem
 	} from "$lib/shopping/shopping-list.js";
+	import { isDone } from "$lib/shopping/shopping-list.js";
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
@@ -73,26 +74,29 @@
 					<h3
 						class="m-0 mb-1.5 text-[10px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"
 					>
-						{group.group} <span>{group.items.filter((item) => item.checked).length}/{group.items.length}</span>
+						{group.group} <span>{group.items.filter(isDone).length}/{group.items.length}</span>
 					</h3>
 					{#each group.items as item (item.key)}
+						{const done = $derived(isDone(item))}
 						<div
 							class="flex min-w-0 flex-1 items-center gap-[9px] rounded-[9px] px-1.5 py-[7px] text-xs text-foreground hover:bg-[color-mix(in_srgb,var(--muted)_45%,transparent)]"
 						>
 							<Checkbox
-								checked={item.checked}
+								checked={done}
+								disabled={item.coveredBy !== null}
 								onCheckedChange={() => onToggle(item)}
 								aria-label={item.name}
 							/>
 							<button
 								type="button"
-								class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit"
+								class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit disabled:cursor-default"
+								disabled={item.coveredBy !== null}
 								onclick={() => onToggle(item)}
 							>
 								<span
 									class={cn(
 										"min-w-0 flex-[0_1_auto]",
-										item.checked && "text-muted-foreground line-through"
+										done && "text-muted-foreground line-through"
 									)}>{item.name}</span
 								>
 							{#if item.amount}<small

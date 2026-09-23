@@ -25,21 +25,20 @@ export const list = query({
 });
 
 /**
- * Add (or refresh) a pantry staple. The grocery group is guessed so
- * entry stays name + amount only; matching is name-level regardless.
+ * Add (or refresh) a pantry staple. Entry is name-only: if it's on hand,
+ * that's enough to cover whatever the week needs. Matching is
+ * name-level regardless.
  */
 export const add = mutation({
 	args: {
 		householdId: v.id("households"),
 		name: v.string(),
-		amount: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
 		const household = await ctx.db.get("households", args.householdId);
 		if (!household) throw new Error("Household not found.");
 		const name = cleanName(args.name);
 		if (!name) throw new Error("Ingredient name is required.");
-		const amount = args.amount?.trim().slice(0, 40) || undefined;
 		const group = guessGroup(name);
 		const key = ingredientKey(name, group);
 		const existing = await ctx.db
@@ -51,7 +50,6 @@ export const add = mutation({
 		if (existing) {
 			await ctx.db.patch("pantryItems", existing._id, {
 				name,
-				amount: amount ?? null,
 				group,
 			});
 			return existing._id;
@@ -60,7 +58,6 @@ export const add = mutation({
 			householdId: args.householdId,
 			key,
 			name,
-			...(amount === undefined ? {} : { amount }),
 			group,
 		});
 	},
