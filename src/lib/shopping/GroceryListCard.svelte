@@ -46,6 +46,11 @@
 <Card.Root>
 	<Card.Header>
 		<Card.Title id="shopping-title">Shopping list</Card.Title>
+		{#if items.length > 0}
+			<Card.Action class="print:hidden">
+				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
+			</Card.Action>
+		{/if}
 	</Card.Header>
 	<Card.Content>
 		{#if printLabel}
@@ -126,11 +131,6 @@
 					</Empty.Description>
 				</Empty.Header>
 			</Empty.Root>
-		{/if}
-		{#if items.length > 0}
-			<div class="flex print:hidden">
-				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
-			</div>
 		{/if}
 		<p class="m-0 mt-3 text-[11px] text-muted-foreground">
 			Meals without ingredients are skipped automatically.
