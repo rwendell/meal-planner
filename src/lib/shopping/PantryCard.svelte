@@ -1,5 +1,6 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
+	import type { Snippet } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { Input } from "$lib/components/ui/input";
@@ -16,6 +17,7 @@
 		onName: (v: string) => void;
 		onSubmit: (e: SubmitEvent) => void;
 		onRemove: (id: string) => void;
+		children?: Snippet;
 	}
 
 	let {
@@ -24,7 +26,8 @@
 		pantryError,
 		onName,
 		onSubmit,
-		onRemove
+		onRemove,
+		children
 	}: Props = $props();
 </script>
 
@@ -88,5 +91,6 @@
 				Nothing logged yet — add flour, rice, oil, and friends.
 			</p>
 		{/if}
+		{@render children?.()}
 	</Card.Content>
 </Card.Root>

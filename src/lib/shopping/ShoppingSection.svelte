@@ -203,7 +203,18 @@
 			onName={(v) => (pantryName = v)}
 			onSubmit={handleAddPantry}
 			onRemove={(id) => void handleRemovePantry(id)}
-		/>
+		>
+			<ReadyMealsCard
+				{markableMeals}
+				readyPick={readyMealPick}
+				onPick={(v) => (readyMealPick = v)}
+				onMarkReady={handleMarkReady}
+				readyRows={readyQuery.data ?? []}
+				{naturallyReady}
+				onExpiry={(mealId, value) => void handleExpiryChange(mealId, value)}
+				onUseUp={(mealId) => void handleUseUpReady(mealId)}
+			/>
+		</PantryCard>
 	</div>
 	<GroceryListCard
 		items={listItems}
@@ -217,16 +228,5 @@
 		onCopy={() => void copyList()}
 		onDownload={downloadList}
 		onPrint={printList}
-	>
-		<ReadyMealsCard
-			{markableMeals}
-			readyPick={readyMealPick}
-			onPick={(v) => (readyMealPick = v)}
-			onMarkReady={handleMarkReady}
-			readyRows={readyQuery.data ?? []}
-			{naturallyReady}
-			onExpiry={(mealId, value) => void handleExpiryChange(mealId, value)}
-			onUseUp={(mealId) => void handleUseUpReady(mealId)}
-		/>
-	</GroceryListCard>
+	/>
 </div>

@@ -49,7 +49,7 @@ import { Button } from "$lib/components/ui/button";
 	<p class="m-0 mb-2 text-[11px] text-muted-foreground">
 		Meals already made — their ingredients stay checked off.
 	</p>
-	<form class="mb-2 flex gap-1.5 print:hidden" onsubmit={onMarkReady}>
+	<form class="mb-2 flex gap-1.5" onsubmit={onMarkReady}>
 		<Select.Root
 			type="single"
 			value={readyPick ?? undefined}
@@ -118,7 +118,7 @@ import { Button } from "$lib/components/ui/button";
 					</div>
 					<label
 						for={`ready-expiry-${row._id}`}
-						class="grid gap-1 text-[11px] font-semibold text-muted-foreground print:hidden"
+						class="grid gap-1 text-[11px] font-semibold text-muted-foreground"
 						>Use by<Input
 							id={`ready-expiry-${row._id}`}
 							type="date"
@@ -135,7 +135,6 @@ import { Button } from "$lib/components/ui/button";
 						tone="destructive"
 						label={`Use up ${row.mealName}`}
 						onclick={() => onUseUp(row.mealId)}
-						class="print:hidden"
 					>
 						Use up
 					</TextButton>

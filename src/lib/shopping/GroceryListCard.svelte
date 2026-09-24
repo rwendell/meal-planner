@@ -1,6 +1,5 @@
 <script lang="ts">
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
-	import type { Snippet } from "svelte";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Empty from "$lib/components/ui/empty";
@@ -27,7 +26,6 @@
 		onCopy: () => void;
 		onDownload: () => void;
 		onPrint: () => void;
-		children?: Snippet;
 	}
 
 	let {
@@ -42,18 +40,12 @@
 		onCopy,
 		onDownload,
 		onPrint,
-		children
 	}: Props = $props();
 </script>
 
 <Card.Root>
 	<Card.Header>
 		<Card.Title id="shopping-title">Shopping list</Card.Title>
-		{#if items.length > 0}
-			<Card.Action class="print:hidden">
-				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
-			</Card.Action>
-		{/if}
 	</Card.Header>
 	<Card.Content>
 		{#if printLabel}
@@ -61,7 +53,6 @@
 				{printLabel}
 			</p>
 		{/if}
-		{@render children?.()}
 		{#if loading}
 			<div class="grid gap-2" role="status">
 				<span class="sr-only">Syncing shopping list</span>
@@ -135,6 +126,11 @@
 					</Empty.Description>
 				</Empty.Header>
 			</Empty.Root>
+		{/if}
+		{#if items.length > 0}
+			<div class="flex print:hidden">
+				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
+			</div>
 		{/if}
 		<p class="m-0 mt-3 text-[11px] text-muted-foreground">
 			Meals without ingredients are skipped automatically.
