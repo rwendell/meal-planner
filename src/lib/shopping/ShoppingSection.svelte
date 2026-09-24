@@ -50,9 +50,7 @@
 	const removePantryItem = useMutation(api.pantry.remove);
 	const setReadyMeal = useMutation(api.pantry.setReady);
 
-	let pantryName = $state("");
 	let pantryError = $state("");
-	let readyMealPick = $state<string | null>(null);
 
 	let readyMealIds = $derived(
 		new Set<string>((readyQuery.data ?? []).map((row) => row.mealId)),
@@ -60,20 +58,27 @@
 	let markableMeals = $derived(
 		(mealsQuery.data ?? []).filter((meal) => !readyMealIds.has(meal._id)),
 	);
+	let ingredientSuggestions = $derived(
+		[
+			...new Set(
+				(mealsQuery.data ?? []).flatMap((meal) =>
+					meal.ingredients.map((ingredient) => ingredient.name),
+				),
+			),
+		].sort((a, b) => a.localeCompare(b)),
+	);
 
-	async function handleMarkReady(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		if (!householdId || !readyMealPick) return;
+	async function handleMarkReady(mealId: string): Promise<void> {
+		if (!householdId || !mealId) return;
 		const picked = (mealsQuery.data ?? []).find(
-			(meal) => meal._id === readyMealPick,
+			(meal) => meal._id === mealId,
 		);
 		try {
 			await setReadyMeal({
 				householdId: householdId as Id<"households">,
-				mealId: readyMealPick as Id<"meals">,
+				mealId: mealId as Id<"meals">,
 				on: true,
 			});
-			readyMealPick = null;
 			toast.success(
 				picked?.premade
 					? "Added to the list — buy it ready-made"
@@ -84,16 +89,15 @@
 		}
 	}
 
-	async function handleAddPantry(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		if (!householdId || !pantryName.trim()) return;
+	async function handleAddPantry(name: string): Promise<void> {
+		const trimmed = name.trim();
+		if (!householdId || !trimmed) return;
 		pantryError = "";
 		try {
 			await addPantryItem({
 				householdId: householdId as Id<"households">,
-				name: pantryName.trim(),
+				name: trimmed,
 			});
-			pantryName = "";
 			toast.success("Added to on-hand staples");
 		} catch (error) {
 			pantryError = errorMessage(error, "Couldn't add that staple.");
@@ -199,17 +203,14 @@
 	<div class="print:hidden">
 		<PantryCard
 			items={pantryQuery.data ?? []}
-			{pantryName}
+			suggestions={ingredientSuggestions}
 			{pantryError}
-			onName={(v) => (pantryName = v)}
-			onSubmit={handleAddPantry}
+			onAdd={(name) => void handleAddPantry(name)}
 			onRemove={(id) => void handleRemovePantry(id)}
 		>
 			<ReadyMealsCard
 				{markableMeals}
-				readyPick={readyMealPick}
-				onPick={(v) => (readyMealPick = v)}
-				onMarkReady={handleMarkReady}
+				onMarkReady={(mealId) => void handleMarkReady(mealId)}
 				readyRows={readyQuery.data ?? []}
 				{naturallyReady}
 				onExpiry={(mealId, value) => void handleExpiryChange(mealId, value)}

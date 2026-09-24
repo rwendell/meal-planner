@@ -3,7 +3,7 @@
 	import type { Snippet } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Input } from "$lib/components/ui/input";
+	import SearchCombobox from "$lib/shopping/SearchCombobox.svelte";
 
 	interface PantryItem {
 		_id: string;
@@ -12,20 +12,18 @@
 
 	interface Props {
 		items: Array<PantryItem>;
-		pantryName: string;
+		suggestions: string[];
 		pantryError: string;
-		onName: (v: string) => void;
-		onSubmit: (e: SubmitEvent) => void;
+		onAdd: (name: string) => void;
 		onRemove: (id: string) => void;
 		children?: Snippet;
 	}
 
 	let {
 		items,
-		pantryName,
+		suggestions,
 		pantryError,
-		onName,
-		onSubmit,
+		onAdd,
 		onRemove,
 		children
 	}: Props = $props();
@@ -39,24 +37,14 @@
 		</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-3">
-		<form class="flex gap-1.5" onsubmit={onSubmit}>
-			<Input
-				value={pantryName}
-				oninput={(event) => onName(event.currentTarget.value)}
-				required
-				maxlength={80}
-				placeholder="Flour"
-				autocomplete="off"
-				aria-label="Staple name"
-				class="min-w-0 flex-1"
-			/>
-			<Button
-				type="submit"
-				disabled={!pantryName.trim()}
-				class="shrink-0"
-				>Add</Button
-			>
-		</form>
+		<SearchCombobox
+			options={suggestions.map((name) => ({ value: name, label: name }))}
+			placeholder="Add a staple…"
+			emptyText="No known ingredients."
+			allowCustom
+			onSelect={(name) => onAdd(name)}
+			onCustom={(name) => onAdd(name)}
+		/>
 		{#if pantryError}
 			<p
 				class="m-0 text-xs font-semibold text-destructive"

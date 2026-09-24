@@ -1,8 +1,7 @@
 <script lang="ts">
 	import TextButton from "$lib/components/TextButton.svelte";
-import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
-	import * as Select from "$lib/components/ui/select";
+	import SearchCombobox from "$lib/shopping/SearchCombobox.svelte";
 
 	interface MarkableMeal {
 		_id: string;
@@ -19,9 +18,7 @@ import { Button } from "$lib/components/ui/button";
 
 	interface Props {
 		markableMeals: Array<MarkableMeal>;
-		readyPick: string | null;
-		onPick: (v: string) => void;
-		onMarkReady: (e: SubmitEvent) => void;
+		onMarkReady: (mealId: string) => void;
 		readyRows: Array<ReadyRow>;
 		naturallyReady: string[];
 		onExpiry: (mealId: string, value: string) => void;
@@ -30,8 +27,6 @@ import { Button } from "$lib/components/ui/button";
 
 	let {
 		markableMeals,
-		readyPick,
-		onPick,
 		onMarkReady,
 		readyRows,
 		naturallyReady,
@@ -49,42 +44,17 @@ import { Button } from "$lib/components/ui/button";
 	<p class="m-0 mb-2 text-[11px] text-muted-foreground">
 		Meals already made — their ingredients stay checked off.
 	</p>
-	<form class="mb-2 flex gap-1.5" onsubmit={onMarkReady}>
-		<Select.Root
-			type="single"
-			value={readyPick ?? undefined}
-			items={markableMeals.map((meal) => ({
+	<div class="mb-2">
+		<SearchCombobox
+			options={markableMeals.map((meal) => ({
 				value: meal._id,
-				label: meal.name
+				label: meal.name,
 			}))}
-			onValueChange={(value) => {
-				onPick(value);
-			}}
-		>
-			<Select.Trigger
-				aria-label="Choose a ready-made meal"
-				class="min-w-0 flex-1"
-			>
-				<Select.Value placeholder="Mark a meal ready…" />
-			</Select.Trigger>
-			<Select.Content>
-				<Select.Group>
-					{#each markableMeals as meal (meal._id)}
-						<Select.Item
-							value={meal._id}
-							label={meal.name}
-						/>
-					{/each}
-				</Select.Group>
-			</Select.Content>
-		</Select.Root>
-		<Button
-			type="submit"
-			disabled={!readyPick}
-			class="shrink-0"
-			>Mark</Button
-		>
-	</form>
+			placeholder="Mark a meal ready…"
+			emptyText="No meals to mark."
+			onSelect={(mealId) => onMarkReady(mealId)}
+		/>
+	</div>
 	{#if readyRows.length > 0 || naturallyReady.length > 0}
 		<ul class="m-0 grid list-none gap-2 p-0">
 			{#each naturallyReady as name (name)}
