@@ -5,7 +5,7 @@
 - **Add-ons**: tailwindcss, ai-tools
 - **Lint/Format**: Biome (`aube run lint`, `aube run lint:fix`) including `.svelte` files via `html.experimentalFullSupportEnabled`; `src/convex/_generated` is excluded (Convex codegen output). Keep using `svelte-check` too — Biome lints Svelte, svelte-check type-checks it.
 - **Verify**: `aube run check` (biome + svelte-check) and `aube run build`
-- **Pinned: bits-ui @ 2.19.2 exact (no caret) — do not upgrade or run `shadcn-svelte update`.** The registry's current component classes use `data-active:` / `data-horizontal:` shorthand selectors, but bits-ui stable (latest: 2.19.2) still emits `data-state="active"` / `data-orientation` attributes, so regenerated tabs/toggle/toggle-group/separator styles silently stop matching. Revisit only after a bits-ui stable release emits the new `data-active` / `data-horizontal` attributes.
+- **bits-ui @ ^2.19.3 (caret; lockfile pins installs) — `shadcn-svelte add` is allowed.** Installed registry code targets newer bits-ui in places: `data-[disabled=true]` selectors don't match bits-ui's empty-string `data-disabled` (disabled styling silently dead — verify visually), and `command.svelte` uses the newer `bind:this={api}` model. Known-good: `data-selected:` (presence) and `aria-selected:` selectors match. After any bits-ui bump or registry update, eyeball interactive states (selected/disabled/focus) — automated checks can't catch pure CSS mismatches. One hand-verified deviation: `ui/command/command-input.svelte` forwards `bind:ref` straight to the primitive (registry routes through InputGroup, which drops it) so callers can focus the search box.
 
 ---
 

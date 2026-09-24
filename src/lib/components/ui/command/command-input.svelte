@@ -3,6 +3,9 @@
 	import { Command as CommandPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
+	// Deviation from registry: forwards bind:ref straight to the
+	// primitive (registry routes through InputGroup, which drops it),
+	// so callers can focus the search box programmatically.
 	let {
 		ref = $bindable(null),
 		class: className,
