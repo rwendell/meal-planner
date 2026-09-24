@@ -141,14 +141,20 @@
 						</h3>
 						<ul class="m-0 grid list-none gap-0.5 p-0">
 							{#each group.items as item (item.key)}
+								{const done = $derived(isDone(item))}
 								<li class="flex items-baseline gap-2 text-xs">
 									<span
 										aria-hidden="true"
-										class="inline-block size-3 shrink-0 self-center rounded-[3px] border border-foreground/70"
+										class={cn(
+											"inline-block size-3 shrink-0 self-center rounded-[3px]",
+											done
+												? "bg-foreground"
+												: "border border-foreground/70",
+										)}
 									></span>
 									<span
 										class={cn(
-											isDone(item) && "line-through",
+											done && "line-through",
 										)}
 										>{item.name}{#if item.amount}<span>
 												{" "}· {item.amount}</span
