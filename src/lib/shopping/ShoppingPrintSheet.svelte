@@ -142,7 +142,10 @@
 						<ul class="m-0 grid list-none gap-0.5 p-0">
 							{#each group.items as item (item.key)}
 								<li class="flex items-baseline gap-2 text-xs">
-									<span aria-hidden="true">[ ]</span>
+									<span
+										aria-hidden="true"
+										class="inline-block size-3 shrink-0 self-center rounded-[3px] border border-foreground/70"
+									></span>
 									<span
 										class={cn(
 											isDone(item) && "line-through",
