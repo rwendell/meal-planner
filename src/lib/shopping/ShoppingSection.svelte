@@ -14,8 +14,9 @@
 	import { plannerWeek } from "$lib/stores/planner-week.svelte.js";
 	import { session } from "$lib/stores/session.svelte.js";
 	import { copyText } from "$lib/utils/clipboard.js";
-	import { todayISO, weekDates } from "$lib/utils/dates.js";
+	import { todayISO, weekDates, weekLabel } from "$lib/utils/dates.js";
 	import { createDbErrorDeduper } from "$lib/utils/db-errors.js";
+	import { downloadTextFile } from "$lib/utils/download.js";
 	import { errorMessage } from "$lib/utils/errors.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
@@ -174,18 +175,36 @@
 		if (ok) toast.success("Shopping list copied to clipboard");
 		else toast.error("Copy was blocked by the browser");
 	}
+
+	function downloadList(): void {
+		downloadTextFile(
+			`shopping-list-${listDates[0] ?? todayISO()}.txt`,
+			formatShoppingList(listItems, groupedList),
+		);
+		toast.success("Shopping list downloaded");
+	}
+
+	function printList(): void {
+		window.print();
+	}
+
+	let printLabel = $derived(`Shopping list · ${weekLabel(listDates)}`);
 </script>
 
 <div class="flex flex-col gap-4">
-	{#if hero}<PlannerHero />{/if}
-	<PantryCard
-		items={pantryQuery.data ?? []}
-		{pantryName}
-		{pantryError}
-		onName={(v) => (pantryName = v)}
-		onSubmit={handleAddPantry}
-		onRemove={(id) => void handleRemovePantry(id)}
-	 />
+	{#if hero}
+		<div class="print:hidden"><PlannerHero /></div>
+	{/if}
+	<div class="print:hidden">
+		<PantryCard
+			items={pantryQuery.data ?? []}
+			{pantryName}
+			{pantryError}
+			onName={(v) => (pantryName = v)}
+			onSubmit={handleAddPantry}
+			onRemove={(id) => void handleRemovePantry(id)}
+		/>
+	</div>
 	<GroceryListCard
 		items={listItems}
 		grouped={groupedList}
@@ -193,8 +212,11 @@
 		total={progress.total}
 		pct={progress.pct}
 		loading={dataLoading}
+		{printLabel}
 		onToggle={(item) => void toggleItem(item)}
 		onCopy={() => void copyList()}
+		onDownload={downloadList}
+		onPrint={printList}
 	>
 		<ReadyMealsCard
 			{markableMeals}

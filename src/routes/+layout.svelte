@@ -624,7 +624,7 @@
 				onOpenChange={handleProfileOpenChange}
 			>
 				<header
-					class="sticky top-0 z-10 flex items-center justify-start gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-4 py-3 backdrop-blur-[10px]"
+					class="sticky top-0 z-10 flex items-center justify-start gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-4 py-3 backdrop-blur-[10px] print:hidden"
 				>
 					<a
 						class="flex items-center gap-[9px] text-inherit no-underline"
@@ -1022,13 +1022,15 @@
 				{@render children()}
 			</div>
 			<TabBar active={activeSection} />
-			<Toaster
-				position={wideScreen.current ? "bottom-center" : "top-center"}
-				offset={wideScreen.current
-					? { bottom: "32px" }
-					: { top: "calc(env(safe-area-inset-top) + 68px)" }}
-				{theme}
-			/>
+			<div class="print:hidden">
+				<Toaster
+					position={wideScreen.current ? "bottom-center" : "top-center"}
+					offset={wideScreen.current
+						? { bottom: "32px" }
+						: { top: "calc(env(safe-area-inset-top) + 68px)" }}
+					{theme}
+				/>
+			</div>
 		</div>
 	</div>
 {/if}

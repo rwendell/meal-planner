@@ -1,12 +1,12 @@
 <script lang="ts">
 	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import type { Snippet } from "svelte";
-	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Empty from "$lib/components/ui/empty";
 	import { Progress } from "$lib/components/ui/progress";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import ShoppingExportMenu from "$lib/shopping/ShoppingExportMenu.svelte";
 	import type {
 		GroupedShoppingItems,
 		ShoppingListItem
@@ -21,8 +21,12 @@
 		total: number;
 		pct: number;
 		loading: boolean;
+		/** Heading shown only on paper (the screen hero carries the dates). */
+		printLabel?: string;
 		onToggle: (item: ShoppingListItem) => void;
 		onCopy: () => void;
+		onDownload: () => void;
+		onPrint: () => void;
 		children?: Snippet;
 	}
 
@@ -33,8 +37,11 @@
 		total,
 		pct,
 		loading,
+		printLabel = "",
 		onToggle,
 		onCopy,
+		onDownload,
+		onPrint,
 		children
 	}: Props = $props();
 </script>
@@ -43,14 +50,17 @@
 	<Card.Header>
 		<Card.Title id="shopping-title">Shopping list</Card.Title>
 		{#if items.length > 0}
-			<Card.Action>
-				<Button variant="outline" size="sm" onclick={onCopy}
-					>Export to clipboard</Button
-				>
+			<Card.Action class="print:hidden">
+				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
 			</Card.Action>
 		{/if}
 	</Card.Header>
 	<Card.Content>
+		{#if printLabel}
+			<p class="m-0 mb-2 hidden font-serif text-xl print:block">
+				{printLabel}
+			</p>
+		{/if}
 		{@render children?.()}
 		{#if loading}
 			<div class="grid gap-2" role="status">
@@ -60,7 +70,7 @@
 				<Skeleton class="h-4 w-2/3" />
 			</div>
 		{/if}
-		<div class="mb-[18px] grid">
+		<div class="mb-[18px] grid print:hidden">
 			<strong class="font-serif text-[30px] text-foreground"
 				>{done}<small class="text-xs text-muted-foreground"
 					>/{total}</small
