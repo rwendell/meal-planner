@@ -5,6 +5,7 @@
 	import GroceryListCard from "$lib/shopping/GroceryListCard.svelte";
 	import PantryCard from "$lib/shopping/PantryCard.svelte";
 	import ReadyMealsCard from "$lib/shopping/ReadyMealsCard.svelte";
+	import ShoppingPrintSheet from "$lib/shopping/ShoppingPrintSheet.svelte";
 	import {
 		formatShoppingList,
 		groupShoppingItems,
@@ -216,17 +217,24 @@
 			/>
 		</PantryCard>
 	</div>
-	<GroceryListCard
+	<div class="print:hidden">
+		<GroceryListCard
+			items={listItems}
+			grouped={groupedList}
+			done={progress.done}
+			total={progress.total}
+			pct={progress.pct}
+			loading={dataLoading}
+			onToggle={(item) => void toggleItem(item)}
+			onCopy={() => void copyList()}
+			onDownload={downloadList}
+			onPrint={printList}
+		/>
+	</div>
+	<ShoppingPrintSheet
+		dates={listDates}
+		printLabel={printLabel}
 		items={listItems}
 		grouped={groupedList}
-		done={progress.done}
-		total={progress.total}
-		pct={progress.pct}
-		loading={dataLoading}
-		{printLabel}
-		onToggle={(item) => void toggleItem(item)}
-		onCopy={() => void copyList()}
-		onDownload={downloadList}
-		onPrint={printList}
 	/>
 </div>

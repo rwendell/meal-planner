@@ -20,8 +20,6 @@
 		total: number;
 		pct: number;
 		loading: boolean;
-		/** Heading shown only on paper (the screen hero carries the dates). */
-		printLabel?: string;
 		onToggle: (item: ShoppingListItem) => void;
 		onCopy: () => void;
 		onDownload: () => void;
@@ -35,7 +33,6 @@
 		total,
 		pct,
 		loading,
-		printLabel = "",
 		onToggle,
 		onCopy,
 		onDownload,
@@ -47,17 +44,12 @@
 	<Card.Header>
 		<Card.Title id="shopping-title">Shopping list</Card.Title>
 		{#if items.length > 0}
-			<Card.Action class="print:hidden">
+			<Card.Action>
 				<ShoppingExportMenu {onCopy} {onDownload} {onPrint} />
 			</Card.Action>
 		{/if}
 	</Card.Header>
 	<Card.Content>
-		{#if printLabel}
-			<p class="m-0 mb-2 hidden font-serif text-xl print:block">
-				{printLabel}
-			</p>
-		{/if}
 		{#if loading}
 			<div class="grid gap-2" role="status">
 				<span class="sr-only">Syncing shopping list</span>
@@ -66,7 +58,7 @@
 				<Skeleton class="h-4 w-2/3" />
 			</div>
 		{/if}
-		<div class="mb-[18px] grid print:hidden">
+		<div class="mb-[18px] grid">
 			<strong class="font-serif text-[30px] text-foreground"
 				>{done}<small class="text-xs text-muted-foreground"
 					>/{total}</small
