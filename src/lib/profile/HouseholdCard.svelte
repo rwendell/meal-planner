@@ -165,27 +165,9 @@
 					{#each members as member (member._id)}
 						{const isSelf = $derived(member._id === myId)}
 						<div
-							class="flex items-center justify-between gap-3 rounded-lg py-1.5"
+							class="flex items-center gap-1.5 rounded-lg py-1.5"
 						>
-						<div
-							class="flex min-w-0 flex-wrap items-center gap-1.5"
-						>
-							<strong class="truncate text-sm"
-								>{member.name}</strong
-							>
-							{#if isSelf}<Badge
-									variant="secondary"
-									class="shrink-0">You</Badge
-								>{/if}
-							{#if ownerId === member._id}
-								<Badge
-									variant="secondary"
-									class="shrink-0"
-									>Owner</Badge
-								>
-							{/if}
-						</div>
-						{#if !isSelf && isManager}
+						{#if editing && !isSelf && isManager}
 							<AlertDialog.Root>
 								<AlertDialog.Trigger>
 									{#snippet child({ props })}
@@ -231,6 +213,24 @@
 								</AlertDialog.Content>
 							</AlertDialog.Root>
 						{/if}
+						<div
+							class="flex min-w-0 flex-wrap items-center gap-1.5"
+						>
+							<strong class="truncate text-sm"
+								>{member.name}</strong
+							>
+							{#if isSelf}<Badge
+									variant="secondary"
+									class="shrink-0">You</Badge
+								>{/if}
+							{#if ownerId === member._id}
+								<Badge
+									variant="secondary"
+									class="shrink-0"
+									>Owner</Badge
+								>
+							{/if}
+						</div>
 					</div>
 					{/each}
 				</div>
