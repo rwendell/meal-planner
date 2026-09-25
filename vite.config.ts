@@ -33,20 +33,26 @@ const BITS_UI_ATTR_SHIMS: Array<[RegExp, string]> = [
 ];
 
 function bitsUiAttrShim(): Plugin {
-	const needsShim = installedBitsUiNeedsShim();
-	if (!needsShim) {
-		console.warn(
-			"[bits-ui-attr-shim] installed bits-ui no longer emits the old attribute forms — the shim is obsolete. Remove bitsUiAttrShim() from vite.config.ts.",
-		);
-	}
+	const info = inspectBitsUiInstall();
+	announceOnce(
+		!info.needsShim
+			? `[bits-ui-attr-shim] installed bits-ui no longer emits the old attribute forms — the shim is obsolete. Remove bitsUiAttrShim() from vite.config.ts.`
+			: `[bits-ui-attr-shim] bits-ui@${info.version} — shim active, watching ${BITS_UI_ATTR_SHIMS.length} selector pairs.`,
+		!info.needsShim,
+	);
 	return {
 		name: "bits-ui-attr-shim",
 		enforce: "post",
+		buildStart() {
+			// Best-effort update nudge, once per process; never blocks or
+			// fails the build.
+			void checkBitsUiUpdatesOnce(info.version);
+		},
 		// generateBundle (not transform): Tailwind v4 emits utilities
 		// downstream of per-module transforms, so only the final assets
 		// reliably contain every generated selector.
 		generateBundle(_, bundle) {
-			if (!needsShim) return;
+			if (!info.needsShim) return;
 			for (const file of Object.values(bundle)) {
 				if (
 					file.type !== "asset" ||
@@ -65,23 +71,32 @@ function bitsUiAttrShim(): Plugin {
 	};
 }
 
-/**
- * Whether installed bits-ui still needs the shim: true while any
- * shipped component output emits the old `data-state` /
- * `data-orientation` forms. Scans the whole dist output generically —
- * no component list to maintain. Absence of both literals means the
- * upstream migration landed and the shim must stand down (rewriting
- * would then break natively-matching selectors). Unreadable install
- * keeps the shim active (today's known-good behavior).
- */
-function installedBitsUiNeedsShim(): boolean {
+/** Installed version plus whether its output still needs rewriting. */
+function inspectBitsUiInstall(): { version: string; needsShim: boolean } {
 	try {
 		const require = createRequire(import.meta.url);
-		const bitsDir = join(
-			dirname(require.resolve("bits-ui/package.json")),
-			"dist",
-			"bits",
-		);
+		// NOTE: bits-ui's exports map hides ./package.json, so resolve the
+		// entry and walk up to the owning package.json instead.
+		let dir = dirname(require.resolve("bits-ui"));
+		let pkgPath: string | null = null;
+		for (let depth = 0; depth < 6; depth++) {
+			const candidate = join(dir, "package.json");
+			try {
+				if (JSON.parse(readFileSync(candidate, "utf8")).name === "bits-ui") {
+					pkgPath = candidate;
+					break;
+				}
+			} catch {
+				// Not a readable package boundary — keep walking up.
+			}
+			const parent = dirname(dir);
+			if (parent === dir) break;
+			dir = parent;
+		}
+		if (!pkgPath) return { version: "unknown", needsShim: true };
+		const version: string =
+			JSON.parse(readFileSync(pkgPath, "utf8")).version ?? "unknown";
+		const bitsDir = join(dirname(pkgPath), "dist", "bits");
 		const stack: string[] = [bitsDir];
 		while (stack.length > 0) {
 			const dir = stack.pop() as string;
@@ -95,14 +110,84 @@ function installedBitsUiNeedsShim(): boolean {
 						content.includes('"data-state"') ||
 						content.includes('"data-orientation"')
 					) {
-						return true;
+						return { version, needsShim: true };
 					}
 				}
 			}
 		}
-		return false;
+		return { version, needsShim: false };
 	} catch {
-		return true;
+		return { version: "unknown", needsShim: true };
+	}
+}
+
+const announcedMessages = new Set<string>();
+let updateCheckStarted = false;
+
+/** Log once per process (config evaluates per build worker). */
+function announceOnce(message: string, warn: boolean): void {
+	if (announcedMessages.has(message)) return;
+	announcedMessages.add(message);
+	if (warn) console.warn(message);
+	else console.log(message);
+}
+
+/** Numeric X.Y.Z compare; null when either side isn't a stable version. */
+function compareStableVersions(
+	installed: string,
+	published: string,
+): number | null {
+	const parse = (v: string): [number, number, number] | null => {
+		const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
+		return match
+			? [Number(match[1]), Number(match[2]), Number(match[3])]
+			: null;
+	};
+	const a = parse(installed);
+	const b = parse(published);
+	if (!a || !b) return null;
+	for (let i = 0; i < 3; i++) {
+		if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+	}
+	return 0;
+}
+
+/**
+ * Best-effort nudge when the registry publishes a newer stable bits-ui:
+ * a new version can change emitted attributes, which is exactly what
+ * this shim exists to bridge. Silent on offline/timeout/inconclusive —
+ * never blocks or fails the build.
+ */
+async function checkBitsUiUpdatesOnce(installed: string): Promise<void> {
+	if (updateCheckStarted) return;
+	updateCheckStarted = true;
+	await checkBitsUiUpdates(installed);
+}
+
+async function checkBitsUiUpdates(installed: string): Promise<void> {
+	try {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 3000);
+		let published: string | undefined;
+		try {
+			const response = await fetch(
+				"https://registry.npmjs.org/bits-ui/latest",
+				{ signal: controller.signal },
+			);
+			if (response.ok) {
+				published = ((await response.json()) as { version?: string }).version;
+			}
+		} finally {
+			clearTimeout(timer);
+		}
+		if (!published || compareStableVersions(installed, published) !== -1) {
+			return;
+		}
+		console.warn(
+			`[bits-ui-attr-shim] bits-ui ${published} published (installed ${installed}) — after upgrading, re-verify attribute emissions and eyeball interactive states per AGENTS.md.`,
+		);
+	} catch {
+		// Offline, blocked, or otherwise inconclusive: stay silent.
 	}
 }
 
