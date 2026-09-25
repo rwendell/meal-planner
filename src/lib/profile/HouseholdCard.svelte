@@ -161,11 +161,12 @@
 					No members yet.
 				</p>
 			{:else}
-				{#each members as member (member._id)}
-					{const isSelf = $derived(member._id === myId)}
-					<div
-						class="flex items-center justify-between gap-3 rounded-lg py-1.5"
-					>
+				<div class="grid w-fit max-w-full gap-1">
+					{#each members as member (member._id)}
+						{const isSelf = $derived(member._id === myId)}
+						<div
+							class="flex items-center justify-between gap-3 rounded-lg py-1.5"
+						>
 						<div
 							class="flex min-w-0 flex-wrap items-center gap-1.5"
 						>
@@ -231,7 +232,8 @@
 							</AlertDialog.Root>
 						{/if}
 					</div>
-				{/each}
+					{/each}
+				</div>
 			{/if}
 		</div>
 		{#if isManager}
