@@ -54,7 +54,7 @@
 			</p>
 		{/if}
 		{#if items.length > 0}
-			<ul class="m-0 grid list-none gap-1 p-0">
+			<ul class="m-0 grid w-fit max-w-full list-none gap-1 p-0">
 				{#each items as item (item._id)}
 					<li
 						class="flex min-w-0 items-center gap-2 text-[13px]"
