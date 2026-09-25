@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Badge } from "$lib/components/ui/badge";
 	import * as Card from "$lib/components/ui/card";
 	import * as Tabs from "$lib/components/ui/tabs";
 	import { refKey } from "$lib/stores/households.svelte.js";
@@ -60,13 +59,16 @@
 				<Tabs.List aria-label="Households">
 					{#each entries as entry (keyOf(entry))}
 						{const key = $derived(keyOf(entry))}
-						<Tabs.Trigger value={key}>
+						{const isCurrent = $derived(key === activeKey)}
+						<Tabs.Trigger
+							value={key}
+							aria-label={
+								isCurrent
+									? `Current household: ${entry.household.name}`
+									: entry.household.name
+							}
+						>
 							{entry.household.name}
-							{#if key === activeKey}
-								<Badge variant="secondary" class="shrink-0"
-									>Current</Badge
-								>
-							{/if}
 						</Tabs.Trigger>
 					{/each}
 				</Tabs.List>
