@@ -62,15 +62,17 @@
 						<span class="min-w-0 flex-1 truncate font-medium"
 							>{item.name}</span
 						>
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							aria-label={`Remove ${item.name} from on-hand staples`}
-							title="Remove"
-							onclick={() => onRemove(item._id)}
-						>
-							<XIcon />
-						</Button>
+						<span class="flex w-12 shrink-0 items-center justify-end">
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label={`Remove ${item.name} from on-hand staples`}
+								title="Remove"
+								onclick={() => onRemove(item._id)}
+							>
+								<XIcon />
+							</Button>
+						</span>
 					</li>
 				{/each}
 			</ul>
