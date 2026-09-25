@@ -149,6 +149,11 @@ export class ProfileEditor {
 		const myId = this.myId;
 		return household ? !household.ownerId || household.ownerId === myId : false;
 	}
+	get isOwner(): boolean {
+		const household = this.household;
+		const myId = this.myId;
+		return !!household?.ownerId && !!myId && household.ownerId === myId;
+	}
 	get householdLoading(): boolean {
 		return this.householdQuery.data === undefined;
 	}
@@ -229,11 +234,11 @@ export class ProfileEditor {
 				this.myNameEdit.trim() !== identity.member.name ||
 				this.householdNameEdit.trim() !== viewed.household.name ||
 				this.pendingInviteCode !== viewed.household.inviteCode ||
-				(this.isManager &&
+				(this.isOwner &&
 					this.ownerManagesPlansDraft !== null &&
 					this.ownerManagesPlansDraft !==
 						(this.household?.ownerManagesPlans ?? false)) ||
-				(this.isManager &&
+				(this.isOwner &&
 					this.ownerReviewsMealsDraft !== null &&
 					this.ownerReviewsMealsDraft !==
 						(this.household?.ownerReviewsMeals ?? false)) ||
@@ -480,11 +485,11 @@ export class ProfileEditor {
 		const householdChanged = householdName !== entry.household.name;
 		const inviteCodeChanged = pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
-			this.isManager &&
+			this.isOwner &&
 			pendingOwnerPlans !== null &&
 			pendingOwnerPlans !== baselineOwnerPlans;
 		const ownerReviewsChanged =
-			this.isManager &&
+			this.isOwner &&
 			pendingOwnerReviews !== null &&
 			pendingOwnerReviews !== baselineOwnerReviews;
 		const autoShareChanged =

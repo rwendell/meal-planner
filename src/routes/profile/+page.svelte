@@ -153,6 +153,7 @@
 						ownerId={editor.household?.ownerId}
 						myId={editor.myId}
 						isManager={editor.isManager}
+						isOwner={editor.isOwner}
 						editing={editor.editing}
 						saving={editor.saving}
 						householdEdit={editor.householdNameEdit}

@@ -23,6 +23,7 @@
 		ownerId,
 		myId,
 		isManager,
+		isOwner,
 		editing,
 		saving,
 		householdEdit,
@@ -46,6 +47,7 @@
 		ownerId?: string | null;
 		myId: string | null;
 		isManager: boolean;
+		isOwner: boolean;
 		editing: boolean;
 		saving: boolean;
 		householdEdit: string;
@@ -236,7 +238,7 @@
 				</div>
 			{/if}
 		</div>
-		{#if isManager}
+		{#if isOwner}
 			<Separator class="sm:col-span-2" />
 			<div class="grid gap-2 sm:col-span-2">
 				<span
