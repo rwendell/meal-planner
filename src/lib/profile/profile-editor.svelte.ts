@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex-svelte";
+import { type UseQueryReturn, useMutation, useQuery } from "convex-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { refKey } from "$lib/stores/households.svelte.js";
@@ -65,25 +65,11 @@ export class ProfileEditor {
 	private renameMember = useMutation(api.households.renameMember);
 	private applySkippedCells = useMutation(api.households.applySkippedCells);
 
-	private householdQuery = useQuery(api.households.get, () => {
-		const entry = this.viewedEntry;
-		return entry
-			? { householdId: entry.household._id as Id<"households"> }
-			: "skip";
-	});
-
-	private skipImpactQuery = useQuery(api.households.skipImpact, () => {
-		const entry = this.viewedEntry;
-		return entry && this.skipsDirty
-			? {
-					householdId: entry.household._id as Id<"households">,
-					memberId: entry.member._id as Id<"householdMembers">,
-					callerMemberId: entry.member._id as Id<"householdMembers">,
-					fromDate: todayISO(),
-					cells: sortSkippedCells(this.skippedDraft ?? []),
-				}
-			: "skip";
-	});
+	// Created in the constructor body (not field initializers):
+	// useQuery evaluates its args eagerly, and constructor parameter
+	// properties aren't assigned until the constructor body runs.
+	private householdQuery!: UseQueryReturn<typeof api.households.get>;
+	private skipImpactQuery!: UseQueryReturn<typeof api.households.skipImpact>;
 
 	private static entryKey(entry: RosterEntry): string {
 		return refKey({
@@ -245,6 +231,24 @@ export class ProfileEditor {
 		private roster: RosterState,
 		private opts: { onCommitSwitch: (entry: RosterEntry) => void },
 	) {
+		this.householdQuery = useQuery(api.households.get, () => {
+			const entry = this.viewedEntry;
+			return entry
+				? { householdId: entry.household._id as Id<"households"> }
+				: "skip";
+		});
+		this.skipImpactQuery = useQuery(api.households.skipImpact, () => {
+			const entry = this.viewedEntry;
+			return entry && this.skipsDirty
+				? {
+						householdId: entry.household._id as Id<"households">,
+						memberId: entry.member._id as Id<"householdMembers">,
+						callerMemberId: entry.member._id as Id<"householdMembers">,
+						fromDate: todayISO(),
+						cells: sortSkippedCells(this.skippedDraft ?? []),
+					}
+				: "skip";
+		});
 		// Prefill the rename inputs from the VIEWED household, resetting
 		// only when a different entity is shown so typing is never
 		// clobbered.
