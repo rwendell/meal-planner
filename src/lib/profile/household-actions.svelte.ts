@@ -5,9 +5,9 @@ import { session } from "$lib/stores/session.svelte.js";
 import { errorMessage } from "$lib/utils/errors.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { RosterEntry, RosterState } from "./roster-state.svelte.js";
+import type { RosterEntry } from "./roster-state.svelte.js";
 
-/** Minimal entry shape for leaving a household (roster + list-card entries both satisfy it). */
+/** Minimal entry shape for leaving a household (roster entries satisfy it). */
 export interface LeaveTarget {
 	household: { _id: string; name: string };
 	member: { _id: string };
@@ -19,8 +19,8 @@ export interface LeaveTarget {
  * households, and removing members. Owns the join/create form state.
  * Profile field editing lives in `ProfileEditor`.
  *
- * Instantiate per page (`new HouseholdActions(roster)`). Pass methods
- * to children wrapped in arrows (`onJoin={(e) => actions.join(e)}`) so
+ * Instantiate per page (`new HouseholdActions()`). Pass methods to
+ * children wrapped in arrows (`onJoin={(e) => actions.join(e)}`) so
  * `this` stays bound.
  */
 export class HouseholdActions {
@@ -35,8 +35,6 @@ export class HouseholdActions {
 	private leaveMutation = useMutation(api.households.leave);
 	private removeMutation = useMutation(api.households.removeMember);
 	private claimMutation = useMutation(api.households.claimHouseholds);
-
-	constructor(private roster: RosterState) {}
 
 	// One-click recovery for members the roster never saw (e.g. the
 	// device roster was wiped): link the active member row directly.
@@ -87,16 +85,20 @@ export class HouseholdActions {
 		}
 	}
 
-	async joinHousehold(event: SubmitEvent): Promise<void> {
+	async joinHousehold(
+		event: SubmitEvent,
+		memberName: string,
+		autoNamed: boolean,
+	): Promise<void> {
 		event.preventDefault();
 		this.joinError = "";
 		try {
 			const result = await this.joinMutation({
 				inviteCode: this.joinCode,
-				memberName: this.roster.myName,
-				// No active entry means myName is the device fallback,
+				memberName,
+				// No viewed entry means the name is the device fallback,
 				// safe to replace with the OAuth name later.
-				autoNamed: !this.roster.activeEntry,
+				autoNamed,
 			});
 			this.joinCode = "";
 			roster.switchTo({
@@ -109,7 +111,11 @@ export class HouseholdActions {
 		}
 	}
 
-	async createHousehold(event: SubmitEvent): Promise<void> {
+	async createHousehold(
+		event: SubmitEvent,
+		memberName: string,
+		autoNamed: boolean,
+	): Promise<void> {
 		event.preventDefault();
 		this.createError = "";
 		const name = this.newHouseholdName.trim();
@@ -117,8 +123,8 @@ export class HouseholdActions {
 		try {
 			const result = await this.createMutation({
 				householdName: name,
-				memberName: this.roster.myName,
-				autoNamed: !this.roster.activeEntry,
+				memberName,
+				autoNamed,
 			});
 			this.newHouseholdName = "";
 			roster.switchTo({

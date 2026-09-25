@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import EditActions from "$lib/components/EditActions.svelte";
+	import TextButton from "$lib/components/TextButton.svelte";
+	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import HouseholdCard from "$lib/profile/HouseholdCard.svelte";
-	import HouseholdListCard from "$lib/profile/HouseholdListCard.svelte";
+	import HouseholdsCard from "$lib/profile/HouseholdsCard.svelte";
 	import { HeaderVisibility } from "$lib/profile/header-visibility.svelte.js";
 	import { HouseholdActions } from "$lib/profile/household-actions.svelte.js";
 	import JoinCreateCard from "$lib/profile/JoinCreateCard.svelte";
@@ -13,16 +15,41 @@
 	import { ProfileEditor } from "$lib/profile/profile-editor.svelte.js";
 	import { RosterState } from "$lib/profile/roster-state.svelte.js";
 	import SkippedConfirmDialog from "$lib/profile/SkippedConfirmDialog.svelte";
-	import SkippedMealsCard from "$lib/profile/SkippedMealsCard.svelte";
+	import ExclusionsCard from "$lib/profile/SkippedMealsCard.svelte";
 	import { session } from "$lib/stores/session.svelte.js";
 
 	const auth = useAuth();
 	const rosterState = new RosterState();
-	const households = new HouseholdActions(rosterState);
+	const households = new HouseholdActions();
 	const editor = new ProfileEditor(rosterState, {
 		onCommitSwitch: (entry) => households.switchHousehold(entry),
 	});
 	const header = new HeaderVisibility();
+
+	async function join(event: SubmitEvent): Promise<void> {
+		await households.joinHousehold(
+			event,
+			editor.viewedDisplayName,
+			!editor.viewedEntry,
+		);
+		editor.followSession();
+	}
+
+	async function create(event: SubmitEvent): Promise<void> {
+		await households.createHousehold(
+			event,
+			editor.viewedDisplayName,
+			!editor.viewedEntry,
+		);
+		editor.followSession();
+	}
+
+	async function leaveViewed(): Promise<void> {
+		const entry = editor.viewedEntry;
+		if (!entry) return;
+		await households.leaveHousehold(entry);
+		editor.followSession();
+	}
 </script>
 
 <svelte:head><title>Profile · Meal Planner</title></svelte:head>
@@ -37,7 +64,7 @@
 	{:else}
 		<div class="grid items-start gap-3 min-[560px]:gap-4">
 			<div
-				{@attach (el) => header.attach(el)}
+				{@attach header.attach}
 				class="flex flex-wrap items-start justify-between gap-3"
 			>
 				<ProfileHeader
@@ -45,87 +72,142 @@
 					saving={editor.saving}
 					saveDisabled={editor.saveDisabled}
 					showActions={Boolean(
-						rosterState.activeEntry && header.visible,
+						editor.viewedEntry && header.visible,
 					)}
 					onEdit={() => void editor.startEditing()}
 					onCancel={() => editor.cancelEditing()}
 					onSave={() => void editor.save()}
 				/>
 			</div>
-			{#if rosterState.activeEntry}
-				<MemberCard
-					name={rosterState.myName}
-					isOwner={rosterState.activeEntry.isOwner}
-					householdName={rosterState.activeEntry.household.name}
-					memberImage={rosterState.myMember?.image ?? null}
-					editing={editor.editing}
-					saving={editor.saving}
-					nameEdit={editor.myNameEdit}
-					onNameEdit={(v) => (editor.myNameEdit = v)}
-					onSave={(e) => void editor.save(e)}
-					onCancel={() => editor.cancelEditing()}
-					autoShare={editor.pendingAutoShareMeals}
-					showAutoShare={Boolean(rosterState.myMember)}
-					onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
-					inputRef={(el) => (editor.nameInput = el)}
-					showLinkBanner={Boolean(
-						rosterState.activeEntry &&
-							auth.isAuthenticated &&
-							rosterState.myMember &&
-							!rosterState.myMember.authSubject,
-					)}
-					linking={households.linkingAccount}
-					onLink={() => void households.linkAccount()}
-				/>
+			<HouseholdsCard
+				entries={rosterState.entries}
+				activeKey={editor.activeHouseholdKey}
+				value={editor.tabValue}
+				onSelect={(key) => editor.selectViewed(key)}
+			>
+				{#if editor.viewedEntry}
+					<MemberCard
+						name={editor.viewedDisplayName}
+						isOwner={editor.viewedEntry.isOwner}
+						householdName={editor.viewedEntry.household.name}
+						memberImage={editor.myMember?.image ?? null}
+						editing={editor.editing}
+						saving={editor.saving}
+						nameEdit={editor.myNameEdit}
+						onNameEdit={(v) => (editor.myNameEdit = v)}
+						onSave={(e) => void editor.save(e)}
+						onCancel={() => editor.cancelEditing()}
+						autoShare={editor.pendingAutoShareMeals}
+						showAutoShare={Boolean(editor.myMember)}
+						onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
+						inputRef={(el) => (editor.nameInput = el)}
+						showLinkBanner={Boolean(
+							editor.viewingSession &&
+								auth.isAuthenticated &&
+								editor.myMember &&
+								!editor.myMember.authSubject,
+						)}
+						linking={households.linkingAccount}
+						onLink={() => void households.linkAccount()}
+					/>
 
-				<HouseholdCard
-					householdName={rosterState.activeEntry.household.name}
-					inviteCode={rosterState.activeEntry.household.inviteCode}
-					members={rosterState.members}
-					ownerId={rosterState.household?.ownerId}
-					myId={rosterState.myId}
-					isManager={rosterState.isManager}
-					editing={editor.editing}
-					saving={editor.saving}
-					householdEdit={editor.householdNameEdit}
-					inviteEdit={editor.inviteCodeEdit}
-					inviteError={editor.inviteCodeError}
-					ownerPlans={editor.pendingOwnerManagesPlans}
-					ownerReviews={editor.pendingOwnerReviewsMeals}
-					onHouseholdEdit={(v) => (editor.householdNameEdit = v)}
-					onInviteEdit={(v) => (editor.inviteCodeEdit = v)}
-					onOwnerPlans={(v) => (editor.ownerManagesPlansDraft = v)}
-					onOwnerReviews={(v) => (editor.ownerReviewsMealsDraft = v)}
-					onRemoveMember={(id, name) =>
-						void households.removeMemberRow(id, name)}
-					onSave={(e) => void editor.save(e)}
-					onCancel={() => editor.cancelEditing()}
-					loading={rosterState.householdLoading}
-					exists={Boolean(rosterState.household)}
-				/>
-			{/if}
+					<HouseholdCard
+						householdName={editor.viewedEntry.household.name}
+						inviteCode={editor.viewedEntry.household.inviteCode}
+						members={editor.members}
+						ownerId={editor.household?.ownerId}
+						myId={editor.myId}
+						isManager={editor.isManager}
+						editing={editor.editing}
+						saving={editor.saving}
+						householdEdit={editor.householdNameEdit}
+						inviteEdit={editor.inviteCodeEdit}
+						inviteError={editor.inviteCodeError}
+						ownerPlans={editor.pendingOwnerManagesPlans}
+						ownerReviews={editor.pendingOwnerReviewsMeals}
+						onHouseholdEdit={(v) => (editor.householdNameEdit = v)}
+						onInviteEdit={(v) => (editor.inviteCodeEdit = v)}
+						onOwnerPlans={(v) => (editor.ownerManagesPlansDraft = v)}
+						onOwnerReviews={(v) =>
+							(editor.ownerReviewsMealsDraft = v)}
+						onRemoveMember={(id, name) =>
+							void households.removeMemberRow(id, name)}
+						onSave={(e) => void editor.save(e)}
+						onCancel={() => editor.cancelEditing()}
+						loading={editor.householdLoading}
+						exists={Boolean(editor.household)}
+					/>
 
-			{#if rosterState.activeEntry}
-				<SkippedMealsCard
-					loading={rosterState.householdLoading}
-					editing={editor.editing}
-					saving={editor.saving}
-					shownSet={editor.shownSkipsSet}
-					dirty={editor.skipsDirty}
-					impactMeals={editor.impactMeals}
-					impactPending={editor.impactPending}
-					impactError={editor.impactError}
-					onToggleCell={(day, slot, value) =>
-						editor.setCells([{ day, slot }], value)}
-					onToggleSlot={(slot, value) =>
-						editor.setSlotSkipped(slot, value)}
-					onToggleDay={(day, value) =>
-						editor.setDaySkipped(day, value)}
-					slotSkippedCount={(slot) =>
-						editor.slotSkippedCount(slot)}
-					daySkippedCount={(day) => editor.daySkippedCount(day)}
-				/>
-			{/if}
+					<ExclusionsCard
+						loading={editor.householdLoading}
+						editing={editor.editing}
+						saving={editor.saving}
+						shownSet={editor.shownSkipsSet}
+						dirty={editor.skipsDirty}
+						impactMeals={editor.impactMeals}
+						impactPending={editor.impactPending}
+						impactError={editor.impactError}
+						onToggleCell={(day, slot, value) =>
+							editor.setCells([{ day, slot }], value)}
+						onToggleSlot={(slot, value) =>
+							editor.setSlotSkipped(slot, value)}
+						onToggleDay={(day, value) =>
+							editor.setDaySkipped(day, value)}
+						slotSkippedCount={(slot) =>
+							editor.slotSkippedCount(slot)}
+						daySkippedCount={(day) =>
+							editor.daySkippedCount(day)}
+					/>
+
+					{#if editor.editing}
+						<div class="flex justify-start">
+							<AlertDialog.Root>
+								<AlertDialog.Trigger>
+									{#snippet child({ props })}
+										<TextButton
+											tone="destructive"
+											label={`Leave ${editor.viewedEntry?.household.name ?? "household"}`}
+											{...props}
+										>
+											Leave {editor.viewedEntry?.household
+												.name ?? "household"}
+										</TextButton>
+									{/snippet}
+								</AlertDialog.Trigger>
+								<AlertDialog.Content>
+									<AlertDialog.Header>
+										<AlertDialog.Title>
+											Leave {editor.viewedEntry?.household
+												.name}?
+										</AlertDialog.Title>
+										<AlertDialog.Description>
+											You will lose access to this
+											household and your planned meals
+											there will be removed.
+										</AlertDialog.Description>
+									</AlertDialog.Header>
+									<AlertDialog.Footer>
+										<AlertDialog.Cancel
+											>Cancel</AlertDialog.Cancel
+										>
+										<AlertDialog.Action
+											variant="destructive"
+											onclick={() => void leaveViewed()}
+										>
+											Leave
+										</AlertDialog.Action>
+									</AlertDialog.Footer>
+								</AlertDialog.Content>
+							</AlertDialog.Root>
+						</div>
+					{/if}
+				{:else}
+					<p class="m-0 text-sm text-muted-foreground">
+						No households yet — join one below or create a new
+						household.
+					</p>
+				{/if}
+			</HouseholdsCard>
 
 			<SkippedConfirmDialog
 				open={editor.confirmSkipsOpen}
@@ -135,17 +217,6 @@
 				onConfirm={() => void editor.save()}
 			/>
 
-			<HouseholdListCard
-				entries={rosterState.entries}
-				activeHouseholdId={session.session?.householdId ?? null}
-				activeMemberId={session.session?.memberId ?? null}
-				pendingKey={editor.pendingHouseholdKey}
-				activeKey={editor.activeHouseholdKey}
-				editing={editor.editing}
-				onSelect={(key) => editor.selectHousehold(key)}
-				onLeave={(entry) => void households.leaveHousehold(entry)}
-			/>
-
 			<JoinCreateCard
 				joinCode={households.joinCode}
 				newHouseholdName={households.newHouseholdName}
@@ -153,10 +224,10 @@
 				createError={households.createError}
 				onJoinCode={(v) => (households.joinCode = v)}
 				onNewName={(v) => (households.newHouseholdName = v)}
-				onJoin={(e) => void households.joinHousehold(e)}
-				onCreate={(e) => void households.createHousehold(e)}
+				onJoin={(e) => void join(e)}
+				onCreate={(e) => void create(e)}
 			/>
-			{#if rosterState.activeEntry && !header.visible}
+			{#if editor.viewedEntry && !header.visible}
 				<div class="flex justify-end">
 					<EditActions
 						editing={editor.editing}

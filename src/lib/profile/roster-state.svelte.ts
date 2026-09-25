@@ -10,10 +10,10 @@ export type RosterEntry = NonNullable<
 >;
 
 /**
- * Read-only roster + household state for the profile page: which
- * kitchens exist, which one is active, and the active household's
- * members. Owns the "drop dead roster entries" cleanup effect.
- * Everything editable lives in `ProfileEditor`.
+ * Read-only roster state for the profile page: which kitchens exist and
+ * which one is active. Owns the "drop dead roster entries" cleanup
+ * effect. Household detail and everything editable live in
+ * `ProfileEditor`, keyed off the viewed entry.
  *
  * Instantiate per page (`new RosterState()`) — queries must be created
  * during component initialization. Never destructure: read fields off
@@ -28,12 +28,6 @@ export class RosterState {
 						memberId: ref.memberId as Id<"householdMembers">,
 					})),
 				}
-			: "skip",
-	);
-
-	private householdQuery = useQuery(api.households.get, () =>
-		session.session
-			? { householdId: session.session.householdId as Id<"households"> }
 			: "skip",
 	);
 
@@ -53,17 +47,6 @@ export class RosterState {
 		) ?? null,
 	);
 	myName = $derived(this.activeEntry?.member.name ?? deviceName());
-
-	household = $derived(this.householdQuery.data?.household ?? null);
-	members = $derived(this.householdQuery.data?.members ?? []);
-	myId = $derived(session.session?.memberId ?? null);
-	isManager = $derived(
-		this.household
-			? !this.household.ownerId || this.household.ownerId === this.myId
-			: false,
-	);
-	myMember = $derived(this.members.find((m) => m._id === this.myId) ?? null);
-	householdLoading = $derived(this.householdQuery.data === undefined);
 
 	constructor() {
 		// Drop roster entries the server no longer resolves (deleted households).
