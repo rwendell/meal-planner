@@ -1,9 +1,9 @@
 <script lang="ts">
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { Checkbox } from "$lib/components/ui/checkbox";
 	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
+	import { Switch } from "$lib/components/ui/switch";
 	import { cn } from "$lib/utils.js";
 
 	let {
@@ -100,7 +100,7 @@
 	{#if showAutoShare}
 		<Separator />
 		<div class="flex items-start gap-2.5">
-			<Checkbox
+			<Switch
 				id="auto-share-meals"
 				checked={autoShare ?? true}
 				onCheckedChange={(value) => {
@@ -109,7 +109,8 @@
 					}
 				}}
 				disabled={!editing || saving}
-				class="mt-0.5"
+				aria-label="Share my new meals publicly"
+				class="mt-0.5 shrink-0"
 			/>
 			<span class="grid gap-0.5">
 				<label
