@@ -88,6 +88,29 @@ Backups (age-encrypted, never committed):
 `~/.secrets/meal-planner-google-secret.age`
 (`secret-get meal-planner-google-secret` to read).
 
+## Local network testing (e.g. phone on same Wi-Fi)
+
+No new infra: the backend is already cloud, and `aube run dev:host`
+exposes Vite on the LAN. Google needs no changes — the OAuth
+`redirect_uri` is the convex.site callback (origin-independent); only
+the post-login return to the app is origin-bound, via single-valued
+`SITE_URL` (prefix-matched, so it must equal the exact origin):
+
+```sh
+aube run dev:host
+hostname -I  # pick the LAN IP, e.g. 192.168.1.20
+npx convex env set SITE_URL http://192.168.1.20:5173
+```
+
+Open the LAN URL on the device. Flip back for laptop-only dev:
+
+```sh
+npx convex env set SITE_URL http://localhost:5173
+```
+
+One origin at a time: while set to the LAN IP, sign-in from
+localhost (and vice versa) fails closed with `Invalid redirectTo`.
+
 ## Follow-ups
 
 1. **Phase B cutover:** drop `callerMemberId` args and derive the caller
