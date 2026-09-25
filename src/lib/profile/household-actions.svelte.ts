@@ -137,23 +137,28 @@ export class HouseholdActions {
 		}
 	}
 
-	async removeMemberRow(targetId: string, name: string): Promise<void> {
-		const current = session.session;
-		if (!current) return;
+	async removeMemberRow(
+		targetId: string,
+		name: string,
+		householdId: string,
+		callerMemberId: string,
+	): Promise<boolean> {
 		try {
 			const result = await this.removeMutation({
-				householdId: current.householdId as Id<"households">,
+				householdId: householdId as Id<"households">,
 				memberId: targetId as Id<"householdMembers">,
-				callerMemberId: current.memberId as Id<"householdMembers">,
+				callerMemberId: callerMemberId as Id<"householdMembers">,
 			});
 			if (result.householdDeleted) {
-				roster.forget(current.householdId);
+				roster.forget(householdId);
 				toast.success(`Removed ${name} and deleted the household`);
 			} else {
 				toast.success(`Removed ${name}`);
 			}
+			return result.householdDeleted;
 		} catch (error) {
 			toast.error(errorMessage(error, "Couldn't remove the member."));
+			return false;
 		}
 	}
 }

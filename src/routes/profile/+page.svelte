@@ -29,8 +29,8 @@
 	async function join(event: SubmitEvent): Promise<void> {
 		await households.joinHousehold(
 			event,
-			editor.viewedDisplayName,
-			!editor.viewedEntry,
+			rosterState.myName,
+			!rosterState.activeEntry,
 		);
 		editor.followSession();
 	}
@@ -38,10 +38,22 @@
 	async function create(event: SubmitEvent): Promise<void> {
 		await households.createHousehold(
 			event,
-			editor.viewedDisplayName,
-			!editor.viewedEntry,
+			rosterState.myName,
+			!rosterState.activeEntry,
 		);
 		editor.followSession();
+	}
+
+	async function removeMember(targetId: string, name: string): Promise<void> {
+		const viewed = editor.viewedEntry;
+		if (!viewed) return;
+		const deleted = await households.removeMemberRow(
+			targetId,
+			name,
+			viewed.household._id,
+			viewed.member._id,
+		);
+		if (deleted) editor.followSession();
 	}
 
 	async function leaveViewed(): Promise<void> {
@@ -72,13 +84,61 @@
 					saving={editor.saving}
 					saveDisabled={editor.saveDisabled}
 					showActions={Boolean(
-						editor.viewedEntry && header.visible,
+						(editor.identityEntry ?? editor.viewedEntry) &&
+							header.visible,
 					)}
 					onEdit={() => void editor.startEditing()}
 					onCancel={() => editor.cancelEditing()}
 					onSave={() => void editor.save()}
 				/>
 			</div>
+			{#if editor.identityEntry}
+				<MemberCard
+					name={editor.identityDisplayName}
+					isOwner={editor.identityEntry.isOwner}
+					householdName={editor.identityHousehold?.name ?? ""}
+					memberImage={editor.identityMember?.image ?? null}
+					editing={editor.editing}
+					saving={editor.saving}
+					nameEdit={editor.myNameEdit}
+					onNameEdit={(v) => (editor.myNameEdit = v)}
+					onSave={(e) => void editor.save(e)}
+					onCancel={() => editor.cancelEditing()}
+					autoShare={editor.pendingAutoShareMeals}
+					showAutoShare={Boolean(editor.identityMember)}
+					onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
+					inputRef={(el) => (editor.nameInput = el)}
+					showLinkBanner={Boolean(
+						editor.viewingSession &&
+							auth.isAuthenticated &&
+							editor.identityMember &&
+							!editor.identityMember.authSubject,
+					)}
+					linking={households.linkingAccount}
+					onLink={() => void households.linkAccount()}
+				/>
+
+				<ExclusionsCard
+					loading={editor.identityLoading}
+					editing={editor.editing}
+					saving={editor.saving}
+					shownSet={editor.shownSkipsSet}
+					dirty={editor.skipsDirty}
+					impactMeals={editor.impactMeals}
+					impactPending={editor.impactPending}
+					impactError={editor.impactError}
+					onToggleCell={(day, slot, value) =>
+						editor.setCells([{ day, slot }], value)}
+					onToggleSlot={(slot, value) =>
+						editor.setSlotSkipped(slot, value)}
+					onToggleDay={(day, value) =>
+						editor.setDaySkipped(day, value)}
+					slotSkippedCount={(slot) =>
+						editor.slotSkippedCount(slot)}
+					daySkippedCount={(day) => editor.daySkippedCount(day)}
+				/>
+			{/if}
+
 			<HouseholdsCard
 				entries={rosterState.entries}
 				activeKey={editor.activeHouseholdKey}
@@ -86,31 +146,6 @@
 				onSelect={(key) => editor.selectViewed(key)}
 			>
 				{#if editor.viewedEntry}
-					<MemberCard
-						name={editor.viewedDisplayName}
-						isOwner={editor.viewedEntry.isOwner}
-						householdName={editor.viewedEntry.household.name}
-						memberImage={editor.myMember?.image ?? null}
-						editing={editor.editing}
-						saving={editor.saving}
-						nameEdit={editor.myNameEdit}
-						onNameEdit={(v) => (editor.myNameEdit = v)}
-						onSave={(e) => void editor.save(e)}
-						onCancel={() => editor.cancelEditing()}
-						autoShare={editor.pendingAutoShareMeals}
-						showAutoShare={Boolean(editor.myMember)}
-						onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
-						inputRef={(el) => (editor.nameInput = el)}
-						showLinkBanner={Boolean(
-							editor.viewingSession &&
-								auth.isAuthenticated &&
-								editor.myMember &&
-								!editor.myMember.authSubject,
-						)}
-						linking={households.linkingAccount}
-						onLink={() => void households.linkAccount()}
-					/>
-
 					<HouseholdCard
 						householdName={editor.viewedEntry.household.name}
 						inviteCode={editor.viewedEntry.household.inviteCode}
@@ -131,32 +166,11 @@
 						onOwnerReviews={(v) =>
 							(editor.ownerReviewsMealsDraft = v)}
 						onRemoveMember={(id, name) =>
-							void households.removeMemberRow(id, name)}
+							void removeMember(id, name)}
 						onSave={(e) => void editor.save(e)}
 						onCancel={() => editor.cancelEditing()}
 						loading={editor.householdLoading}
 						exists={Boolean(editor.household)}
-					/>
-
-					<ExclusionsCard
-						loading={editor.householdLoading}
-						editing={editor.editing}
-						saving={editor.saving}
-						shownSet={editor.shownSkipsSet}
-						dirty={editor.skipsDirty}
-						impactMeals={editor.impactMeals}
-						impactPending={editor.impactPending}
-						impactError={editor.impactError}
-						onToggleCell={(day, slot, value) =>
-							editor.setCells([{ day, slot }], value)}
-						onToggleSlot={(slot, value) =>
-							editor.setSlotSkipped(slot, value)}
-						onToggleDay={(day, value) =>
-							editor.setDaySkipped(day, value)}
-						slotSkippedCount={(slot) =>
-							editor.slotSkippedCount(slot)}
-						daySkippedCount={(day) =>
-							editor.daySkippedCount(day)}
 					/>
 
 					{#if editor.editing}
@@ -207,6 +221,18 @@
 						household.
 					</p>
 				{/if}
+				{#snippet footer()}
+					<JoinCreateCard
+						joinCode={households.joinCode}
+						newHouseholdName={households.newHouseholdName}
+						joinError={households.joinError}
+						createError={households.createError}
+						onJoinCode={(v) => (households.joinCode = v)}
+						onNewName={(v) => (households.newHouseholdName = v)}
+						onJoin={(e) => void join(e)}
+						onCreate={(e) => void create(e)}
+					/>
+				{/snippet}
 			</HouseholdsCard>
 
 			<SkippedConfirmDialog
@@ -217,16 +243,6 @@
 				onConfirm={() => void editor.save()}
 			/>
 
-			<JoinCreateCard
-				joinCode={households.joinCode}
-				newHouseholdName={households.newHouseholdName}
-				joinError={households.joinError}
-				createError={households.createError}
-				onJoinCode={(v) => (households.joinCode = v)}
-				onNewName={(v) => (households.newHouseholdName = v)}
-				onJoin={(e) => void join(e)}
-				onCreate={(e) => void create(e)}
-			/>
 			{#if editor.viewedEntry && !header.visible}
 				<div class="flex justify-end">
 					<EditActions

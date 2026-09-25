@@ -69,6 +69,7 @@ export class ProfileEditor {
 	// useQuery evaluates its args eagerly, and constructor parameter
 	// properties aren't assigned until the constructor body runs.
 	private householdQuery!: UseQueryReturn<typeof api.households.get>;
+	private identityQuery!: UseQueryReturn<typeof api.households.get>;
 	private skipImpactQuery!: UseQueryReturn<typeof api.households.skipImpact>;
 
 	private static entryKey(entry: RosterEntry): string {
@@ -97,8 +98,26 @@ export class ProfileEditor {
 		);
 	}
 
-	get viewedDisplayName(): string {
-		return this.viewedEntry?.member.name ?? deviceName();
+	get identityEntry(): RosterEntry | null {
+		return this.roster.activeEntry;
+	}
+	get identityDisplayName(): string {
+		return this.identityEntry?.member.name ?? deviceName();
+	}
+	get identityHousehold() {
+		return this.identityQuery.data?.household ?? null;
+	}
+	get identityMembers() {
+		return this.identityQuery.data?.members ?? [];
+	}
+	get identityMember() {
+		return (
+			this.identityMembers.find((m) => m._id === session.session?.memberId) ??
+			null
+		);
+	}
+	get identityLoading(): boolean {
+		return this.identityQuery.data === undefined;
 	}
 
 	get activeHouseholdKey(): string | null {
@@ -130,9 +149,6 @@ export class ProfileEditor {
 		const myId = this.myId;
 		return household ? !household.ownerId || household.ownerId === myId : false;
 	}
-	get myMember() {
-		return this.members.find((m) => m._id === this.myId) ?? null;
-	}
 	get householdLoading(): boolean {
 		return this.householdQuery.data === undefined;
 	}
@@ -143,7 +159,7 @@ export class ProfileEditor {
 	// state on first toggle, so a slow member load can't clobber it.
 	// Saving removes affected meals after confirmation.
 	private get savedSkips(): SkippedCell[] {
-		return this.myMember?.skippedCells ?? [];
+		return this.identityMember?.skippedCells ?? [];
 	}
 	private get shownSkips(): SkippedCell[] {
 		return this.editing
@@ -186,7 +202,9 @@ export class ProfileEditor {
 		);
 	}
 	get pendingAutoShareMeals(): boolean {
-		return this.autoShareMealsDraft ?? this.myMember?.autoShareMeals ?? true;
+		return (
+			this.autoShareMealsDraft ?? this.identityMember?.autoShareMeals ?? true
+		);
 	}
 	private pendingInviteCode = $derived(
 		this.inviteCodeEdit.trim().toUpperCase(),
@@ -199,16 +217,18 @@ export class ProfileEditor {
 				: "",
 	);
 	get saveDisabled(): boolean {
-		const entry = this.viewedEntry;
+		const identity = this.identityEntry;
+		const viewed = this.viewedEntry;
 		return (
 			!this.myNameEdit.trim() ||
 			!this.householdNameEdit.trim() ||
 			this.inviteCodeError !== "" ||
-			!entry ||
+			!identity ||
+			!viewed ||
 			!(
-				this.myNameEdit.trim() !== entry.member.name ||
-				this.householdNameEdit.trim() !== entry.household.name ||
-				this.pendingInviteCode !== entry.household.inviteCode ||
+				this.myNameEdit.trim() !== identity.member.name ||
+				this.householdNameEdit.trim() !== viewed.household.name ||
+				this.pendingInviteCode !== viewed.household.inviteCode ||
 				(this.isManager &&
 					this.ownerManagesPlansDraft !== null &&
 					this.ownerManagesPlansDraft !==
@@ -219,7 +239,7 @@ export class ProfileEditor {
 						(this.household?.ownerReviewsMeals ?? false)) ||
 				(this.autoShareMealsDraft !== null &&
 					this.autoShareMealsDraft !==
-						(this.myMember?.autoShareMeals ?? true)) ||
+						(this.identityMember?.autoShareMeals ?? true)) ||
 				this.skipsDirty
 			) ||
 			this.impactPending ||
@@ -237,40 +257,38 @@ export class ProfileEditor {
 				? { householdId: entry.household._id as Id<"households"> }
 				: "skip";
 		});
-		this.skipImpactQuery = useQuery(api.households.skipImpact, () => {
-			const entry = this.viewedEntry;
-			return entry && this.skipsDirty
+		this.identityQuery = useQuery(api.households.get, () =>
+			session.session
+				? { householdId: session.session.householdId as Id<"households"> }
+				: "skip",
+		);
+		this.skipImpactQuery = useQuery(api.households.skipImpact, () =>
+			session.session && this.skipsDirty
 				? {
-						householdId: entry.household._id as Id<"households">,
-						memberId: entry.member._id as Id<"householdMembers">,
-						callerMemberId: entry.member._id as Id<"householdMembers">,
+						householdId: session.session.householdId as Id<"households">,
+						memberId: session.session.memberId as Id<"householdMembers">,
+						callerMemberId: session.session.memberId as Id<"householdMembers">,
 						fromDate: todayISO(),
 						cells: sortSkippedCells(this.skippedDraft ?? []),
 					}
-				: "skip";
-		});
-		// Prefill the rename inputs from the VIEWED household, resetting
-		// only when a different entity is shown so typing is never
-		// clobbered.
+				: "skip",
+		);
+		// Prefill the identity inputs (your name, auto-share) from the
+		// session member, resetting only when a different member is shown
+		// so typing is never clobbered.
 		$effect(() => {
-			const member = this.viewedEntry?.member;
+			const member = this.identityEntry?.member;
 			if (member && this.myNameEditKey !== member._id) {
-				const house = this.viewedEntry?.household;
 				this.myNameEditKey = member._id;
 				this.myNameEdit = member.name;
-				if (house) {
-					this.householdNameEditKey = house._id;
-					this.householdNameEdit = house.name;
-					this.inviteCodeEdit = house.inviteCode;
-					this.ownerManagesPlansDraft = null;
-					this.ownerReviewsMealsDraft = null;
-					this.autoShareMealsDraft = null;
-				}
+				this.autoShareMealsDraft = null;
 				this.editing = false;
 				this.saving = false;
 			}
 		});
 
+		// Prefill the household inputs from the VIEWED household, same
+		// reset-on-new-entity rule.
 		$effect(() => {
 			const house = this.viewedEntry?.household;
 			if (house && this.householdNameEditKey !== house._id) {
@@ -279,7 +297,6 @@ export class ProfileEditor {
 				this.inviteCodeEdit = house.inviteCode;
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
-				this.autoShareMealsDraft = null;
 				this.editing = false;
 				this.saving = false;
 			}
@@ -287,15 +304,34 @@ export class ProfileEditor {
 	}
 
 	/**
-	 * Tab switches only land outside edit mode — unsaved edits would
-	 * otherwise be clobbered by the viewed-household prefill.
+	 * Tab switches only land when the viewed household has no unsaved
+	 * edits — the prefill would otherwise clobber them. Identity edits
+	 * (name, auto-share, skips) are session-scoped and survive tab
+	 * switches, so they don't block.
 	 */
 	selectViewed(key: string): void {
-		if (this.editing) {
-			toast.error("Save or cancel your edits first.");
+		if (this.editing && this.householdDirty) {
+			toast.error("Save or cancel this household's edits first.");
 			return;
 		}
 		this.viewedKey = key;
+	}
+
+	get householdDirty(): boolean {
+		const entry = this.viewedEntry;
+		if (!entry || !this.editing) return false;
+		return (
+			this.householdNameEdit.trim() !== entry.household.name ||
+			this.inviteCodeEdit.trim().toUpperCase() !== entry.household.inviteCode ||
+			(this.isManager &&
+				this.ownerManagesPlansDraft !== null &&
+				this.ownerManagesPlansDraft !==
+					(this.household?.ownerManagesPlans ?? false)) ||
+			(this.isManager &&
+				this.ownerReviewsMealsDraft !== null &&
+				this.ownerReviewsMealsDraft !==
+					(this.household?.ownerReviewsMeals ?? false))
+		);
 	}
 
 	followSession(): void {
@@ -352,13 +388,13 @@ export class ProfileEditor {
 	}
 
 	private async saveSkips(): Promise<boolean> {
-		const entry = this.viewedEntry;
-		if (!entry) return false;
+		const current = session.session;
+		if (!current) return false;
 		try {
 			const result = await this.applySkippedCells({
-				householdId: entry.household._id as Id<"households">,
-				memberId: entry.member._id as Id<"householdMembers">,
-				callerMemberId: entry.member._id as Id<"householdMembers">,
+				householdId: current.householdId as Id<"households">,
+				memberId: current.memberId as Id<"householdMembers">,
+				callerMemberId: current.memberId as Id<"householdMembers">,
 				fromDate: todayISO(),
 				cells: sortSkippedCells(this.skippedDraft ?? []),
 			});
@@ -386,11 +422,14 @@ export class ProfileEditor {
 	}
 
 	cancelEditing(): void {
-		const entry = this.viewedEntry;
-		if (entry) {
-			this.myNameEdit = entry.member.name;
-			this.householdNameEdit = entry.household.name;
-			this.inviteCodeEdit = entry.household.inviteCode;
+		const identity = this.identityEntry;
+		if (identity) {
+			this.myNameEdit = identity.member.name;
+		}
+		const viewed = this.viewedEntry;
+		if (viewed) {
+			this.householdNameEdit = viewed.household.name;
+			this.inviteCodeEdit = viewed.household.inviteCode;
 		}
 		this.ownerManagesPlansDraft = null;
 		this.ownerReviewsMealsDraft = null;
@@ -402,13 +441,16 @@ export class ProfileEditor {
 
 	async save(event?: SubmitEvent): Promise<void> {
 		event?.preventDefault();
-		if (!session.session) return;
+		const current = session.session;
+		if (!current) return;
 		const entry = this.viewedEntry;
+		const identity = this.identityEntry;
 		const memberName = this.myNameEdit.trim();
 		const householdName = this.householdNameEdit.trim();
 		const pendingInviteCode = this.inviteCodeEdit.trim().toUpperCase();
 		if (
 			!entry ||
+			!identity ||
 			!this.editing ||
 			this.saving ||
 			!memberName ||
@@ -432,9 +474,9 @@ export class ProfileEditor {
 		const pendingOwnerPlans = this.ownerManagesPlansDraft;
 		const baselineOwnerReviews = this.household?.ownerReviewsMeals ?? false;
 		const pendingOwnerReviews = this.ownerReviewsMealsDraft;
-		const baselineAutoShare = this.myMember?.autoShareMeals ?? true;
+		const baselineAutoShare = this.identityMember?.autoShareMeals ?? true;
 		const pendingAutoShare = this.autoShareMealsDraft;
-		const memberChanged = memberName !== entry.member.name;
+		const memberChanged = memberName !== identity.member.name;
 		const householdChanged = householdName !== entry.household.name;
 		const inviteCodeChanged = pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
@@ -466,10 +508,10 @@ export class ProfileEditor {
 			if (memberChanged) {
 				try {
 					await this.renameMember({
-						householdId,
-						memberId,
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
 						name: memberName,
-						callerMemberId: memberId,
+						callerMemberId: current.memberId as Id<"householdMembers">,
 					});
 					toast.success("Name updated");
 				} catch (error) {
@@ -542,9 +584,9 @@ export class ProfileEditor {
 			if (autoShareChanged) {
 				try {
 					await this.setAutoShareMeals({
-						householdId,
-						memberId,
-						callerMemberId: memberId,
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+						callerMemberId: current.memberId as Id<"householdMembers">,
 						enabled: pendingAutoShare,
 					});
 					toast.success(

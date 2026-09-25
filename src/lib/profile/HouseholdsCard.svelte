@@ -18,6 +18,7 @@
 		value,
 		onSelect,
 		children,
+		footer,
 	}: {
 		entries: RosterEntry[];
 		/** Session household key, badged Current. */
@@ -26,6 +27,7 @@
 		value: string;
 		onSelect: (key: string) => void;
 		children?: Snippet;
+		footer?: Snippet;
 	} = $props();
 
 	function keyOf(entry: RosterEntry): string {
@@ -71,5 +73,6 @@
 			</Tabs.Root>
 		{/if}
 		{@render children?.()}
+		{@render footer?.()}
 	</Card.Content>
 </Card.Root>
