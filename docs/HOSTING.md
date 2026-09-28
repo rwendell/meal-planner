@@ -20,20 +20,32 @@ deep links and the `/meals` redirect resolve client-side.
    { "rewrites": [{ "source": "/(.*)", "destination": "/200.html" }] }
    ```
 
-4. OAuth: flip the Convex deployment's return origin to the hosted URL
-   (Google needs no changes — the callback stays on convex.site):
+4. OAuth: point the Convex deployment at the hosted URL (Google
+   needs no changes — the callback stays on convex.site).
+   Sign-in works from any origin listed in `ALLOWED_ORIGINS`
+   (comma-separated exact origins) or matching
+   `ALLOWED_ORIGIN_SUFFIXES` (e.g. `.vercel.app` covers all PR
+   previews):
 
    ```sh
    npx convex env set SITE_URL https://<your-app>.vercel.app
+   npx convex env set ALLOWED_ORIGINS http://localhost:5173,https://<your-app>.vercel.app
+   npx convex env set ALLOWED_ORIGIN_SUFFIXES .vercel.app
    ```
+   The client returns to `window.location.href` after login, so each
+   origin lands back where it started. See `OAUTH_SETUP.md` for the
+   trust model.
 
 ## Caveats
 
-- **One origin at a time.** `SITE_URL` is single-valued: sign-in works
-  only from the matching origin. PR preview deployments get unique
-  URLs, so Google sign-in there fails closed (`Invalid redirectTo`) —
-  previews are anonymous-mode only unless you flip `SITE_URL` to them.
-  Flip back to `http://localhost:5173` for laptop dev.
+- **Preview URLs just work** once the suffix rule is set — no per-PR
+  env changes. Without a suffix rule, previews stay anonymous-mode
+  (`Invalid redirectTo` fails closed).
+- **`SITE_URL` itself stays single-valued** (default return target);
+  the allowlist is what multi-enables origins, so no more flipping
+  back and forth for laptop dev.
+- **Subpaths break asset URLs.** The build uses absolute `/_app/...`
+
 - **Subpaths break asset URLs.** The build uses absolute `/_app/...`
   paths. Root hosting (Vercel/Cloudflare/Render defaults) is fine;
   project-site subpaths (e.g. `user.github.io/repo/`) need a

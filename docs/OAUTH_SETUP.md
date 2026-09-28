@@ -66,7 +66,13 @@ every page load, which froze the UI after sign-in. Instead:
 - `src/convex/auth.config.ts` — `{ domain: CONVEX_SITE_URL,
   applicationID: "convex" }` (this SITE_URL form is required; a Google
   domain here is wrong for Convex Auth).
-- `src/convex/auth.ts` — `convexAuth({ providers: [Google] })`.
+- `src/convex/auth.ts` — `convexAuth({ providers: [Google] })`
+  plus a `redirect` callback: relative paths and `SITE_URL` matches
+  keep default behavior; otherwise only exact origins from
+  `ALLOWED_ORIGINS` or `ALLOWED_ORIGIN_SUFFIXES` suffix matches
+  (e.g. `.vercel.app`) are allowed. Exact-origin matching (never
+  prefix) — the auth `code` is PKCE-bound to the originating browser
+  anyway, so a stray redirect gains an attacker nothing.
 - `src/convex/http.ts` — `auth.addHttpRoutes(http)` → callback at
   `<site-url>/api/auth/callback/google`.
 - `src/convex/schema.ts` — `...authTables` plus `authSubject` +

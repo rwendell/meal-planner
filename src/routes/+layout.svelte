@@ -177,7 +177,11 @@
 	async function handleSignIn(): Promise<void> {
 		signingIn = true;
 		try {
-			const result = await auth.signIn("google");
+			const result = await auth.signIn("google", {
+				// Return to wherever the flow started so sign-in works
+				// from any allowlisted origin, not just SITE_URL.
+				redirectTo: window.location.href,
+			});
 			// OAuth navigates away: keep spinning until the page unloads.
 			// Only reset when no redirect happened.
 			if (!result.redirect) signingIn = false;
