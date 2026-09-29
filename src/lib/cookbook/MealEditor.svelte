@@ -323,11 +323,13 @@
 			ingredientRows = ingredientRows.filter((row) => row.key !== key);
 		}}
 	/>
-	<MealShareToggle
-		{prefix}
-		{shared}
-		onChange={(v) => (shared = v)}
-	/>
+	{#if editingMeal}
+		<MealShareToggle
+			{prefix}
+			{shared}
+			onChange={(v) => (shared = v)}
+		/>
+	{/if}
 	{#if formError}
 		<p class="m-0 text-xs font-semibold text-destructive" role="alert">
 			{formError}

@@ -258,6 +258,23 @@
 		closeMealDialog();
 	}
 
+	async function toggleMealSharing(meal: CookbookMeal): Promise<void> {
+		if (!householdId) return;
+		const household = householdId as Id<"households">;
+		const id = meal.id as Id<"meals">;
+		try {
+			if (publishedMealIds.has(meal.id)) {
+				await unpublishRecipe({ householdId: household, mealId: id });
+				toast.success(`${meal.name} is no longer shared`);
+			} else {
+				await publishRecipe({ householdId: household, mealId: id });
+				toast.success(`${meal.name} shared with the community`);
+			}
+		} catch (error) {
+			toast.error(errorMessage(error, "Couldn't update sharing."));
+		}
+	}
+
 	async function duplicateMeal(meal: CookbookMeal): Promise<void> {
 		if (!householdId) return;
 		const name = suggestCopyName(
@@ -347,6 +364,7 @@
 									shared={publishedMealIds.has(meal.id)}
 									onEdit={openEditMeal}
 									onDuplicate={(m) => void duplicateMeal(m)}
+									onToggleShare={(m) => void toggleMealSharing(m)}
 									onDelete={(id, name) =>
 										void deleteMeal(id, name)}
 								/>

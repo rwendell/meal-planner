@@ -14,12 +14,14 @@
 		shared,
 		onEdit,
 		onDuplicate,
+		onToggleShare,
 		onDelete,
 	}: {
 		meal: CookbookMeal;
 		shared: boolean;
 		onEdit: (meal: CookbookMeal) => void;
 		onDuplicate: (meal: CookbookMeal) => void;
+		onToggleShare: (meal: CookbookMeal) => void;
 		onDelete: (id: string, name: string) => void;
 	} = $props();
 
@@ -67,16 +69,16 @@
 					title={`Duplicate ${meal.name}`}
 					onclick={() => onDuplicate(meal)}><CopyIcon /></Button
 				>
-				{#if shared}
-					<span
-						class="grid size-7 place-items-center text-muted-foreground"
-						title="Shared publicly"
-						role="img"
-						aria-label={`${meal.name} is shared publicly`}
-					>
-						<ShareIcon size={14} />
-					</span>
-				{/if}
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={shared
+						? `Stop sharing ${meal.name} publicly`
+						: `Share ${meal.name} publicly`}
+					title={shared ? "Shared publicly — click to stop sharing" : "Share publicly"}
+					class={shared ? "text-foreground" : "text-muted-foreground"}
+					onclick={() => onToggleShare(meal)}><ShareIcon size={14} /></Button
+				>
 				<Button
 					variant="ghost"
 					size="icon-sm"
