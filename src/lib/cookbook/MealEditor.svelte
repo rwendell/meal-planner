@@ -301,6 +301,18 @@
 			autocomplete="off"
 		/></label
 	>
+	<label
+		for={`${prefix}-meal-source`}
+		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
+		>Source link<Input
+				id={`${prefix}-meal-source`}
+				bind:value={sourceValue}
+				type="url"
+				placeholder="https://…"
+				autocomplete="off"
+				spellcheck={false}
+			/></label
+		>
 	<IngredientRows
 		bind:rows={ingredientRows}
 		{prefix}

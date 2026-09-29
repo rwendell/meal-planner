@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as authCheck from "../authCheck.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
+import type * as importAlerts from "../importAlerts.js";
 import type * as meals from "../meals.js";
 import type * as pantry from "../pantry.js";
 import type * as plans from "../plans.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   authCheck: typeof authCheck;
   households: typeof households;
   http: typeof http;
+  importAlerts: typeof importAlerts;
   meals: typeof meals;
   pantry: typeof pantry;
   plans: typeof plans;
@@ -66,4 +68,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  resend: import("@convex-dev/resend/_generated/component.js").ComponentApi<"resend">;
+};

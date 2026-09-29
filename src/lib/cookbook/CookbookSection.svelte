@@ -50,7 +50,9 @@
 	let importing = $state(false);
 	let importError = $state("");
 	let importedDraft = $state<ImportedDraft | null>(null);
+	let entryMode = $state<"choice" | "import" | "manual">("choice");
 	const importRecipe = useAction(api.recipeImport.importFromUrl);
+	const reportImportFailure = useMutation(api.importAlerts.reportImportFailure);
 
 	async function handleImportRecipe(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
@@ -78,8 +80,9 @@
 				})),
 			};
 			mealDialogKey += 1;
+			entryMode = "manual";
 			toast.success(`Imported ${result.name} — review and save`);
-		} catch {
+		} catch (error) {
 			importedDraft = {
 				name: "",
 				note: "",
@@ -88,9 +91,19 @@
 				ingredients: [],
 			};
 			mealDialogKey += 1;
+			entryMode = "manual";
 			toast.success(
-				"Couldn't read a recipe there — link saved as the source instead",
+				"Couldn't read that recipe — flagged for a look, add it manually below",
 			);
+			void reportImportFailure({
+				url: sourceUrl,
+				error: error instanceof Error ? error.message : String(error),
+				...(householdId
+					? { householdId: householdId as Id<"households"> }
+					: {}),
+			}).catch(() => {
+				// Alerting must never break the meal flow.
+			});
 		} finally {
 			importing = false;
 		}
@@ -193,6 +206,7 @@
 		importUrl = "";
 		importError = "";
 		importedDraft = null;
+		entryMode = "choice";
 		mealDialogKey += 1;
 		showMealDialog = true;
 	}
@@ -210,6 +224,7 @@
 		showMealDialog = false;
 		editingMeal = null;
 		importedDraft = null;
+		entryMode = "choice";
 	}
 
 	async function handleMealSaved(
@@ -422,6 +437,8 @@
 	{importedDraft}
 	onImportUrl={(v) => (importUrl = v)}
 	onImportSubmit={handleImportRecipe}
+	entryMode={entryMode}
+	onPickMode={(mode) => (entryMode = mode)}
 	onClose={closeMealDialog}
 	onSaved={(mealId, name, shared) =>
 		void handleMealSaved(mealId, name, shared)}
