@@ -7,9 +7,9 @@ deep links and the `/meals` redirect resolve client-side.
 
 ## Recommended: Vercel
 
-1. Import the repo. Framework preset can stay automatic; set:
-   - Build command: `npm run build` (plain `vite build`, no aube needed)
-   - Output directory: `build`
+1. Import the repo. Framework Preset: `Other` (we ship pure static).
+   Install Command: `bun install` (npm fails to resolve deps here);
+   Build Command: `npm run build`; Output Directory: `build`.
 2. Environment (all deployments): `PUBLIC_CONVEX_URL` =
    `https://fantastic-lynx-682.convex.cloud` (baked in at build time).
 3. SPA fallback: add `vercel.json` at the repo root so deep links
