@@ -226,6 +226,21 @@
 	// instead of looping.
 	let claimAttempted = $state(false);
 	let lastMembershipsKey = $state<string | null>(null);
+	// Bounded retries for a claim that fails or hits a stale token: token
+	// propagation settles in seconds, so a few backed-off attempts cover
+	// it without hammering the server forever. Plain let — no effect
+	// reads it, so it needs no reactivity.
+	let claimAttempts = 0;
+	const CLAIM_RETRY_DELAYS = [3000, 7000, 15000, 30000];
+
+	function scheduleClaimRetry(): void {
+		if (claimAttempts >= CLAIM_RETRY_DELAYS.length) return;
+		const delay = CLAIM_RETRY_DELAYS[claimAttempts] ?? 30000;
+		claimAttempts += 1;
+		setTimeout(() => {
+			claimAttempted = false;
+		}, delay);
+	}
 	$effect(() => {
 		if (membershipsQuery.data === undefined) return;
 		const key = membershipsQuery.data
@@ -235,6 +250,7 @@
 		if (lastMembershipsKey !== key) {
 			lastMembershipsKey = key;
 			claimAttempted = false;
+			claimAttempts = 0;
 		}
 	});
 	$effect(() => {
@@ -260,7 +276,17 @@
 				householdId: ref.householdId as Id<"households">,
 				memberId: ref.memberId as Id<"householdMembers">,
 			})),
-		}).catch(() => {});
+		}).then(
+			(result) => {
+				// Stale token beat the refresh (the server reports this
+				// explicitly via signedIn: false instead of throwing):
+				// unlatch with backoff so a later tick retries once auth
+				// settles. Without this the roster never links until a
+				// manual reload.
+				if (!result.signedIn) scheduleClaimRetry();
+			},
+			() => scheduleClaimRetry(),
+		);
 	});
 
 	// First visit lands straight in the planner with a personal household.
