@@ -176,7 +176,6 @@
 					initialSourceUrl={importedDraft?.sourceUrl ?? ""}
 					initialShared={autoShareDefault}
 					initialPremade={false}
-					initialMealTimes={["dinner"]}
 					initialIngredients={importedDraft?.ingredients ?? []}
 					editingMeal={null}
 					existingMeals={meals}

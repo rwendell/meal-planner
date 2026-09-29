@@ -45,7 +45,7 @@
 		initialSourceUrl = "",
 		initialShared = false,
 		initialPremade = false,
-		initialMealTimes = ["dinner"],
+		initialMealTimes = [],
 		initialIngredients = [],
 		editingMeal = null,
 		existingMeals = [],
@@ -99,7 +99,7 @@
 		return initialPremade;
 	}
 	function getInitialTimes(): MealType[] {
-		return initialMealTimes.length > 0 ? [...initialMealTimes] : ["dinner"];
+		return [...initialMealTimes];
 	}
 	function getInitialRows(): IngredientRow[] {
 		return initialIngredients.length > 0
@@ -170,6 +170,10 @@
 		if (!name || saving) return;
 		if (isNameClash(name)) {
 			formError = "A meal with this name already exists.";
+			return;
+		}
+		if (selectedTimes.length === 0) {
+			formError = "Pick at least one meal time.";
 			return;
 		}
 		if (!householdId) return;
@@ -308,7 +312,6 @@
 				id={`${prefix}-meal-source`}
 				bind:value={sourceValue}
 				type="url"
-				placeholder="https://…"
 				autocomplete="off"
 				spellcheck={false}
 			/></label

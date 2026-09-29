@@ -172,7 +172,7 @@
 				<MealEditor
 					{householdId}
 					initialName={editorName}
-					initialMealTimes={slot ? [slot] : ["dinner"]}
+					initialMealTimes={slot ? [slot] : []}
 					initialShared={autoShareDefault}
 					initialPremade={false}
 					existingMeals={meals.map((meal) => ({
