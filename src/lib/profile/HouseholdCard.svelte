@@ -1,5 +1,6 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
@@ -260,20 +261,17 @@
 						class="mt-0.5 shrink-0"
 					/>
 					<span class="grid gap-0.5">
-						<label
-							for="owner-manages-plans"
-							class={cn(
-								"text-sm font-medium",
-								editing && !saving && "cursor-pointer",
-							)}>Plan for everyone</label
-						>
-						<span
-							class="text-xs text-muted-foreground"
-						>
-							When on, the owner can switch
-							between members' plans and pick
-							meals for them. Everyone else only
-							ever sees and edits their own plan.
+						<span class="flex items-center gap-1.5">
+							<label
+								for="owner-manages-plans"
+								class={cn(
+									"text-sm font-medium",
+									editing && !saving && "cursor-pointer",
+								)}>Plan for everyone</label
+							>
+							<InfoTip
+								text="When on, the owner can switch between members' plans and pick meals for them. Everyone else only ever sees and edits their own plan."
+							/>
 						</span>
 					</span>
 				</div>
@@ -291,19 +289,17 @@
 						class="mt-0.5 shrink-0"
 					/>
 					<span class="grid gap-0.5">
-						<label
-							for="owner-reviews-meals"
-							class={cn(
-								"text-sm font-medium",
-								editing && !saving && "cursor-pointer",
-							)}>Review all leftovers</label
-						>
-						<span
-							class="text-xs text-muted-foreground"
-						>
-							When on, the owner's leftover review
-							covers every member's plan instead
-							of just their own.
+						<span class="flex items-center gap-1.5">
+							<label
+								for="owner-reviews-meals"
+								class={cn(
+									"text-sm font-medium",
+									editing && !saving && "cursor-pointer",
+								)}>Review all leftovers</label
+							>
+							<InfoTip
+								text="When on, the owner's leftover review covers every member's plan instead of just their own."
+							/>
 						</span>
 					</span>
 				</div>

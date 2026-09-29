@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useMutation, useQuery } from "convex-svelte";
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
@@ -34,7 +35,7 @@
 		key: number;
 		name: string;
 		amount: string;
-		group: GroceryGroup;
+		group: GroceryGroup | "";
 	}
 
 	let {
@@ -77,7 +78,7 @@
 	let rowKey = 0;
 	function blankRow(): IngredientRow {
 		rowKey += 1;
-		return { key: rowKey, name: "", amount: "", group: "Produce" };
+		return { key: rowKey, name: "", amount: "", group: "" };
 	}
 
 	function getInitialName(): string {
@@ -177,13 +178,16 @@
 			return;
 		}
 		if (!householdId) return;
-		const ingredients = ingredientRows
-			.map((row) => ({
-				name: row.name.trim(),
-				amount: row.amount.trim() || undefined,
-				group: row.group,
-			}))
-			.filter((ingredient) => ingredient.name);
+		const namedRows = ingredientRows.filter((row) => row.name.trim());
+		if (namedRows.some((row) => !row.group)) {
+			formError = "Pick a group for each ingredient.";
+			return;
+		}
+		const ingredients = namedRows.map((row) => ({
+			name: row.name.trim(),
+			amount: row.amount.trim() || undefined,
+			group: row.group as GroceryGroup,
+		}));
 		const household = householdId as Id<"households">;
 		const category = resolveMealCategory();
 		const prepMinutes = parsePrepMinutes(timeValue);
@@ -273,13 +277,13 @@
 			class="mt-0.5"
 		/>
 		<span class="grid gap-0.5">
-			<label
-				for={`${prefix}-meal-premade`}
-				class="cursor-pointer text-sm font-semibold"
-				>Premade meal</label
-			>
-			<span class="text-xs text-muted-foreground">
-				Bought ready-made instead of cooked from ingredients
+			<span class="flex items-center gap-1.5">
+				<label
+					for={`${prefix}-meal-premade`}
+					class="cursor-pointer text-sm font-semibold"
+					>Premade meal</label
+				>
+				<InfoTip text="Bought ready-made instead of cooked from ingredients" />
 			</span>
 		</span>
 	</div>

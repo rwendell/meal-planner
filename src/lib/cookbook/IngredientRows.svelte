@@ -10,7 +10,7 @@
 		key: number;
 		name: string;
 		amount: string;
-		group: GroceryGroup;
+		group: GroceryGroup | "";
 	}
 
 	let {

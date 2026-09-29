@@ -1,6 +1,7 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import type { Snippet } from "svelte";
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
 	import SearchCombobox from "$lib/shopping/SearchCombobox.svelte";
@@ -31,10 +32,10 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>On hand</Card.Title>
-		<Card.Description>
-			Staples you already own check themselves off the list.
-		</Card.Description>
+		<div class="flex items-center gap-1.5">
+			<Card.Title>On hand</Card.Title>
+			<InfoTip text="Staples you already own check themselves off the list." />
+		</div>
 	</Card.Header>
 	<Card.Content class="grid gap-3">
 		<SearchCombobox

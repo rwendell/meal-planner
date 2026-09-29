@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Switch } from "$lib/components/ui/switch";
 
@@ -16,13 +17,13 @@
 <Separator />
 <div class="flex items-center justify-between gap-3 rounded-xl border p-3">
 	<span class="grid gap-0.5">
-		<label
-			for={`${prefix}-meal-shared`}
-			class="cursor-pointer text-sm font-semibold"
-			>Share publicly</label
-		>
-		<span class="text-xs text-muted-foreground">
-			Show in the community cookbook
+		<span class="flex items-center gap-1.5">
+			<label
+				for={`${prefix}-meal-shared`}
+				class="cursor-pointer text-sm font-semibold"
+				>Share publicly</label
+			>
+			<InfoTip text="Show in the community cookbook" />
 		</span>
 	</span>
 	<Switch

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import TextButton from "$lib/components/TextButton.svelte";
 	import { Input } from "$lib/components/ui/input";
 	import SearchCombobox from "$lib/shopping/SearchCombobox.svelte";
@@ -36,14 +37,10 @@
 </script>
 
 <div class="mb-4">
-	<h3
-		class="m-0 mb-1.5 text-[10px] font-extrabold tracking-[0.14em] text-muted-foreground uppercase"
-	>
-		Ready to eat
-	</h3>
-	<p class="m-0 mb-2 text-[11px] text-muted-foreground">
-		Meals already made — their ingredients stay checked off.
-	</p>
+	<div class="mb-2 flex items-center gap-1.5">
+		<h3 class="m-0 text-base leading-normal font-medium">Ready to eat</h3>
+		<InfoTip text="Meals already made — their ingredients stay checked off." />
+	</div>
 	<div class="mb-2">
 		<SearchCombobox
 			options={markableMeals.map((meal) => ({

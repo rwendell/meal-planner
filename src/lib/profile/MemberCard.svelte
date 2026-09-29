@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InfoTip from "$lib/components/InfoTip.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
@@ -113,16 +114,17 @@
 				class="mt-0.5 shrink-0"
 			/>
 			<span class="grid gap-0.5">
-				<label
-					for="auto-share-meals"
-					class={cn(
-						"text-sm font-medium",
-						editing && !saving && "cursor-pointer",
-					)}>Share my new meals publicly</label
-				>
-				<span class="text-xs text-muted-foreground">
-					Meals you add appear in the community
-					cookbook automatically.
+				<span class="flex items-center gap-1.5">
+					<label
+						for="auto-share-meals"
+						class={cn(
+							"text-sm font-medium",
+							editing && !saving && "cursor-pointer",
+						)}>Share my new meals publicly</label
+					>
+					<InfoTip
+						text="Meals you add appear in the community cookbook automatically."
+					/>
 				</span>
 			</span>
 		</div>
