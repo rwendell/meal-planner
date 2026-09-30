@@ -21,7 +21,7 @@
 		maxFor,
 		onRemove,
 		onCount,
-		onAdd
+		onAdd,
 	}: {
 		slotLabel: string;
 		eligibleCount: number;
@@ -48,11 +48,7 @@
 		{slotLabel} · {plannedCount} of {eligibleCount} days
 	</h3>
 	{#if rows.length === 0}
-		<p class="m-0 text-sm text-muted-foreground">
-			Nothing here yet — {canEdit && editing
-				? "add a meal below."
-				: "no meals planned."}
-		</p>
+		<p class="m-0 text-sm text-muted-foreground">No meals planned</p>
 	{:else}
 		<ul
 			class="m-0 grid w-fit list-none p-0"
@@ -102,7 +98,7 @@
 										event.currentTarget.blur();
 									else if (event.key === "Escape") {
 										event.currentTarget.value = String(
-											entry.count
+											entry.count,
 										);
 										event.currentTarget.blur();
 									}

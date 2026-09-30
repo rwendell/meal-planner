@@ -18,6 +18,8 @@
 	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
+	import { Textarea } from "$lib/components/ui/textarea/index.js";
+	import Switch from "$lib/components/ui/switch/switch.svelte";
 
 	export interface MealEditorIngredient {
 		name: string;
@@ -243,9 +245,30 @@
 			required
 		/></label
 	>
+	<div class="flex items-start gap-2.5">
+		<Switch
+			id={`${prefix}-meal-premade`}
+			checked={premade}
+			onCheckedChange={(value) => {
+				if (typeof value === "boolean") premade = value;
+			}}
+			class="mt-0.5"
+		/>
+		<span class="grid gap-0.5">
+			<span class="flex items-center gap-1.5">
+				<label
+					for={`${prefix}-meal-premade`}
+					class="cursor-pointer text-sm font-semibold"
+					>Premade meal</label
+				>
+				<InfoTip
+					text="Bought ready-made instead of cooked from ingredients"
+				/>
+			</span>
+		</span>
+	</div>
 	<fieldset class="m-0 grid min-w-0 gap-2 border-0 p-0">
-		<legend
-			class="mb-2 p-0 text-[11px] font-extrabold text-foreground"
+		<legend class="mb-2 p-0 text-[11px] font-extrabold text-foreground"
 			>Meal times</legend
 		>
 		<div class="flex flex-wrap gap-2">
@@ -267,43 +290,23 @@
 			{/each}
 		</div>
 	</fieldset>
-	<div class="flex items-start gap-2.5">
-		<Checkbox
-			id={`${prefix}-meal-premade`}
-			checked={premade}
-			onCheckedChange={(value) => {
-				if (typeof value === "boolean") premade = value;
-			}}
-			class="mt-0.5"
-		/>
-		<span class="grid gap-0.5">
-			<span class="flex items-center gap-1.5">
-				<label
-					for={`${prefix}-meal-premade`}
-					class="cursor-pointer text-sm font-semibold"
-					>Premade meal</label
-				>
-				<InfoTip text="Bought ready-made instead of cooked from ingredients" />
-			</span>
-		</span>
-	</div>
 	<label
 		for={`${prefix}-meal-note`}
 		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
-		>Short description<Input
-				id={`${prefix}-meal-note`}
-				bind:value={noteValue}
-			/></label
-		>
+		>Short description<Textarea
+			id={`${prefix}-meal-note`}
+			bind:value={noteValue}
+		/></label
+	>
 	<label
 		for={`${prefix}-meal-time`}
 		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
 		>Prep time (minutes)
 		<Input
 			id={`${prefix}-meal-time`}
-				type="number"
-				bind:value={timeValue}
-				min={0}
+			type="number"
+			bind:value={timeValue}
+			min={0}
 			max={999}
 			step={1}
 			autocomplete="off"
@@ -313,29 +316,29 @@
 		for={`${prefix}-meal-source`}
 		class="grid gap-1.5 text-[11px] font-extrabold text-foreground"
 		>Source link<Input
-				id={`${prefix}-meal-source`}
-				bind:value={sourceValue}
-				type="url"
-				autocomplete="off"
-				spellcheck={false}
-			/></label
-		>
-	<IngredientRows
-		bind:rows={ingredientRows}
-		{prefix}
-		onAdd={() => {
-			ingredientRows = [...ingredientRows, blankRow()];
-		}}
-		onRemove={(key) => {
-			ingredientRows = ingredientRows.filter((row) => row.key !== key);
-		}}
-	/>
-	{#if editingMeal}
-		<MealShareToggle
-			{prefix}
-			{shared}
-			onChange={(v) => (shared = v)}
+			id={`${prefix}-meal-source`}
+			bind:value={sourceValue}
+			type="url"
+			autocomplete="off"
+			spellcheck={false}
 		/>
+	</label>
+	{#if !premade}
+		<IngredientRows
+			bind:rows={ingredientRows}
+			{prefix}
+			onAdd={() => {
+				ingredientRows = [...ingredientRows, blankRow()];
+			}}
+			onRemove={(key) => {
+				ingredientRows = ingredientRows.filter(
+					(row) => row.key !== key,
+				);
+			}}
+		/>
+	{/if}
+	{#if editingMeal}
+		<MealShareToggle {prefix} {shared} onChange={(v) => (shared = v)} />
 	{/if}
 	{#if formError}
 		<p class="m-0 text-xs font-semibold text-destructive" role="alert">
