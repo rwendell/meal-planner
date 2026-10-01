@@ -6,7 +6,6 @@
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Switch } from "$lib/components/ui/switch";
 
@@ -102,7 +101,7 @@
 		</Card.Action>
 	</Card.Header>
 
-	<Card.Content class="grid gap-4">
+	<Card.Content class="grid gap-5">
 		<div class="grid gap-2">
 			<span class="text-xs font-semibold text-muted-foreground">
 				Members · {members.length}
@@ -182,7 +181,6 @@
 		</div>
 
 		{#if isOwner}
-			<Separator />
 			<div class="grid gap-3">
 				<span class="text-xs font-semibold text-muted-foreground">
 					Owner permissions
@@ -215,7 +213,6 @@
 			</div>
 		{/if}
 
-		<Separator />
 		<div class="flex justify-start">
 			<AlertDialog.Root>
 				<AlertDialog.Trigger>
