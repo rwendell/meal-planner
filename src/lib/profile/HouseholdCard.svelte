@@ -79,7 +79,7 @@
 				Household name
 			</span>
 		</Card.Title>
-		<Card.Description class="min-w-0">
+		<Card.Description class="grid w-fit gap-1">
 			{#if isOwner}
 				<EditableText
 					value={householdEdit}
@@ -95,7 +95,7 @@
 				<span class="truncate font-semibold">{householdName}</span>
 			{/if}
 		</Card.Description>
-		<Card.Action>
+		<Card.Action class="grid w-fit gap-1 justify-items-end">
 			{#if inviteCode}
 				<span
 					id="household-invite-code-label"
