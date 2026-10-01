@@ -24,9 +24,9 @@
 	>
 		Profile
 	</h1>
-	<p class="m-0 text-sm text-muted-foreground">
+	<span class="text-sm text-muted-foreground">
 		Your name, households, and members.
-	</p>
+	</span>
 </div>
 {#if showActions}
 	<EditActions

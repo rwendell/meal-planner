@@ -33,10 +33,10 @@ let {
 				<h3 class="m-0 text-sm font-semibold">
 					Invite friends
 				</h3>
-				<p class="m-0 text-xs text-muted-foreground">
+				<span class="text-xs text-muted-foreground">
 					Share this code so others can join your
 					household.
-				</p>
+				</span>
 				<div>
 					<InviteCode code={inviteCode} />
 				</div>
@@ -46,9 +46,9 @@ let {
 			<h3 class="m-0 text-sm font-semibold">
 				Join with code
 			</h3>
-			<p class="m-0 text-xs text-muted-foreground">
+			<span class="text-xs text-muted-foreground">
 				Ask a member for their 6-character invite code.
-			</p>
+			</span>
 			<form class="grid gap-2" onsubmit={(event) => onJoin(event)}>
 				<label
 					for="join-code"
@@ -67,12 +67,12 @@ let {
 					/></label
 				>
 				{#if joinError}
-					<p
-						class="m-0 text-xs font-semibold text-destructive"
+					<span
+						class="text-xs font-semibold text-destructive"
 						role="alert"
 					>
 						{joinError}
-					</p>
+					</span>
 				{/if}
 				<Button type="submit" disabled={!joinCode.trim()}
 					>Join</Button

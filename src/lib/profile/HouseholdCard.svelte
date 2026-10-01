@@ -91,43 +91,45 @@
 		</Card.Description>
 		<Card.Action>
 			{#if inviteCode}
-				<p
-					id="household-invite-code-label"
-					class="text-xs font-semibold text-muted-foreground"
-				>
-					Invite code
-				</p>
-				<InviteCode code={inviteCode} />
+				{#if isOwner}
+					<span
+						id="household-invite-code-label"
+						class="text-xs font-semibold text-muted-foreground"
+					>
+						Invite code
+					</span>
+					<EditableText
+						value={inviteEdit}
+						display={inviteCode}
+						placeholder="ABC123"
+						ariaLabel="Invite code"
+						inputClass="w-28 uppercase tracking-[0.2em]"
+						textClass="font-mono font-semibold tracking-[0.2em] uppercase"
+						onInput={(v) => onInviteEdit(v)}
+						onCommit={() => onSave()}
+						onRevert={onCancel}
+					/>
+					{#if inviteError !== ""}
+						<span
+							class="text-xs font-semibold text-destructive"
+							role="alert"
+						>
+							{inviteError}
+						</span>
+					{/if}
+				{:else}
+					<span
+						id="household-invite-code-label"
+						class="text-xs font-semibold text-muted-foreground"
+					>
+						Invite code
+					</span>
+					<InviteCode code={inviteCode} />
+				{/if}
 			{/if}
 		</Card.Action>
 	</Card.Header>
 	<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
-		{#if inviteCode && isOwner}
-			<div class="grid content-start gap-1.5">
-				<span class="text-xs font-semibold text-muted-foreground">
-					Rotate invite code
-				</span>
-				<EditableText
-					value={inviteEdit}
-					display={inviteCode}
-					placeholder="ABC123"
-					ariaLabel="Invite code"
-					inputClass="w-28 uppercase tracking-[0.2em]"
-					textClass="font-mono font-semibold tracking-[0.2em] uppercase"
-					onInput={(v) => onInviteEdit(v)}
-					onCommit={() => onSave()}
-					onRevert={onCancel}
-				/>
-				{#if inviteError !== ""}
-					<p
-						class="m-0 text-xs font-semibold text-destructive"
-						role="alert"
-					>
-						{inviteError}
-					</p>
-				{/if}
-			</div>
-		{/if}
 		<div class="grid gap-2 sm:col-span-2">
 			<span
 				class="text-xs font-semibold text-muted-foreground"
@@ -138,13 +140,13 @@
 				<Skeleton class="h-10" />
 				<Skeleton class="h-10" />
 			{:else if !exists}
-				<p class="m-0 text-sm text-muted-foreground">
+				<span class="text-sm text-muted-foreground">
 					This household no longer exists.
-				</p>
+				</span>
 			{:else if members.length === 0}
-				<p class="m-0 text-sm text-muted-foreground">
+				<span class="text-sm text-muted-foreground">
 					No members yet.
-				</p>
+				</span>
 			{:else}
 				<div class="grid w-fit max-w-full gap-1">
 					{#each members as member (member._id)}

@@ -152,21 +152,22 @@
 		{/if}
 		{#if dirty}
 			{#if impactPending && !impactError}
-				<p class="m-0 text-xs text-muted-foreground">
+				<span class="text-xs text-muted-foreground" role="status">
 					Checking affected meals…
-				</p>
+				</span>
 			{:else if impactMeals > 0}
-				<p
-					class="m-0 text-xs font-semibold text-amber-600 dark:text-amber-500"
+				<span
+					class="text-xs font-semibold text-amber-600 dark:text-amber-500"
+					role="status"
 				>
 					Saving will remove {impactMeals}
 					{impactMeals === 1 ? "meal" : "meals"} from today
 					onward.
-				</p>
+				</span>
 			{:else}
-				<p class="m-0 text-xs text-muted-foreground">
+				<span class="text-xs text-muted-foreground" role="status">
 					No planned meals are affected.
-				</p>
+				</span>
 			{/if}
 		{/if}
 	</Card.Content>

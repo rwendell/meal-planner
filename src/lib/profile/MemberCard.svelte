@@ -89,10 +89,10 @@
 	<div
 		class="flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-3 py-2"
 	>
-		<p class="m-0 min-w-0 flex-1 text-xs text-muted-foreground">
+		<span class="min-w-0 flex-1 text-xs text-muted-foreground">
 			This member isn't linked to your sign-in yet — link it to sync your
 			name and picture.
-		</p>
+		</span>
 		<Button
 			variant="outline"
 			size="sm"
