@@ -6,7 +6,7 @@ import {
 	type QueryCtx,
 	query,
 } from "./_generated/server";
-import { assertCallerMutation } from "./authCheck";
+import { assertCallerMutation, callerUserId } from "./authCheck";
 import schema, { mealSlot, planSlotValue } from "./schema";
 
 const weekDayDoc = schema.doc("weekDays");
@@ -168,7 +168,13 @@ export const setSlot = mutation({
 		}
 		if (args.mealId !== null && args.mealId !== "skip") {
 			const meal = await ctx.db.get("meals", args.mealId);
-			if (!meal || meal.householdId !== args.householdId) {
+			// Own portable meals (created in another household) plan like
+			// local ones; anything else must belong to this household.
+			const userId = await callerUserId(ctx);
+			if (
+				!meal ||
+				(meal.householdId !== args.householdId && meal.ownerAuth !== userId)
+			) {
 				throw new Error("That meal no longer exists.");
 			}
 		}
@@ -312,7 +318,13 @@ export const applyList = mutation({
 				throw new Error("Meal counts must be 0 to 7 days.");
 			}
 			const row = await ctx.db.get("meals", meal.mealId);
-			if (!row || row.householdId !== args.householdId) {
+			// Own portable meals (created in another household) plan like
+			// local ones; anything else must belong to this household.
+			const userId = await callerUserId(ctx);
+			if (
+				!row ||
+				(row.householdId !== args.householdId && row.ownerAuth !== userId)
+			) {
 				throw new Error("That meal no longer exists.");
 			}
 		}

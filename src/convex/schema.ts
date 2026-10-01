@@ -72,6 +72,9 @@ export default defineSchema({
 		// When true, the owner's leftover review covers every member.
 		// Unset means members review only their own plan.
 		ownerReviewsMeals: v.optional(v.boolean()),
+		// When true, every member can see and share the invite code.
+		// Unset/false means only the owner can invite.
+		allowMemberInvites: v.optional(v.boolean()),
 	}).index("by_inviteCode", ["inviteCode"]),
 	householdMembers: defineTable({
 		householdId: v.id("households"),
@@ -118,8 +121,22 @@ export default defineSchema({
 		// created before this field existed still validate; clients
 		// fall back to deriving it from `category`.
 		mealTimes: v.optional(v.array(mealSlot)),
+		// Convex Auth user ID of the member who created this meal.
+		// Set for signed-in creators; lets a user's meals follow them
+		// across households. Unset on legacy and anonymous rows, which
+		// stay scoped to their household.
+		ownerAuth: v.optional(v.string()),
 		householdId: v.id("households"),
-	}).index("by_household", ["householdId"]),
+	})
+		.index("by_household", ["householdId"])
+		.index("by_ownerAuth", ["ownerAuth"]),
+	// Personal planner skips, keyed by login so they follow the user
+	// across households. Member rows stay the live store (writes mirror
+	// to both); this table bridges leave/rejoin cycles.
+	userSkips: defineTable({
+		authSubject: v.string(),
+		cells: v.array(skippedCell),
+	}).index("by_auth", ["authSubject"]),
 	// Step 2 of the workflow: one row per member per calendar date
 	// (ISO YYYY-MM-DD). Every week — past and future — persists.
 	weekDays: defineTable({

@@ -59,7 +59,10 @@ async function uniqueMemberName(
 }
 
 export const get = query({
-	args: { householdId: v.id("households") },
+	args: {
+		householdId: v.id("households"),
+		callerMemberId: v.optional(v.id("householdMembers")),
+	},
 	handler: async (ctx, args) => {
 		const household = await ctx.db.get("households", args.householdId);
 		if (!household) return null;
@@ -68,11 +71,41 @@ export const get = query({
 			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
 			.order("asc")
 			.take(50);
-		return { household, members };
+		// The invite code is need-to-know: owners always see it, members
+		// see it only when the household allows member invites.
+		let inviteCode: string | undefined;
+		if (args.callerMemberId) {
+			const caller = members.find(
+				(member) => member._id === args.callerMemberId,
+			);
+			if (
+				caller &&
+				(canManage(household, caller._id) || household.allowMemberInvites)
+			) {
+				inviteCode = household.inviteCode;
+			}
+		}
+		const { inviteCode: _withheld, ...rest } = household;
+		return {
+			household: {
+				...rest,
+				...(inviteCode === undefined ? {} : { inviteCode }),
+			},
+			members,
+		};
 	},
 	returns: v.union(
 		v.object({
-			household: schema.doc("households"),
+			household: v.object({
+				_id: v.id("households"),
+				_creationTime: v.number(),
+				name: v.string(),
+				inviteCode: v.optional(v.string()),
+				ownerId: v.optional(v.id("householdMembers")),
+				ownerManagesPlans: v.optional(v.boolean()),
+				ownerReviewsMeals: v.optional(v.boolean()),
+				allowMemberInvites: v.optional(v.boolean()),
+			}),
 			members: v.array(schema.doc("householdMembers")),
 		}),
 		v.null(),
@@ -129,6 +162,9 @@ export const join = mutation({
 		inviteCode: v.string(),
 		memberName: v.string(),
 		autoNamed: v.optional(v.boolean()),
+		// Present when joining from an existing kitchen: enforces the
+		// one-household rule and carries skips across.
+		callerMemberId: v.optional(v.id("householdMembers")),
 	},
 	handler: async (ctx, args) => {
 		const code = args.inviteCode.trim().toUpperCase();
@@ -141,11 +177,28 @@ export const join = mutation({
 			.withIndex("by_inviteCode", (q) => q.eq("inviteCode", code))
 			.first();
 		if (!household) throw new Error("No household found with that code.");
+		let carrySkips: SkippedCell[] = [];
+		if (args.callerMemberId) {
+			const caller = await ctx.db.get("householdMembers", args.callerMemberId);
+			if (!caller) throw new Error("Household member not found.");
+			await assertCallerMutation(ctx, caller.householdId, caller._id);
+			const siblings = await ctx.db
+				.query("householdMembers")
+				.withIndex("by_household", (q) =>
+					q.eq("householdId", caller.householdId),
+				)
+				.collect();
+			if (siblings.length > 1) {
+				throw new Error("Leave your current household before joining another.");
+			}
+			carrySkips = caller.skippedCells ?? [];
+		}
 		const name = await uniqueMemberName(ctx, household._id, memberName);
 		const memberId = await ctx.db.insert("householdMembers", {
 			householdId: household._id,
 			name,
 			...(args.autoNamed === true ? { autoNamed: true as const } : {}),
+			...(carrySkips.length > 0 ? { skippedCells: carrySkips } : {}),
 		});
 		// Signed-in joiners link the new row to their sign-in.
 		await linkNewMember(ctx, memberId);
@@ -161,7 +214,7 @@ async function deleteHouseholdContents(
 	ctx: MutationCtx,
 	householdId: Id<"households">,
 ): Promise<void> {
-	const [meals, checks, published] = await Promise.all([
+	const [meals, checks] = await Promise.all([
 		ctx.db
 			.query("meals")
 			.withIndex("by_household", (q) => q.eq("householdId", householdId))
@@ -170,19 +223,16 @@ async function deleteHouseholdContents(
 			.query("shoppingItems")
 			.withIndex("by_household", (q) => q.eq("householdId", householdId))
 			.collect(),
-		ctx.db
-			.query("publishedRecipes")
-			.withIndex("by_household", (q) => q.eq("sourceHouseholdId", householdId))
-			.collect(),
 	]);
 	for (const meal of meals) {
+		// Portable meals follow their creator; only unattributed legacy
+		// rows die with the household. Published snapshots are frozen
+		// shares — leaving never unshares, so they always survive.
+		if (meal.ownerAuth) continue;
 		await ctx.db.delete("meals", meal._id);
 	}
 	for (const check of checks) {
 		await ctx.db.delete("shoppingItems", check._id);
-	}
-	for (const recipe of published) {
-		await ctx.db.delete("publishedRecipes", recipe._id);
 	}
 	await ctx.db.delete("households", householdId);
 }
@@ -273,6 +323,9 @@ export const setInviteCode = mutation({
 			throw new Error("Household member not found.");
 		}
 		await assertCallerMutation(ctx, args.householdId, args.memberId);
+		if (!canManage(household, args.memberId)) {
+			throw new Error("Only the kitchen owner can change the invite code.");
+		}
 		const inviteCode = cleanInviteCode(args.inviteCode);
 		const existing = await ctx.db
 			.query("households")
@@ -412,7 +465,7 @@ function weekdayOf(date: string): number {
 	return new Date(`${date}T12:00:00Z`).getUTCDay();
 }
 
-type SkippedCell = { day: number; slot: (typeof PLAN_SLOTS)[number] };
+type SkippedCell = Infer<typeof skippedCell>;
 
 function skippedKeys(cells: SkippedCell[]): Set<string> {
 	return new Set(cells.map((cell) => `${cell.day}:${cell.slot}`));
@@ -523,6 +576,38 @@ export const applySkippedCells = mutation({
 		await ctx.db.patch("householdMembers", args.memberId, {
 			skippedCells: args.cells,
 		});
+		// Mirror to the login-keyed row so skips survive leave/rejoin.
+		// Member rows stay the live store; every read path is unchanged.
+		const target = await ctx.db.get("householdMembers", args.memberId);
+		if (target?.authSubject) {
+			const parts = target.authSubject.split("|");
+			const plain =
+				parts.length === 3 && parts[1] ? parts[1] : target.authSubject;
+			const stored = await ctx.db
+				.query("userSkips")
+				.withIndex("by_auth", (q) => q.eq("authSubject", plain))
+				.unique();
+			const same =
+				stored &&
+				stored.cells.length === args.cells.length &&
+				stored.cells.every(
+					(cell, i) =>
+						cell.day === args.cells[i]?.day &&
+						cell.slot === args.cells[i]?.slot,
+				);
+			if (!same) {
+				if (stored) {
+					await ctx.db.patch("userSkips", stored._id, {
+						cells: args.cells,
+					});
+				} else if (args.cells.length > 0) {
+					await ctx.db.insert("userSkips", {
+						authSubject: plain,
+						cells: args.cells,
+					});
+				}
+			}
+		}
 		const skipped = skippedKeys(args.cells);
 		const rows = await ctx.db
 			.query("weekDays")
@@ -576,6 +661,32 @@ export const setOwnerManagesPlans = mutation({
 		}
 		await ctx.db.patch("households", args.householdId, {
 			ownerManagesPlans: args.enabled,
+		});
+		return null;
+	},
+	returns: v.null(),
+});
+
+export const setAllowMemberInvites = mutation({
+	args: {
+		householdId: v.id("households"),
+		callerMemberId: v.id("householdMembers"),
+		enabled: v.boolean(),
+	},
+	handler: async (ctx, args) => {
+		const [household, caller] = await Promise.all([
+			ctx.db.get("households", args.householdId),
+			ctx.db.get("householdMembers", args.callerMemberId),
+		]);
+		if (!household || !caller || caller.householdId !== args.householdId) {
+			throw new Error("Household member not found.");
+		}
+		await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
+		if (!canManage(household, args.callerMemberId)) {
+			throw new Error("Only the kitchen owner can change this setting.");
+		}
+		await ctx.db.patch("households", args.householdId, {
+			allowMemberInvites: args.enabled,
 		});
 		return null;
 	},
@@ -648,68 +759,69 @@ export const removeMember = mutation({
 	returns: v.object({ householdDeleted: v.boolean() }),
 });
 
-const rosterEntry = v.object({
-	household: v.object({
-		_id: v.id("households"),
-		name: v.string(),
-		inviteCode: v.string(),
-	}),
-	member: v.object({
-		_id: v.id("householdMembers"),
-		name: v.string(),
-	}),
-	memberCount: v.number(),
-	isOwner: v.boolean(),
-});
-
-export const listHouseholds = query({
-	args: {
-		refs: v.array(
-			v.object({
-				householdId: v.id("households"),
-				memberId: v.id("householdMembers"),
-			}),
-		),
-	},
-	handler: async (ctx, args) => {
-		const results: Array<Infer<typeof rosterEntry> | null> = [];
-		const seen = new Set<string>();
-		for (const ref of args.refs.slice(0, 20)) {
-			const key = `${ref.householdId}:${ref.memberId}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			const [household, member] = await Promise.all([
-				ctx.db.get("households", ref.householdId),
-				ctx.db.get("householdMembers", ref.memberId),
-			]);
-			if (!household || !member || member.householdId !== ref.householdId) {
-				results.push(null);
-				continue;
+/**
+ * Portable-data backfill when a member row links to a sign-in: personal
+ * data follows the login, so attribute it now.
+ *
+ * - Solo-household meals without an owner adopt this user (multi-member
+ *   households keep unattributed rows — no safe owner exists there).
+ * - Skips union into the login-keyed userSkips row, bridging future
+ *   leave/rejoin cycles (member rows stay the live store).
+ */
+async function backfillPortableData(
+	ctx: MutationCtx,
+	memberId: Id<"householdMembers">,
+	userId: string,
+): Promise<void> {
+	const member = await ctx.db.get("householdMembers", memberId);
+	if (!member) return;
+	const siblings = await ctx.db
+		.query("householdMembers")
+		.withIndex("by_household", (q) => q.eq("householdId", member.householdId))
+		.collect();
+	if (siblings.length === 1) {
+		const unattributed = await ctx.db
+			.query("meals")
+			.withIndex("by_household", (q) => q.eq("householdId", member.householdId))
+			.collect();
+		for (const meal of unattributed) {
+			if (!meal.ownerAuth) {
+				await ctx.db.patch("meals", meal._id, { ownerAuth: userId });
 			}
-			const members = await ctx.db
-				.query("householdMembers")
-				.withIndex("by_household", (q) => q.eq("householdId", ref.householdId))
-				.collect();
-			results.push({
-				household: {
-					_id: household._id,
-					name: household.name,
-					inviteCode: household.inviteCode,
-				},
-				member: { _id: member._id, name: member.name },
-				memberCount: members.length,
-				isOwner: !household.ownerId || household.ownerId === member._id,
-			});
 		}
-		return results;
-	},
-	returns: v.array(v.union(rosterEntry, v.null())),
-});
+	}
+	const key = (cell: SkippedCell) => `${cell.day}:${cell.slot}`;
+	const union = new Map<string, SkippedCell>();
+	const existing = await ctx.db
+		.query("userSkips")
+		.withIndex("by_auth", (q) => q.eq("authSubject", userId))
+		.unique();
+	for (const cell of [
+		...(existing?.cells ?? []),
+		...(member.skippedCells ?? []),
+	]) {
+		union.set(key(cell), cell);
+	}
+	const cells = [...union.values()];
+	const changed =
+		!existing ||
+		existing.cells.length !== cells.length ||
+		existing.cells.some((cell, i) => {
+			const next = cells[i];
+			return !next || key(cell) !== key(next);
+		});
+	if (!changed) return;
+	if (existing) {
+		await ctx.db.patch("userSkips", existing._id, { cells });
+	} else if (cells.length > 0) {
+		await ctx.db.insert("userSkips", { authSubject: userId, cells });
+	}
+}
 
 /**
  * Every membership linked to the signed-in user. Anonymous callers get
- * []. The client reconciles this into the local roster so all of the
- * user's kitchens — not just the active one — survive a new device.
+ * []. Single-household client: used only so a signed-in user on a new
+ * device rejoins their kitchen instead of provisioning a duplicate.
  */
 export const myMemberships = query({
 	args: {},
@@ -763,6 +875,12 @@ export const myMemberships = query({
  * Rows already linked to a different sign-in count as skipped — the UI
  * reconciles through myMemberships instead.
  */
+
+/**
+ * Link member rows to the signer (claiming) or refresh already-linked
+ * rows, attribute portable data along the way. Rows already linked to a
+ * different sign-in count as skipped.
+ */
 export const claimHouseholds = mutation({
 	args: {
 		refs: v.array(
@@ -795,6 +913,7 @@ export const claimHouseholds = mutation({
 			}
 			if (!member.authSubject) {
 				await applyAuthProfile(ctx, member._id);
+				await backfillPortableData(ctx, member._id, userId);
 				claimed += 1;
 				continue;
 			}
@@ -802,6 +921,7 @@ export const claimHouseholds = mutation({
 				// Already linked: still refresh name/picture (and
 				// normalize legacy tokenIdentifier links to user ID).
 				await applyAuthProfile(ctx, member._id);
+				await backfillPortableData(ctx, member._id, userId);
 				alreadyMine += 1;
 				continue;
 			}

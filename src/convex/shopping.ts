@@ -1,6 +1,7 @@
 import { type Infer, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { visibleMeals } from "./meals";
 import { groceryGroup } from "./schema";
 
 type GroceryGroup = Infer<typeof groceryGroup>;
@@ -47,35 +48,39 @@ export const list = query({
 	handler: async (ctx, args) => {
 		if (!ISO_DATE.test(args.today)) throw new Error("Invalid date.");
 		const unique = [...new Set(args.dates)].slice(0, 45);
-		const [dayGroups, meals, checks, pantry, ready] = await Promise.all([
-			Promise.all(
-				unique.map((date) =>
-					ctx.db
-						.query("weekDays")
-						.withIndex("by_household_and_date", (q) =>
-							q.eq("householdId", args.householdId).eq("date", date),
-						)
-						.collect(),
+		const [dayGroups, householdMeals, checks, pantry, ready] =
+			await Promise.all([
+				Promise.all(
+					unique.map((date) =>
+						ctx.db
+							.query("weekDays")
+							.withIndex("by_household_and_date", (q) =>
+								q.eq("householdId", args.householdId).eq("date", date),
+							)
+							.collect(),
+					),
 				),
-			),
-			ctx.db
-				.query("meals")
-				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-				.collect(),
-			ctx.db
-				.query("shoppingItems")
-				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-				.collect(),
-			ctx.db
-				.query("pantryItems")
-				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-				.collect(),
-			ctx.db
-				.query("readyMeals")
-				.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-				.collect(),
-		]);
-		const mealsById = new Map(meals.map((meal) => [meal._id, meal]));
+				visibleMeals(ctx, args.householdId),
+				ctx.db
+					.query("shoppingItems")
+					.withIndex("by_household", (q) =>
+						q.eq("householdId", args.householdId),
+					)
+					.collect(),
+				ctx.db
+					.query("pantryItems")
+					.withIndex("by_household", (q) =>
+						q.eq("householdId", args.householdId),
+					)
+					.collect(),
+				ctx.db
+					.query("readyMeals")
+					.withIndex("by_household", (q) =>
+						q.eq("householdId", args.householdId),
+					)
+					.collect(),
+			]);
+		const mealsById = new Map(householdMeals.map((meal) => [meal._id, meal]));
 		const checkedByKey = new Map(
 			checks.map((item) => [item.key, item.checked]),
 		);

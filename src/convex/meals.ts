@@ -1,10 +1,46 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { type MutationCtx, mutation, query } from "./_generated/server";
+import {
+	type MutationCtx,
+	mutation,
+	type QueryCtx,
+	query,
+} from "./_generated/server";
+import { assertCallerMutation, callerUserId } from "./authCheck";
 import { upsertPublishedSnapshot } from "./recipes";
 import schema, { ingredient, mealCategory, mealSlot } from "./schema";
 
 const mealDoc = schema.doc("meals");
+
+/**
+ * Meals visible in a household: its own rows plus the viewer's portable
+ * rows created in other households (matched by login, so they follow the
+ * user across join/leave). Anonymous callers see household rows only.
+ */
+export async function visibleMeals(
+	ctx: QueryCtx,
+	householdId: Id<"households">,
+) {
+	const householdMeals = await ctx.db
+		.query("meals")
+		.withIndex("by_household", (q) => q.eq("householdId", householdId))
+		.order("desc")
+		.take(200);
+	const userId = await callerUserId(ctx);
+	if (!userId) return householdMeals;
+	const mine = await ctx.db
+		.query("meals")
+		.withIndex("by_ownerAuth", (q) => q.eq("ownerAuth", userId))
+		.collect();
+	const seen = new Set(householdMeals.map((meal) => meal._id));
+	for (const meal of mine) {
+		if (!seen.has(meal._id)) {
+			seen.add(meal._id);
+			householdMeals.push(meal);
+		}
+	}
+	return householdMeals;
+}
 
 async function assertUniqueName(
 	ctx: MutationCtx,
@@ -51,11 +87,7 @@ function normalizePrepMinutes(
 export const list = query({
 	args: { householdId: v.id("households") },
 	handler: async (ctx, args) => {
-		return await ctx.db
-			.query("meals")
-			.withIndex("by_household", (q) => q.eq("householdId", args.householdId))
-			.order("desc")
-			.take(200);
+		return await visibleMeals(ctx, args.householdId);
 	},
 	returns: v.array(mealDoc),
 });
@@ -75,10 +107,20 @@ export const create = mutation({
 		shared: v.optional(v.boolean()),
 		// Heat-and-eat product rather than cooked from ingredients.
 		premade: v.optional(v.boolean()),
+		// Attributing creator (optional so already-deployed clients keep
+		// working): stamps ownerAuth so the meal follows its creator.
+		callerMemberId: v.optional(v.id("householdMembers")),
 	},
 	handler: async (ctx, args) => {
 		const household = await ctx.db.get("households", args.householdId);
 		if (!household) throw new Error("Household not found.");
+		let ownerAuth: string | undefined;
+		if (args.callerMemberId) {
+			await assertCallerMutation(ctx, args.householdId, args.callerMemberId);
+			// Plain user ID (never the legacy tokenIdentifier form), so the
+			// exact by_ownerAuth index matches across devices and sessions.
+			ownerAuth = (await callerUserId(ctx)) ?? undefined;
+		}
 		const name = args.name.trim();
 		if (!name) throw new Error("Meal name is required.");
 		if (args.mealTimes.length === 0) {
@@ -94,6 +136,7 @@ export const create = mutation({
 			note: args.note?.trim() || "No description",
 			...(time === undefined ? {} : { time }),
 			color: args.color ?? "#f2cbb9",
+			...(ownerAuth === undefined ? {} : { ownerAuth }),
 			...(sourceUrl === undefined ? {} : { sourceUrl }),
 			...(args.premade === undefined ? {} : { premade: args.premade }),
 			ingredients: args.ingredients ?? [],
