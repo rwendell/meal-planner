@@ -27,7 +27,7 @@ let {
 			skipped meals come with you.
 		</Card.Description>
 	</Card.Header>
-	<Card.Content class="grid gap-6">
+	<Card.Content class="grid gap-6 sm:grid-cols-2">
 		{#if inviteCode}
 			<div class="grid content-start gap-2">
 				<h3 class="m-0 text-sm font-semibold">
