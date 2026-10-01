@@ -117,7 +117,7 @@
 				{:else if meal}
 					{const prepTime = $derived(displayMealTime(meal.time))}
 					<div
-						class="flex items-start justify-between gap-3 rounded-[14px] border border-solid px-[14px] py-[13px] text-foreground [border-color:color-mix(in_srgb,var(--meal-color)_30%,var(--border))] [border-left:4px_solid_var(--meal-color)] [background:color-mix(in_srgb,var(--meal-color)_12%,var(--card))]"
+						class="flex items-start justify-between gap-3 rounded-[14px] border border-solid px-[14px] py-[13px] text-foreground [border-color:color-mix(in_srgb,var(--meal-color)_30%,var(--border))] [border-left:4px_solid_color-mix(in_oklch,var(--meal-color)_65%,transparent)] [background:color-mix(in_srgb,var(--meal-color)_12%,var(--card))]"
 						style={`--meal-color: ${meal.color}`}
 					>
 						<div class="min-w-0">

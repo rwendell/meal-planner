@@ -1,0 +1,22 @@
+/**
+ * Custom design tokens owned by this project (not the shadcn registry).
+ *
+ * These live here — instead of `layout.css` — so shadcn CLI updates, which
+ * only ever write component files and the managed stylesheet, can't absorb
+ * or overwrite them. `layout.css` pulls this file in with one `@import`.
+ */
+
+/* Meal-time coding for the planner: soft pastels by time of day. */
+:root {
+	--meal-breakfast: oklch(0.88 0.09 75);
+	--meal-lunch: oklch(0.88 0.08 150);
+	--meal-dinner: oklch(0.86 0.075 260);
+	--meal-snack: oklch(0.87 0.09 345);
+}
+
+.dark {
+	--meal-breakfast: oklch(0.63 0.11 75);
+	--meal-lunch: oklch(0.62 0.1 150);
+	--meal-dinner: oklch(0.6 0.11 260);
+	--meal-snack: oklch(0.62 0.11 345);
+}

@@ -130,7 +130,7 @@
 							{:else if meal}
 								<div
 									class="group flex min-h-[46px] items-start justify-between gap-1.5 rounded-[11px] p-2 text-[10px] leading-[1.25] font-extrabold text-[#32433b]"
-									style={`background: ${meal.color}`}
+									style={`background: color-mix(in oklch, ${meal.color} 30%, var(--card))`}
 								>
 									<span class="min-w-0"
 										>{#if readyMadeIds.has(meal.id)}<span

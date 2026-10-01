@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Project-owned tokens (meal colors, future custom utilities). Restore this
+   line if a shadcn init ever rewrites this file. */
+@import "./custom.css";
+
 @custom-variant dark (&:is(.dark *));
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";

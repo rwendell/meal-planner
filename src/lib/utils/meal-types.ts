@@ -31,6 +31,35 @@ export function fallbackMealTimes(category: MealCategory): MealType[] {
 }
 
 /**
+ * Display color for a meal, derived from its meal times so the planner is
+ * color-coded by time of day instead of by stored per-meal color.
+ *
+ * Returns a CSS color expression built from the `--meal-*` theme variables
+ * (defined in `src/routes/custom.css` for light + dark): a single time maps
+ * to its variable; multiple times mix pairwise in canonical meal-time order
+ * via nested `color-mix()`, so every combination resolves to one value the
+ * existing tint/border plumbing can consume. Empty lists fall back to
+ * breakfast (matching the historical default pastel).
+ */
+const MEAL_TIME_VARS: Record<MealType, string> = {
+	breakfast: "var(--meal-breakfast)",
+	lunch: "var(--meal-lunch)",
+	dinner: "var(--meal-dinner)",
+	snack: "var(--meal-snack)",
+};
+
+export function mealTimeColor(times: MealType[]): string {
+	const ordered = ALL_MEAL_TIMES.filter((time) => times.includes(time));
+	if (ordered.length === 0) return MEAL_TIME_VARS.breakfast;
+	let blended = MEAL_TIME_VARS[ordered[0]];
+	for (let k = 1; k < ordered.length; k += 1) {
+		const share = ((100 * k) / (k + 1)).toFixed(2).replace(/\.?0+$/, "");
+		blended = `color-mix(in oklch, ${blended} ${share}%, ${MEAL_TIME_VARS[ordered[k]]})`;
+	}
+	return blended;
+}
+
+/**
  * Single source of truth for manual meal category values.
  * Deterministically derives `MealCategory` from selected `MealType[]`
  * using canonical meal-time order: breakfast, then lunch, then dinner,

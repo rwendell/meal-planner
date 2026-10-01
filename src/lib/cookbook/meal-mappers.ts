@@ -3,6 +3,7 @@ import {
 	fallbackMealTimes,
 	type MealCategory,
 	type MealType,
+	mealTimeColor,
 } from "$lib/utils/meal-types.js";
 
 export interface PlannerMeal {
@@ -46,7 +47,7 @@ export function mapToPlannerMeals(rows: readonly MealRow[]): PlannerMeal[] {
 		category: meal.category,
 		note: meal.note,
 		time: meal.time,
-		color: meal.color,
+		color: mealTimeColor(meal.mealTimes ?? fallbackMealTimes(meal.category)),
 		ingredientCount: meal.ingredients.length,
 		mealTimes: meal.mealTimes ?? fallbackMealTimes(meal.category),
 	}));
