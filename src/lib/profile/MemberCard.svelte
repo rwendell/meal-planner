@@ -1,8 +1,8 @@
 <script lang="ts">
+	import EditableText from "$lib/components/EditableText.svelte";
 	import InfoTip from "$lib/components/InfoTip.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Button } from "$lib/components/ui/button";
-	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Switch } from "$lib/components/ui/switch";
 	import { cn } from "$lib/utils.js";
@@ -52,26 +52,17 @@
 			size="lg"
 		/>
 		<div class="min-w-0 flex-1">
-			<form
-				class="flex min-w-0 flex-1 items-center gap-1.5"
-				onsubmit={(event) => onSave(event)}
-			>
-				<Input
-					id="my-name"
-					value={nameEdit}
-					oninput={(event) => onNameEdit(event.currentTarget.value)}
-					required
-					maxlength={40}
-					placeholder="Your name"
-					autocomplete="given-name"
-					aria-label="Display name"
-					class="h-8"
-					disabled={saving}
-					onkeydown={(event) => {
-						if (event.key === "Escape") onCancel();
-					}}
-				/>
-			</form>
+			<EditableText
+				value={nameEdit}
+				display={name}
+				placeholder="Your name"
+				ariaLabel="Display name"
+				inputClass="h-8"
+				textClass="truncate font-semibold"
+				onInput={(v) => onNameEdit(v)}
+				onCommit={() => onSave()}
+				onRevert={onCancel}
+			/>
 			<p
 				class="m-0 truncate text-xs text-muted-foreground"
 			>

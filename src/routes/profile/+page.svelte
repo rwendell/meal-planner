@@ -82,7 +82,7 @@
 	{:else}
 		<div class="grid items-start gap-3 min-[560px]:gap-4">
 			<div
-				{@attach header.attach}
+				{@attach (element) => header.attach(element)}
 				class="flex flex-wrap items-start justify-between gap-3"
 			>
 				<ProfileHeader
@@ -229,8 +229,14 @@
 			/>
 
 			{#if editor.viewedEntry && !header.visible}
-				<div class="flex justify-end">
-					<EditActions
+				<div
+					class="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] z-30 px-[18px] sm:bottom-6 sm:px-7"
+				>
+					<div class="mx-auto flex max-w-[1180px] justify-end">
+						<div
+							class="rounded-xl border bg-card/95 p-2 shadow-lg backdrop-blur"
+						>
+							<EditActions
 						editing={true}
 						disabled={editor.saving}
 						saveDisabled={editor.saveDisabled}
@@ -239,6 +245,8 @@
 						onCancel={() => editor.cancelEditing()}
 						onSave={() => void editor.save()}
 					/>
+						</div>
+					</div>
 				</div>
 			{/if}
 		</div>

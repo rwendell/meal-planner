@@ -1,12 +1,12 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
+	import EditableText from "$lib/components/EditableText.svelte";
 	import InfoTip from "$lib/components/InfoTip.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Input } from "$lib/components/ui/input";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Switch } from "$lib/components/ui/switch";
@@ -85,28 +85,18 @@
 				class="text-xs font-semibold text-muted-foreground"
 				>Household name</span
 			>
-			<form
-				class="grid gap-2"
-				onsubmit={(event) => onSave(event)}
-			>
-				<Input
-					id="household-name"
-					value={householdEdit}
-					oninput={(event) =>
-						onHouseholdEdit(event.currentTarget.value)}
-					required
-					maxlength={40}
-					placeholder="Household name"
-					autocomplete="off"
-					aria-label="Household name"
-					disabled={saving}
-					onkeydown={(event) => {
-						if (event.key === "Escape") onCancel();
-					}}
-				/>
-			</form>
+			<EditableText
+				value={householdEdit}
+				display={householdName}
+				placeholder="Household name"
+				ariaLabel="Household name"
+				textClass="truncate text-sm font-semibold"
+				onInput={(v) => onHouseholdEdit(v)}
+				onCommit={() => onSave()}
+				onRevert={onCancel}
+			/>
 		</div>
-		{#if inviteCode}
+		{#if inviteCode && isOwner}
 		<div class="grid content-start gap-1.5">
 			<span
 				id="household-invite-code-label"
@@ -115,29 +105,17 @@
 				Invite code
 			</span>
 			<div class="flex flex-wrap items-center gap-2">
-				{#if isOwner}
-					<Input
-						id="household-invite-code"
-						value={inviteEdit}
-						oninput={(event) =>
-							onInviteEdit(event.currentTarget.value)}
-						required
-						maxlength={6}
-						placeholder="ABC123"
-						autocomplete="off"
-						autocapitalize="characters"
-						aria-labelledby="household-invite-code-label"
-						class="w-28 uppercase tracking-[0.2em]"
-						disabled={saving}
-						onkeydown={(event) => {
-							if (event.key === "Escape") onCancel();
-						}}
-					/>
-				{:else}
-					<InviteCode
-						code={inviteCode}
-					/>
-				{/if}
+				<EditableText
+					value={inviteEdit}
+					display={inviteCode}
+					placeholder="ABC123"
+					ariaLabel="Invite code"
+					inputClass="w-28 uppercase tracking-[0.2em]"
+					textClass="font-mono font-semibold tracking-[0.2em] uppercase"
+					onInput={(v) => onInviteEdit(v)}
+					onCommit={() => onSave()}
+					onRevert={onCancel}
+				/>
 			</div>
 			{#if inviteError !== ""}
 				<p
