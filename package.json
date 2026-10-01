@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "aubx convex dev --start \"vite dev --open\"",
+		"dev": "aubx convex dev --start \"env LAUNCH_EDITOR=./scripts/open-in-editor.sh vite dev --open\"",
 		"dev:host": "aubx convex dev --start \"vite dev --host --open\"",
 		"dev:app": "vite dev --open",
 		"dev:convex": "aubx convex dev",
