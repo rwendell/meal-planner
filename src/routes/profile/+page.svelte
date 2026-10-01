@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
+	import { beforeNavigate } from "$app/navigation";
 	import EditActions from "$lib/components/EditActions.svelte";
 	import TextButton from "$lib/components/TextButton.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -41,6 +42,21 @@
 		);
 	}
 
+	beforeNavigate(async (navigation) => {
+		if (!editor.hasUnsavedChanges) return;
+		if (
+			editor.skipsDirty &&
+			(editor.impactMeals > 0 || editor.impactPending)
+		) {
+			// Removing planned meals needs an explicit yes: stay put and
+			// let the normal save flow open the confirm dialog.
+			navigation.cancel();
+			await editor.save();
+			return;
+		}
+		await editor.save();
+	});
+
 	async function leaveViewed(): Promise<void> {
 		const entry = editor.viewedEntry;
 		if (!entry) return;
@@ -49,6 +65,12 @@
 </script>
 
 <svelte:head><title>Profile · Meal Planner</title></svelte:head>
+
+<svelte:window
+	onbeforeunload={(event) => {
+		if (editor.hasUnsavedChanges) event.preventDefault();
+	}}
+/>
 
 <main
 	class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
@@ -64,14 +86,11 @@
 				class="flex flex-wrap items-start justify-between gap-3"
 			>
 				<ProfileHeader
-					editing={editor.editing}
 					saving={editor.saving}
 					saveDisabled={editor.saveDisabled}
 					showActions={Boolean(
-						(editor.identityEntry ?? editor.viewedEntry) &&
-							header.visible,
+						editor.viewedEntry && header.visible,
 					)}
-					onEdit={() => void editor.startEditing()}
 					onCancel={() => editor.cancelEditing()}
 					onSave={() => void editor.save()}
 				/>
@@ -82,7 +101,6 @@
 					isOwner={editor.isOwner}
 					householdName={editor.identityHousehold?.name ?? ""}
 					memberImage={editor.identityMember?.image ?? null}
-					editing={editor.editing}
 					saving={editor.saving}
 					nameEdit={editor.myNameEdit}
 					onNameEdit={(v) => (editor.myNameEdit = v)}
@@ -91,7 +109,6 @@
 					autoShare={editor.pendingAutoShareMeals}
 					showAutoShare={Boolean(editor.identityMember)}
 					onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
-					inputRef={(el) => (editor.nameInput = el)}
 					showLinkBanner={Boolean(
 						auth.isAuthenticated &&
 							editor.identityMember &&
@@ -103,7 +120,6 @@
 
 				<ExclusionsCard
 					loading={editor.identityLoading}
-					editing={editor.editing}
 					saving={editor.saving}
 					shownSet={editor.shownSkipsSet}
 					dirty={editor.skipsDirty}
@@ -131,7 +147,6 @@
 					myId={editor.myId}
 					isManager={editor.isManager}
 					isOwner={editor.isOwner}
-					editing={editor.editing}
 					saving={editor.saving}
 					householdEdit={editor.householdNameEdit}
 					inviteEdit={editor.inviteCodeEdit}
@@ -154,9 +169,8 @@
 					exists={Boolean(editor.household)}
 				/>
 
-				{#if editor.editing}
-					<div class="flex justify-start">
-						<AlertDialog.Root>
+				<div class="flex justify-start">
+					<AlertDialog.Root>
 							<AlertDialog.Trigger>
 								{#snippet child({ props })}
 									<TextButton
@@ -195,7 +209,6 @@
 							</AlertDialog.Content>
 						</AlertDialog.Root>
 					</div>
-				{/if}
 			{/if}
 
 			{#if editor.members.length <= 1}
@@ -218,11 +231,11 @@
 			{#if editor.viewedEntry && !header.visible}
 				<div class="flex justify-end">
 					<EditActions
-						editing={editor.editing}
+						editing={true}
 						disabled={editor.saving}
 						saveDisabled={editor.saveDisabled}
 						saving={editor.saving}
-						onEdit={() => void editor.startEditing()}
+						onEdit={() => {}}
 						onCancel={() => editor.cancelEditing()}
 						onSave={() => void editor.save()}
 					/>

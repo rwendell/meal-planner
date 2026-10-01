@@ -12,7 +12,6 @@
 
 	let {
 		loading,
-		editing,
 		saving,
 		shownSet,
 		dirty,
@@ -26,7 +25,6 @@
 		daySkippedCount,
 	}: {
 		loading: boolean;
-		editing: boolean;
 		saving: boolean;
 		shownSet: Set<string>;
 		dirty: boolean;
@@ -81,7 +79,7 @@
 											? `Include all ${row.label} meals`
 											: `Skip all ${row.label} meals`}
 										pressed={dayFull}
-										disabled={!editing || saving}
+										disabled={saving}
 										onclick={() =>
 											onToggleDay(row.day, !dayFull)}
 										class="px-1 py-0.5 text-[10px] font-semibold text-foreground disabled:opacity-100"
@@ -111,7 +109,7 @@
 										? `Include all ${slot.label.toLowerCase()} meals`
 										: `Skip all ${slot.label.toLowerCase()} meals`}
 									pressed={rowFull}
-									disabled={!editing || saving}
+									disabled={saving}
 									onclick={() =>
 										onToggleSlot(slot.id, !rowFull)}
 									class={rowFull
@@ -144,8 +142,7 @@
 														value,
 													);
 											}}
-											disabled={!editing ||
-												saving}
+											disabled={saving}
 											aria-label={`Skip ${slot.label} on ${row.label}`}
 										/>
 									</span>
@@ -156,7 +153,7 @@
 				</div>
 			</fieldset>
 		{/if}
-		{#if editing && dirty}
+		{#if dirty}
 			{#if impactPending && !impactError}
 				<p class="m-0 text-xs text-muted-foreground">
 					Checking affected meals…

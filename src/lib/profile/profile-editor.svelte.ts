@@ -1,5 +1,4 @@
 import { type UseQueryReturn, useMutation, useQuery } from "convex-svelte";
-import { tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deviceName, session } from "$lib/stores/session.svelte.js";
 import { todayISO } from "$lib/utils/dates.js";
@@ -35,7 +34,6 @@ interface SessionEntry {
 }
 
 export class ProfileEditor {
-	editing = $state(false);
 	saving = $state(false);
 	myNameEdit = $state("");
 	householdNameEdit = $state("");
@@ -44,7 +42,6 @@ export class ProfileEditor {
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
 	allowMemberInvitesDraft = $state<boolean | null>(null);
 	autoShareMealsDraft = $state<boolean | null>(null);
-	nameInput = $state<HTMLInputElement | null>(null);
 	confirmSkipsOpen = $state(false);
 
 	private myNameEditKey = $state<string | null>(null);
@@ -145,16 +142,13 @@ export class ProfileEditor {
 		return this.identityMember?.skippedCells ?? [];
 	}
 	private get shownSkips(): SkippedCell[] {
-		return this.editing
-			? (this.skippedDraft ?? this.savedSkips)
-			: this.savedSkips;
+		return this.skippedDraft ?? this.savedSkips;
 	}
 	get shownSkipsSet(): Set<string> {
 		return skippedCellSet(this.shownSkips);
 	}
 	get skipsDirty(): boolean {
 		return (
-			this.editing &&
 			this.skippedDraft !== null &&
 			!sameSkippedCells(this.skippedDraft, this.savedSkips)
 		);
@@ -206,40 +200,47 @@ export class ProfileEditor {
 				? "Use exactly 6 letters or digits."
 				: "",
 	);
-	get saveDisabled(): boolean {
+	/**
+	 * Anything differing from the server: drives the Save button state,
+	 * the dirty-guard on navigation, and the auto-commit on leave.
+	 */
+	get hasUnsavedChanges(): boolean {
 		const identity = this.identityEntry;
 		const viewed = this.viewedEntry;
-		// Invite-code checks only apply when the code is visible: members
-		// without invite permission never see it.
+		if (!identity || !viewed) return false;
+		// Invite-code comparison only applies when the code is visible:
+		// members without invite permission never see it.
+		const canSeeCode = viewed.household.inviteCode !== undefined;
+		return (
+			this.myNameEdit.trim() !== identity.member.name ||
+			this.householdNameEdit.trim() !== viewed.household.name ||
+			(canSeeCode && this.pendingInviteCode !== viewed.household.inviteCode) ||
+			(this.isOwner &&
+				this.ownerManagesPlansDraft !== null &&
+				this.ownerManagesPlansDraft !==
+					(this.household?.ownerManagesPlans ?? false)) ||
+			(this.isOwner &&
+				this.ownerReviewsMealsDraft !== null &&
+				this.ownerReviewsMealsDraft !==
+					(this.household?.ownerReviewsMeals ?? false)) ||
+			(this.isOwner &&
+				this.allowMemberInvitesDraft !== null &&
+				this.allowMemberInvitesDraft !==
+					(this.household?.allowMemberInvites ?? false)) ||
+			(this.autoShareMealsDraft !== null &&
+				this.autoShareMealsDraft !==
+					(this.identityMember?.autoShareMeals ?? true)) ||
+			this.skipsDirty
+		);
+	}
+	get saveDisabled(): boolean {
+		const viewed = this.viewedEntry;
 		const canSeeCode = viewed?.household.inviteCode !== undefined;
 		return (
 			!this.myNameEdit.trim() ||
 			!this.householdNameEdit.trim() ||
 			(canSeeCode && this.inviteCodeError !== "") ||
-			!identity ||
-			!viewed ||
-			!(
-				this.myNameEdit.trim() !== identity.member.name ||
-				this.householdNameEdit.trim() !== viewed.household.name ||
-				(canSeeCode &&
-					this.pendingInviteCode !== viewed.household.inviteCode) ||
-				(this.isOwner &&
-					this.ownerManagesPlansDraft !== null &&
-					this.ownerManagesPlansDraft !==
-						(this.household?.ownerManagesPlans ?? false)) ||
-				(this.isOwner &&
-					this.ownerReviewsMealsDraft !== null &&
-					this.ownerReviewsMealsDraft !==
-						(this.household?.ownerReviewsMeals ?? false)) ||
-				(this.isOwner &&
-					this.allowMemberInvitesDraft !== null &&
-					this.allowMemberInvitesDraft !==
-						(this.household?.allowMemberInvites ?? false)) ||
-				(this.autoShareMealsDraft !== null &&
-					this.autoShareMealsDraft !==
-						(this.identityMember?.autoShareMeals ?? true)) ||
-				this.skipsDirty
-			) ||
+			!this.hasUnsavedChanges ||
 			this.impactPending ||
 			this.saving
 		);
@@ -275,7 +276,6 @@ export class ProfileEditor {
 				this.myNameEditKey = member._id;
 				this.myNameEdit = member.name;
 				this.autoShareMealsDraft = null;
-				this.editing = false;
 				this.saving = false;
 			}
 		});
@@ -290,7 +290,6 @@ export class ProfileEditor {
 				this.inviteCodeEdit = house.inviteCode ?? "";
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
-				this.editing = false;
 				this.saving = false;
 			}
 		});
@@ -370,15 +369,6 @@ export class ProfileEditor {
 		}
 	}
 
-	async startEditing(): Promise<void> {
-		if (!this.viewedEntry) return;
-		this.skippedDraft = null;
-		this.editing = true;
-		await tick();
-		this.nameInput?.focus();
-		this.nameInput?.select();
-	}
-
 	cancelEditing(): void {
 		const identity = this.identityEntry;
 		if (identity) {
@@ -395,7 +385,6 @@ export class ProfileEditor {
 		this.autoShareMealsDraft = null;
 		this.skippedDraft = null;
 		this.confirmSkipsOpen = false;
-		this.editing = false;
 	}
 
 	async save(event?: SubmitEvent): Promise<void> {
@@ -413,7 +402,6 @@ export class ProfileEditor {
 		if (
 			!entry ||
 			!identity ||
-			!this.editing ||
 			this.saving ||
 			!memberName ||
 			!householdName ||
@@ -467,7 +455,6 @@ export class ProfileEditor {
 			!allowInvitesChanged &&
 			!autoShareChanged
 		) {
-			this.editing = false;
 			return;
 		}
 		this.saving = true;
@@ -591,7 +578,6 @@ export class ProfileEditor {
 				this.ownerReviewsMealsDraft = null;
 				this.allowMemberInvitesDraft = null;
 				this.autoShareMealsDraft = null;
-				this.editing = false;
 			}
 		} finally {
 			this.saving = false;

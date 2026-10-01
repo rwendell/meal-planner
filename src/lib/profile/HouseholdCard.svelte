@@ -25,7 +25,6 @@
 		myId,
 		isManager,
 		isOwner,
-		editing,
 		saving,
 		householdEdit,
 		inviteEdit,
@@ -51,7 +50,6 @@
 		myId: string | null;
 		isManager: boolean;
 		isOwner: boolean;
-		editing: boolean;
 		saving: boolean;
 		householdEdit: string;
 		inviteEdit: string;
@@ -74,7 +72,12 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Current household</Card.Title>
+		<Card.Title>{householdName}</Card.Title>
+		<Card.Action>
+			{#if inviteCode}
+				<InviteCode code={inviteCode} />
+			{/if}
+		</Card.Action>
 	</Card.Header>
 	<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
 		<div class="grid content-start gap-1.5">
@@ -82,32 +85,26 @@
 				class="text-xs font-semibold text-muted-foreground"
 				>Household name</span
 			>
-			{#if editing}
-				<form
-					class="grid gap-2"
-					onsubmit={(event) => onSave(event)}
-				>
-					<Input
-						id="household-name"
-						value={householdEdit}
-						oninput={(event) =>
-							onHouseholdEdit(event.currentTarget.value)}
-						required
-						maxlength={40}
-						placeholder="Household name"
-						autocomplete="off"
-						aria-label="Household name"
-						disabled={saving}
-						onkeydown={(event) => {
-							if (event.key === "Escape") onCancel();
-						}}
-					/>
-				</form>
-			{:else}
-				<p class="m-0 truncate text-sm font-semibold">
-					{householdName}
-				</p>
-			{/if}
+			<form
+				class="grid gap-2"
+				onsubmit={(event) => onSave(event)}
+			>
+				<Input
+					id="household-name"
+					value={householdEdit}
+					oninput={(event) =>
+						onHouseholdEdit(event.currentTarget.value)}
+					required
+					maxlength={40}
+					placeholder="Household name"
+					autocomplete="off"
+					aria-label="Household name"
+					disabled={saving}
+					onkeydown={(event) => {
+						if (event.key === "Escape") onCancel();
+					}}
+				/>
+			</form>
 		</div>
 		{#if inviteCode}
 		<div class="grid content-start gap-1.5">
@@ -118,7 +115,7 @@
 				Invite code
 			</span>
 			<div class="flex flex-wrap items-center gap-2">
-				{#if editing && isOwner}
+				{#if isOwner}
 					<Input
 						id="household-invite-code"
 						value={inviteEdit}
@@ -142,7 +139,7 @@
 					/>
 				{/if}
 			</div>
-			{#if editing && inviteError !== ""}
+			{#if inviteError !== ""}
 				<p
 					class="m-0 text-xs font-semibold text-destructive"
 					role="alert"
@@ -176,7 +173,7 @@
 						<div
 							class="flex items-center gap-1.5 rounded-lg py-1.5"
 						>
-						{#if editing && !isSelf && isManager}
+						{#if !isSelf && isManager}
 							<AlertDialog.Root>
 								<AlertDialog.Trigger>
 									{#snippet child({ props })}
@@ -262,7 +259,7 @@
 								onOwnerPlans(value);
 							}
 						}}
-						disabled={!editing || saving}
+						disabled={saving}
 						aria-label="Plan for everyone"
 						class="mt-0.5 shrink-0"
 					/>
@@ -272,7 +269,7 @@
 								for="owner-manages-plans"
 								class={cn(
 									"text-sm font-medium",
-									editing && !saving && "cursor-pointer",
+									!saving && "cursor-pointer",
 								)}>Plan for everyone</label
 							>
 							<InfoTip
@@ -290,7 +287,7 @@
 								onOwnerReviews(value);
 							}
 						}}
-						disabled={!editing || saving}
+						disabled={saving}
 						aria-label="Review all leftovers"
 						class="mt-0.5 shrink-0"
 					/>
@@ -300,7 +297,7 @@
 								for="owner-reviews-meals"
 								class={cn(
 									"text-sm font-medium",
-									editing && !saving && "cursor-pointer",
+									!saving && "cursor-pointer",
 								)}>Review all leftovers</label
 							>
 							<InfoTip
@@ -318,7 +315,7 @@
 								onAllowInvites(value);
 							}
 						}}
-						disabled={!editing || saving}
+						disabled={saving}
 						aria-label="Let members invite"
 						class="mt-0.5 shrink-0"
 					/>
@@ -328,7 +325,7 @@
 								for="owner-allows-invites"
 								class={cn(
 									"text-sm font-medium",
-									editing && !saving && "cursor-pointer",
+									!saving && "cursor-pointer",
 								)}>Let members invite</label
 							>
 							<InfoTip

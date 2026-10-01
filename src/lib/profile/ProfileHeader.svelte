@@ -2,19 +2,15 @@
 	import EditActions from "$lib/components/EditActions.svelte";
 
 	let {
-		editing,
 		saving,
 		saveDisabled,
 		showActions,
-		onEdit,
 		onCancel,
 		onSave,
 	}: {
-		editing: boolean;
 		saving: boolean;
 		saveDisabled: boolean;
 		showActions: boolean;
-		onEdit: () => void;
 		onCancel: () => void;
 		onSave: () => undefined | Promise<unknown>;
 	} = $props();
@@ -32,12 +28,12 @@
 </div>
 {#if showActions}
 	<EditActions
-		editing={editing}
+		editing={true}
 		disabled={saving}
 		saveDisabled={saveDisabled}
 		saving={saving}
 		class="shrink-0"
-		onEdit={onEdit}
+		onEdit={() => {}}
 		onCancel={onCancel}
 		onSave={onSave}
 	/>

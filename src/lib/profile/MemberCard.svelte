@@ -12,7 +12,6 @@
 		isOwner,
 		householdName,
 		memberImage,
-		editing,
 		saving,
 		nameEdit,
 		onNameEdit,
@@ -21,7 +20,6 @@
 		autoShare,
 		showAutoShare,
 		onAutoShare,
-		inputRef,
 		showLinkBanner,
 		linking,
 		onLink,
@@ -30,7 +28,6 @@
 		isOwner: boolean;
 		householdName: string;
 		memberImage: string | null;
-		editing: boolean;
 		saving: boolean;
 		nameEdit: string;
 		onNameEdit: (v: string) => void;
@@ -39,18 +36,10 @@
 		autoShare: boolean | null;
 		showAutoShare: boolean;
 		onAutoShare: (v: boolean) => void;
-		inputRef: (el: HTMLInputElement | null) => void;
 		showLinkBanner: boolean;
 		linking: boolean;
 		onLink: () => void;
 	} = $props();
-
-	let localInput = $state<HTMLInputElement | null>(null);
-
-	function setRef(value: HTMLInputElement | null): void {
-		localInput = value;
-		inputRef(value);
-	}
 </script>
 
 <div
@@ -62,25 +51,12 @@
 			image={memberImage}
 			size="lg"
 		/>
-		{#if !editing}
-			<div class="min-w-0 flex-1">
-				<p class="m-0 truncate font-semibold">
-					{name}
-				</p>
-				<p
-					class="m-0 truncate text-xs text-muted-foreground"
-				>
-					{isOwner ? "Owner" : "Member"} ·
-					Member of {householdName}
-				</p>
-			</div>
-		{:else}
+		<div class="min-w-0 flex-1">
 			<form
 				class="flex min-w-0 flex-1 items-center gap-1.5"
 				onsubmit={(event) => onSave(event)}
 			>
 				<Input
-					bind:ref={() => localInput, setRef}
 					id="my-name"
 					value={nameEdit}
 					oninput={(event) => onNameEdit(event.currentTarget.value)}
@@ -96,7 +72,13 @@
 					}}
 				/>
 			</form>
-		{/if}
+			<p
+				class="m-0 truncate text-xs text-muted-foreground"
+			>
+				{isOwner ? "Owner" : "Member"} ·
+				Member of {householdName}
+			</p>
+		</div>
 	</div>
 	{#if showAutoShare}
 		<Separator />
@@ -109,7 +91,7 @@
 						onAutoShare(value);
 					}
 				}}
-				disabled={!editing || saving}
+				disabled={saving}
 				aria-label="Share my new meals publicly"
 				class="mt-0.5 shrink-0"
 			/>
@@ -119,7 +101,7 @@
 						for="auto-share-meals"
 						class={cn(
 							"text-sm font-medium",
-							editing && !saving && "cursor-pointer",
+							!saving && "cursor-pointer",
 						)}>Share my new meals publicly</label
 					>
 					<InfoTip
