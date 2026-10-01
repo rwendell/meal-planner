@@ -46,9 +46,6 @@
 <Card.Root>
 	<Card.Header>
 		<Card.Title>Skipped meals</Card.Title>
-		<Card.Description>
-			Tap a day or a meal to skip the whole column or row.
-		</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-3">
 		{#if loading}

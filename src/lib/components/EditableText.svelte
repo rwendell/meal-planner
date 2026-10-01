@@ -69,7 +69,7 @@
 	<TextButton
 		label={ariaLabel}
 		onclick={() => (editing = true)}
-		class="min-w-0"
+		class="min-w-0 text-foreground"
 	>
 		<span class={textClass}>{shown || placeholder}</span>
 	</TextButton>

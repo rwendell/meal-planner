@@ -42,34 +42,20 @@
 	} = $props();
 </script>
 
-<div
-	class="grid gap-2 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs"
->
+<div class="grid gap-2 rounded-xl border bg-card px-3 py-2 text-sm shadow-xs">
 	<div class="flex items-center gap-3">
-		<MemberAvatar
-			name={name}
-			image={memberImage}
-			size="lg"
+		<MemberAvatar {name} image={memberImage} size="lg" />
+		<EditableText
+			value={nameEdit}
+			display={name}
+			placeholder="Your name"
+			ariaLabel="Display name"
+			inputClass="h-8"
+			textClass="truncate font-semibold"
+			onInput={(v) => onNameEdit(v)}
+			onCommit={() => onSave()}
+			onRevert={onCancel}
 		/>
-		<div class="min-w-0 flex-1">
-			<EditableText
-				value={nameEdit}
-				display={name}
-				placeholder="Your name"
-				ariaLabel="Display name"
-				inputClass="h-8"
-				textClass="truncate font-semibold"
-				onInput={(v) => onNameEdit(v)}
-				onCommit={() => onSave()}
-				onRevert={onCancel}
-			/>
-			<p
-				class="m-0 truncate text-xs text-muted-foreground"
-			>
-				{isOwner ? "Owner" : "Member"} ·
-				Member of {householdName}
-			</p>
-		</div>
 	</div>
 	{#if showAutoShare}
 		<Separator />
@@ -107,11 +93,9 @@
 	<div
 		class="flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-3 py-2"
 	>
-		<p
-			class="m-0 min-w-0 flex-1 text-xs text-muted-foreground"
-		>
-			This member isn't linked to your sign-in yet — link
-			it to sync your name and picture.
+		<p class="m-0 min-w-0 flex-1 text-xs text-muted-foreground">
+			This member isn't linked to your sign-in yet — link it to sync your
+			name and picture.
 		</p>
 		<Button
 			variant="outline"

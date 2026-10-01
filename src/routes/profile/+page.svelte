@@ -89,9 +89,7 @@
 					saving={editor.saving}
 					saveDisabled={editor.saveDisabled}
 					hasUnsavedChanges={editor.hasUnsavedChanges}
-					showActions={Boolean(
-						editor.viewedEntry && header.visible,
-					)}
+					showActions={Boolean(editor.viewedEntry && header.visible)}
 					onCancel={() => editor.cancelEditing()}
 					onSave={() => void editor.save()}
 				/>
@@ -112,8 +110,8 @@
 					onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
 					showLinkBanner={Boolean(
 						auth.isAuthenticated &&
-							editor.identityMember &&
-							!editor.identityMember.authSubject,
+						editor.identityMember &&
+						!editor.identityMember.authSubject,
 					)}
 					linking={households.linkingAccount}
 					onLink={() => void households.linkAccount()}
@@ -133,8 +131,7 @@
 						editor.setSlotSkipped(slot, value)}
 					onToggleDay={(day, value) =>
 						editor.setDaySkipped(day, value)}
-					slotSkippedCount={(slot) =>
-						editor.slotSkippedCount(slot)}
+					slotSkippedCount={(slot) => editor.slotSkippedCount(slot)}
 					daySkippedCount={(day) => editor.daySkippedCount(day)}
 				/>
 			{/if}
@@ -158,12 +155,9 @@
 					onHouseholdEdit={(v) => (editor.householdNameEdit = v)}
 					onInviteEdit={(v) => (editor.inviteCodeEdit = v)}
 					onOwnerPlans={(v) => (editor.ownerManagesPlansDraft = v)}
-					onOwnerReviews={(v) =>
-						(editor.ownerReviewsMealsDraft = v)}
-					onAllowInvites={(v) =>
-						(editor.allowMemberInvitesDraft = v)}
-					onRemoveMember={(id, name) =>
-						void removeMember(id, name)}
+					onOwnerReviews={(v) => (editor.ownerReviewsMealsDraft = v)}
+					onAllowInvites={(v) => (editor.allowMemberInvitesDraft = v)}
+					onRemoveMember={(id, name) => void removeMember(id, name)}
 					onSave={(e) => void editor.save(e)}
 					onCancel={() => editor.cancelEditing()}
 					loading={editor.householdLoading}
@@ -172,44 +166,40 @@
 
 				<div class="flex justify-start">
 					<AlertDialog.Root>
-							<AlertDialog.Trigger>
-								{#snippet child({ props })}
-									<TextButton
-										tone="destructive"
-										label={`Leave ${editor.viewedEntry?.household.name ?? "household"}`}
-										{...props}
-									>
-										Leave {editor.viewedEntry?.household
-											.name ?? "household"}
-									</TextButton>
-								{/snippet}
-							</AlertDialog.Trigger>
-							<AlertDialog.Content>
-								<AlertDialog.Header>
-									<AlertDialog.Title>
-										Leave {editor.viewedEntry?.household
-											.name}?
-									</AlertDialog.Title>
-									<AlertDialog.Description>
-										You will lose access to this
-										household and your planned meals
-										there will be removed.
-									</AlertDialog.Description>
-								</AlertDialog.Header>
-								<AlertDialog.Footer>
-									<AlertDialog.Cancel
-										>Cancel</AlertDialog.Cancel
-									>
-									<AlertDialog.Action
-										variant="destructive"
-										onclick={() => void leaveViewed()}
-									>
-										Leave
-									</AlertDialog.Action>
-								</AlertDialog.Footer>
-							</AlertDialog.Content>
-						</AlertDialog.Root>
-					</div>
+						<AlertDialog.Trigger>
+							{#snippet child({ props })}
+								<TextButton
+									tone="destructive"
+									label={`Leave ${editor.viewedEntry?.household.name ?? "household"}`}
+									{...props}
+								>
+									Leave {editor.viewedEntry?.household.name ??
+										"household"}
+								</TextButton>
+							{/snippet}
+						</AlertDialog.Trigger>
+						<AlertDialog.Content>
+							<AlertDialog.Header>
+								<AlertDialog.Title>
+									Leave {editor.viewedEntry?.household.name}?
+								</AlertDialog.Title>
+								<AlertDialog.Description>
+									You will lose access to this household and
+									your planned meals there will be removed.
+								</AlertDialog.Description>
+							</AlertDialog.Header>
+							<AlertDialog.Footer>
+								<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+								<AlertDialog.Action
+									variant="destructive"
+									onclick={() => void leaveViewed()}
+								>
+									Leave
+								</AlertDialog.Action>
+							</AlertDialog.Footer>
+						</AlertDialog.Content>
+					</AlertDialog.Root>
+				</div>
 			{/if}
 
 			{#if editor.members.length <= 1}
@@ -238,14 +228,15 @@
 							class="rounded-xl border bg-card/95 p-2 shadow-lg backdrop-blur"
 						>
 							<EditActions
-						editing={true}
-						disabled={editor.saving || !editor.hasUnsavedChanges}
-						saveDisabled={editor.saveDisabled}
-						saving={editor.saving}
-						onEdit={() => {}}
-						onCancel={() => editor.cancelEditing()}
-						onSave={() => void editor.save()}
-					/>
+								editing={true}
+								disabled={editor.saving ||
+									!editor.hasUnsavedChanges}
+								saveDisabled={editor.saveDisabled}
+								saving={editor.saving}
+								onEdit={() => {}}
+								onCancel={() => editor.cancelEditing()}
+								onSave={() => void editor.save()}
+							/>
 						</div>
 					</div>
 				</div>
