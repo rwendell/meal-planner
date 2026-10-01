@@ -62,7 +62,11 @@
 		if (!value) onClose();
 	}}
 >
-	<Dialog.Content data-no-swipe interactOutsideBehavior="ignore">
+	<Dialog.Content
+		data-no-swipe
+		interactOutsideBehavior="ignore"
+		class="sm:max-w-lg"
+	>
 		<Dialog.Header>
 			<Dialog.Title id="meal-dialog-title">
 				{editingMeal ? "Edit meal" : "Add a meal"}

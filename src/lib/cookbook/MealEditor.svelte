@@ -5,6 +5,8 @@
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { Input } from "$lib/components/ui/input";
+	import Switch from "$lib/components/ui/switch/switch.svelte";
+	import { Textarea } from "$lib/components/ui/textarea/index.js";
 	import IngredientRows from "$lib/cookbook/IngredientRows.svelte";
 	import MealShareToggle from "$lib/cookbook/MealShareToggle.svelte";
 	import { hasNameClash, parsePrepMinutes } from "$lib/cookbook/meal-form.js";
@@ -18,8 +20,6 @@
 	} from "$lib/utils/meal-types.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
-	import { Textarea } from "$lib/components/ui/textarea/index.js";
-	import Switch from "$lib/components/ui/switch/switch.svelte";
 
 	export interface MealEditorIngredient {
 		name: string;

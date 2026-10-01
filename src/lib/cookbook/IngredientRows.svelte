@@ -32,55 +32,60 @@
 		id={`${prefix}-ingredients-label`}>Ingredients</span
 	>
 	<div
-		class="grid grid-cols-[1fr_72px_88px_30px] gap-1.5 text-[9px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase"
+		class="grid grid-cols-[28px_1fr_60px_100px] gap-1.5 text-[9px] font-extrabold tracking-[0.08em] text-muted-foreground uppercase sm:grid-cols-[30px_1fr_72px_140px]"
 		aria-hidden="true"
 	>
-		<span>Name</span><span>Amount</span><span>Group</span><span></span>
+		<span></span><span>Name</span><span>Amount</span><span>Group</span>
 	</div>
-	{#each rows as row, i (row.key)}
-		<div
-			class="grid grid-cols-[1fr_72px_88px_30px] items-center gap-1.5"
-		>
-			<Input
-				bind:value={rows[i].name}
-				aria-label={`Ingredient ${i + 1} name`}
-			/>
-			<Input
-				bind:value={rows[i].amount}
-				aria-label={`Ingredient ${i + 1} amount`}
-			/>
-			<Select.Root
-				type="single"
-				value={rows[i].group}
-				items={groceryGroups.map((group) => ({
-					value: group,
-					label: group
-				}))}
-				onValueChange={(value) => {
-					if (value) rows[i].group = value as GroceryGroup;
-				}}
+	<div class="grid max-h-[32dvh] gap-2 overflow-x-clip overflow-y-auto pr-1">
+		{#each rows as row, i (row.key)}
+			<div
+				class="grid grid-cols-[28px_1fr_60px_100px] items-center gap-1.5 sm:grid-cols-[30px_1fr_72px_140px]"
 			>
-				<Select.Trigger aria-label={`Ingredient ${i + 1} group`}>
-					<Select.Value placeholder="Group" />
-				</Select.Trigger>
-				<Select.Content>
-					<Select.Group>
-						{#each groceryGroups as group (group)}<Select.Item
-								value={group}
-								label={group}
-							/>{/each}
-					</Select.Group>
-				</Select.Content>
-			</Select.Root>
-			<Button
-				variant="ghost"
-				size="icon-sm"
-				aria-label={`Remove ingredient ${i + 1}`}
-				onclick={() => onRemove(row.key)}
-				><XIcon /></Button
-			>
-		</div>
-	{/each}
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Remove ingredient ${i + 1}`}
+					onclick={() => onRemove(row.key)}
+					><XIcon /></Button
+				>
+				<Input
+					bind:value={rows[i].name}
+					aria-label={`Ingredient ${i + 1} name`}
+				/>
+				<Input
+					bind:value={rows[i].amount}
+					aria-label={`Ingredient ${i + 1} amount`}
+				/>
+				<Select.Root
+					type="single"
+					value={rows[i].group}
+					items={groceryGroups.map((group) => ({
+						value: group,
+						label: group
+					}))}
+					onValueChange={(value) => {
+						if (value) rows[i].group = value as GroceryGroup;
+					}}
+				>
+					<Select.Trigger
+						aria-label={`Ingredient ${i + 1} group`}
+						class="w-full min-w-0"
+					>
+						<Select.Value placeholder="Group" />
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Group>
+							{#each groceryGroups as group (group)}<Select.Item
+									value={group}
+									label={group}
+								/>{/each}
+						</Select.Group>
+					</Select.Content>
+				</Select.Root>
+			</div>
+		{/each}
+	</div>
 	<Button
 		variant="outline"
 		size="sm"

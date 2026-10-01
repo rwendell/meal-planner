@@ -156,7 +156,11 @@
 		if (!next) onClose();
 	}}
 >
-	<Dialog.Content data-no-swipe interactOutsideBehavior="ignore">
+	<Dialog.Content
+		data-no-swipe
+		interactOutsideBehavior="ignore"
+		class="sm:max-w-lg"
+	>
 		<Dialog.Header>
 			<Dialog.Title id={`${id}-title`}
 				>{editorName !== null ? "Add a meal" : title}</Dialog.Title
