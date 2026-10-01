@@ -136,7 +136,6 @@
 
 			{#if editor.viewedEntry && editor.members.length > 1}
 				<HouseholdCard
-					householdName={editor.viewedEntry.household.name}
 					inviteCode={editor.viewedEntry.household.inviteCode}
 					members={editor.members}
 					ownerId={editor.household?.ownerId}
@@ -144,17 +143,13 @@
 					isManager={editor.isManager}
 					isOwner={editor.isOwner}
 					saving={editor.saving}
-					householdEdit={editor.householdNameEdit}
 					ownerPlans={editor.pendingOwnerManagesPlans}
 					ownerReviews={editor.pendingOwnerReviewsMeals}
 					allowInvites={editor.pendingAllowMemberInvites}
-					onHouseholdEdit={(v) => (editor.householdNameEdit = v)}
 					onOwnerPlans={(v) => (editor.ownerManagesPlansDraft = v)}
 					onOwnerReviews={(v) => (editor.ownerReviewsMealsDraft = v)}
 					onAllowInvites={(v) => (editor.allowMemberInvitesDraft = v)}
 					onRemoveMember={(id, name) => void removeMember(id, name)}
-					onSave={(e) => void editor.save(e)}
-					onCancel={() => editor.cancelEditing()}
 					loading={editor.householdLoading}
 					exists={Boolean(editor.household)}
 				/>

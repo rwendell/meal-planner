@@ -291,7 +291,7 @@
 		} else {
 			setProvisioningLock();
 			createHousehold({
-				householdName: "My Kitchen",
+				householdName: "My House",
 				memberName: deviceName(),
 				autoNamed: true,
 			})

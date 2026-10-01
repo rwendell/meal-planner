@@ -45,7 +45,7 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Skipped meals</Card.Title>
+		<Card.Title>Skip Meals</Card.Title>
 	</Card.Header>
 	<Card.Content class="grid gap-3">
 		{#if loading}

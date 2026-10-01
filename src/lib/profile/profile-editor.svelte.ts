@@ -36,7 +36,6 @@ interface SessionEntry {
 export class ProfileEditor {
 	saving = $state(false);
 	myNameEdit = $state("");
-	householdNameEdit = $state("");
 	inviteCodeEdit = $state("");
 	ownerManagesPlansDraft = $state<boolean | null>(null);
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
@@ -45,10 +44,9 @@ export class ProfileEditor {
 	confirmSkipsOpen = $state(false);
 
 	private myNameEditKey = $state<string | null>(null);
-	private householdNameEditKey = $state<string | null>(null);
+	private viewedHouseholdKey = $state<string | null>(null);
 	private skippedDraft = $state<SkippedCell[] | null>(null);
 
-	private renameHousehold = useMutation(api.households.renameHousehold);
 	private setInviteCode = useMutation(api.households.setInviteCode);
 	private setOwnerManagesPlans = useMutation(
 		api.households.setOwnerManagesPlans,
@@ -213,7 +211,6 @@ export class ProfileEditor {
 		const canSeeCode = viewed.household.inviteCode !== undefined;
 		return (
 			this.myNameEdit.trim() !== identity.member.name ||
-			this.householdNameEdit.trim() !== viewed.household.name ||
 			(canSeeCode && this.pendingInviteCode !== viewed.household.inviteCode) ||
 			(this.isOwner &&
 				this.ownerManagesPlansDraft !== null &&
@@ -238,7 +235,6 @@ export class ProfileEditor {
 		const canSeeCode = viewed?.household.inviteCode !== undefined;
 		return (
 			!this.myNameEdit.trim() ||
-			!this.householdNameEdit.trim() ||
 			(canSeeCode && this.inviteCodeError !== "") ||
 			!this.hasUnsavedChanges ||
 			this.impactPending ||
@@ -280,14 +276,13 @@ export class ProfileEditor {
 			}
 		});
 
-		// Prefill the household inputs from the VIEWED household, same
-		// reset-on-new-entity rule.
+		// Reset the household drafts when a different household is viewed
+		// (or when the first one loads), same rule as the identity block
+		// above.
 		$effect(() => {
 			const house = this.viewedEntry?.household;
-			if (house && this.householdNameEditKey !== house._id) {
-				this.householdNameEditKey = house._id;
-				this.householdNameEdit = house.name;
-				this.inviteCodeEdit = house.inviteCode ?? "";
+			if (house && this.viewedHouseholdKey !== house._id) {
+				this.viewedHouseholdKey = house._id;
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
 				this.saving = false;
@@ -376,7 +371,6 @@ export class ProfileEditor {
 		}
 		const viewed = this.viewedEntry;
 		if (viewed) {
-			this.householdNameEdit = viewed.household.name;
 			this.inviteCodeEdit = viewed.household.inviteCode ?? "";
 		}
 		this.ownerManagesPlansDraft = null;
@@ -394,7 +388,6 @@ export class ProfileEditor {
 		const entry = this.viewedEntry;
 		const identity = this.identityEntry;
 		const memberName = this.myNameEdit.trim();
-		const householdName = this.householdNameEdit.trim();
 		const pendingInviteCode = this.inviteCodeEdit.trim().toUpperCase();
 		// Members without invite permission never see the code: skip its
 		// validation, comparison, and save entirely for them.
@@ -404,7 +397,6 @@ export class ProfileEditor {
 			!identity ||
 			this.saving ||
 			!memberName ||
-			!householdName ||
 			(canSeeCode && !pendingInviteCode)
 		) {
 			return;
@@ -429,7 +421,6 @@ export class ProfileEditor {
 		const baselineAutoShare = this.identityMember?.autoShareMeals ?? true;
 		const pendingAutoShare = this.autoShareMealsDraft;
 		const memberChanged = memberName !== identity.member.name;
-		const householdChanged = householdName !== entry.household.name;
 		const inviteCodeChanged =
 			canSeeCode && pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
@@ -448,7 +439,6 @@ export class ProfileEditor {
 			pendingAutoShare !== null && pendingAutoShare !== baselineAutoShare;
 		if (
 			!memberChanged &&
-			!householdChanged &&
 			!inviteCodeChanged &&
 			!ownerPlansChanged &&
 			!ownerReviewsChanged &&
@@ -474,21 +464,6 @@ export class ProfileEditor {
 				} catch (error) {
 					failed = true;
 					toast.error(errorMessage(error, "Couldn't update your name."));
-				}
-			}
-			if (householdChanged) {
-				try {
-					await this.renameHousehold({
-						householdId,
-						memberId,
-						name: householdName,
-					});
-					toast.success("Household name updated");
-				} catch (error) {
-					failed = true;
-					toast.error(
-						errorMessage(error, "Couldn't update the household name."),
-					);
 				}
 			}
 			if (inviteCodeChanged) {

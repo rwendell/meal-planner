@@ -1,6 +1,5 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
-	import EditableText from "$lib/components/EditableText.svelte";
 	import InfoTip from "$lib/components/InfoTip.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -18,47 +17,37 @@
 	};
 
 	let {
-		householdName,
-		inviteCode,
+			inviteCode,
 		members,
 		ownerId,
 		myId,
 		isManager,
 		isOwner,
 		saving,
-		householdEdit,
-				ownerPlans,
+					ownerPlans,
 		ownerReviews,
 		allowInvites,
-		onHouseholdEdit,
-			onOwnerPlans,
+				onOwnerPlans,
 		onOwnerReviews,
 		onAllowInvites,
 		onRemoveMember,
-		onSave,
-		onCancel,
 		loading,
 		exists,
 	}: {
-		householdName: string;
-		inviteCode?: string | null;
+			inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
 		isManager: boolean;
 		isOwner: boolean;
 		saving: boolean;
-		householdEdit: string;
-				ownerPlans: boolean;
+					ownerPlans: boolean;
 		ownerReviews: boolean;
 		allowInvites: boolean;
-		onHouseholdEdit: (v: string) => void;
-			onOwnerPlans: (v: boolean) => void;
+				onOwnerPlans: (v: boolean) => void;
 		onOwnerReviews: (v: boolean) => void;
 		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
-		onSave: (e?: SubmitEvent) => void;
-		onCancel: () => void;
 		loading: boolean;
 		exists: boolean;
 	} = $props();
@@ -66,31 +55,7 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>
-			<span
-				class="text-xs font-semibold text-muted-foreground"
-			>
-				Household name
-			</span>
-		</Card.Title>
-		<Card.Description
-			class="grid w-fit justify-items-start gap-1 text-foreground"
-		>
-			{#if isOwner}
-				<EditableText
-					value={householdEdit}
-					display={householdName}
-					placeholder="Household name"
-					ariaLabel="Household name"
-					textClass="truncate font-semibold"
-					onInput={(v) => onHouseholdEdit(v)}
-					onCommit={() => onSave()}
-					onRevert={onCancel}
-				/>
-			{:else}
-				<span class="truncate font-semibold">{householdName}</span>
-			{/if}
-		</Card.Description>
+		<Card.Title> Household settings </Card.Title>
 		<Card.Action class="grid w-fit gap-1 justify-items-start">
 			{#if inviteCode}
 				<span
