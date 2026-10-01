@@ -1,13 +1,14 @@
 <script lang="ts">
-	import TextButton from "$lib/components/TextButton.svelte";
 	import { Input } from "$lib/components/ui/input";
+	import { cn } from "$lib/utils.js";
 
 	/**
 	 * Text that turns into an input on click (commit-gated editing):
-	 * idle shows plain text via TextButton, click swaps in an Input with
-	 * the text focused + selected. Blur collapses back (draft already
-	 * updated), Enter commits via onCommit (e.g. full save), Escape
-	 * reverts via onRevert.
+	 * idle renders as bare text — editability is only hinted at on
+	 * hover/focus (dashed underline), so it doesn't read as a button.
+	 * Click swaps in an Input with the text focused + selected. Blur
+	 * collapses back (draft already updated), Enter commits via
+	 * onCommit (e.g. full save), Escape reverts via onRevert.
 	 */
 	let {
 		value,
@@ -66,11 +67,15 @@
 		class={inputClass}
 	/>
 {:else}
-	<TextButton
-		label={ariaLabel}
+	<button
+		type="button"
+		aria-label={ariaLabel}
 		onclick={() => (editing = true)}
-		class="min-w-0 text-foreground"
+		class={cn(
+			"min-w-0 cursor-text rounded-sm text-left hover:underline hover:decoration-dashed hover:decoration-muted-foreground/60 hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+			textClass,
+		)}
 	>
-		<span class={textClass}>{shown || placeholder}</span>
-	</TextButton>
+		{shown || placeholder}
+	</button>
 {/if}
