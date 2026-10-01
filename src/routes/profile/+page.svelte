@@ -145,13 +145,10 @@
 					isOwner={editor.isOwner}
 					saving={editor.saving}
 					householdEdit={editor.householdNameEdit}
-					inviteEdit={editor.inviteCodeEdit}
-					inviteError={editor.inviteCodeError}
 					ownerPlans={editor.pendingOwnerManagesPlans}
 					ownerReviews={editor.pendingOwnerReviewsMeals}
 					allowInvites={editor.pendingAllowMemberInvites}
 					onHouseholdEdit={(v) => (editor.householdNameEdit = v)}
-					onInviteEdit={(v) => (editor.inviteCodeEdit = v)}
 					onOwnerPlans={(v) => (editor.ownerManagesPlansDraft = v)}
 					onOwnerReviews={(v) => (editor.ownerReviewsMealsDraft = v)}
 					onAllowInvites={(v) => (editor.allowMemberInvitesDraft = v)}

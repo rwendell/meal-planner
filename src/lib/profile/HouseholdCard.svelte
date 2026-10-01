@@ -27,14 +27,11 @@
 		isOwner,
 		saving,
 		householdEdit,
-		inviteEdit,
-		inviteError,
-		ownerPlans,
+				ownerPlans,
 		ownerReviews,
 		allowInvites,
 		onHouseholdEdit,
-		onInviteEdit,
-		onOwnerPlans,
+			onOwnerPlans,
 		onOwnerReviews,
 		onAllowInvites,
 		onRemoveMember,
@@ -52,14 +49,11 @@
 		isOwner: boolean;
 		saving: boolean;
 		householdEdit: string;
-		inviteEdit: string;
-		inviteError: string;
-		ownerPlans: boolean;
+				ownerPlans: boolean;
 		ownerReviews: boolean;
 		allowInvites: boolean;
 		onHouseholdEdit: (v: string) => void;
-		onInviteEdit: (v: string) => void;
-		onOwnerPlans: (v: boolean) => void;
+			onOwnerPlans: (v: boolean) => void;
 		onOwnerReviews: (v: boolean) => void;
 		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
@@ -95,7 +89,7 @@
 				<span class="truncate font-semibold">{householdName}</span>
 			{/if}
 		</Card.Description>
-		<Card.Action class="grid w-fit gap-1 justify-items-end">
+		<Card.Action class="grid w-fit gap-1 justify-items-start">
 			{#if inviteCode}
 				<span
 					id="household-invite-code-label"
@@ -103,29 +97,7 @@
 				>
 					Invite code
 				</span>
-				{#if isOwner}
-					<EditableText
-						value={inviteEdit}
-						display={inviteCode}
-						placeholder="ABC123"
-						ariaLabel="Invite code"
-						inputClass="w-28 uppercase tracking-[0.2em]"
-						textClass="font-mono font-semibold tracking-[0.2em] uppercase"
-						onInput={(v) => onInviteEdit(v)}
-						onCommit={() => onSave()}
-						onRevert={onCancel}
-					/>
-					{#if inviteError !== ""}
-						<span
-							class="text-xs font-semibold text-destructive"
-							role="alert"
-						>
-							{inviteError}
-						</span>
-					{/if}
-				{:else}
-					<InviteCode code={inviteCode} />
-				{/if}
+				<InviteCode code={inviteCode} />
 			{/if}
 		</Card.Action>
 	</Card.Header>
