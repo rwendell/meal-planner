@@ -159,7 +159,10 @@ export default defineSchema({
 	publishedRecipes: defineTable({
 		sourceHouseholdId: v.id("households"),
 		sourceMealId: v.id("meals"),
-		householdName: v.string(),
+		// Attribution is per-user, not per-household: each person has one
+		// household, so the member name identifies the author. Frozen at
+		// publish time like the rest of the snapshot.
+		authorName: v.string(),
 		name: v.string(),
 		category: mealCategory,
 		note: v.string(),

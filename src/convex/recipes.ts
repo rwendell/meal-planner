@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { type MutationCtx, mutation, query } from "./_generated/server";
+import {
+	type MutationCtx,
+	mutation,
+	type QueryCtx,
+	query,
+} from "./_generated/server";
 import schema, { mealCategory } from "./schema";
 
 const recipeDoc = schema.doc("publishedRecipes");
@@ -24,7 +29,7 @@ export const list = query({
 			const inCategory = !args.category || recipe.category === args.category;
 			const inSearch =
 				!query ||
-				`${recipe.name} ${recipe.note} ${recipe.householdName}`
+				`${recipe.name} ${recipe.note} ${recipe.authorName ?? ""}`
 					.toLowerCase()
 					.includes(query);
 			return inCategory && inSearch;
@@ -47,12 +52,44 @@ export const mine = query({
 });
 
 export const publish = mutation({
-	args: { householdId: v.id("households"), mealId: v.id("meals") },
+	args: {
+		householdId: v.id("households"),
+		mealId: v.id("meals"),
+		callerMemberId: v.optional(v.id("householdMembers")),
+	},
 	handler: async (ctx, args) => {
-		return await upsertPublishedSnapshot(ctx, args.householdId, args.mealId);
+		return await upsertPublishedSnapshot(
+			ctx,
+			args.householdId,
+			args.mealId,
+			args.callerMemberId,
+		);
 	},
 	returns: v.id("publishedRecipes"),
 });
+
+/**
+ * Name to credit in the community cookbook. Each user has one
+ * household, so the member name identifies the author. Falls back to the
+ * household's owner when the caller is anonymous (invite-code sessions),
+ * so a snapshot is never left unattributed.
+ */
+async function resolveAuthorName(
+	ctx: QueryCtx,
+	householdId: Id<"households">,
+	callerMemberId: Id<"householdMembers"> | undefined,
+): Promise<string> {
+	if (callerMemberId) {
+		const caller = await ctx.db.get("householdMembers", callerMemberId);
+		if (caller?.householdId === householdId) return caller.name;
+	}
+	const household = await ctx.db.get("households", householdId);
+	if (household?.ownerId) {
+		const owner = await ctx.db.get("householdMembers", household.ownerId);
+		if (owner) return owner.name;
+	}
+	return "A member";
+}
 
 /**
  * Snapshot a meal into the community cookbook, refreshing the snapshot
@@ -63,6 +100,7 @@ export async function upsertPublishedSnapshot(
 	ctx: MutationCtx,
 	householdId: Id<"households">,
 	mealId: Id<"meals">,
+	callerMemberId?: Id<"householdMembers">,
 ): Promise<Id<"publishedRecipes">> {
 	const household = await ctx.db.get("households", householdId);
 	if (!household) throw new Error("Household not found.");
@@ -77,7 +115,7 @@ export async function upsertPublishedSnapshot(
 	const snapshot = {
 		sourceHouseholdId: householdId,
 		sourceMealId: mealId,
-		householdName: household.name,
+		authorName: await resolveAuthorName(ctx, householdId, callerMemberId),
 		name: meal.name,
 		category: meal.category,
 		note: meal.note,
@@ -303,7 +341,7 @@ export const seedSamples = mutation({
 			await ctx.db.insert("publishedRecipes", {
 				sourceHouseholdId: householdId,
 				sourceMealId: mealId,
-				householdName: "Sample Kitchen",
+				authorName: "Chef",
 				name: meal.name,
 				category: meal.category,
 				note: meal.note,

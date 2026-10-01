@@ -168,7 +168,7 @@
 				category === "All" || recipe.category === category;
 			const inSearch =
 				!query ||
-				`${recipe.name} ${recipe.note} ${recipe.householdName}`
+				`${recipe.name} ${recipe.note} ${recipe.authorName ?? ""}`
 					.toLowerCase()
 					.includes(query);
 			return inCategory && inSearch;
@@ -244,7 +244,13 @@
 			const wasPublished = publishedMealIds.has(mealId);
 			try {
 				if (shared && !wasPublished) {
-					await publishRecipe({ householdId: household, mealId: id });
+					await publishRecipe({
+						householdId: household,
+						mealId: id,
+						...(selfMemberId
+							? { callerMemberId: selfMemberId as Id<"householdMembers"> }
+							: {}),
+					});
 					toast.success(`${name} shared with the community`);
 				} else if (!shared && wasPublished) {
 					await unpublishRecipe({
@@ -272,7 +278,13 @@
 				await unpublishRecipe({ householdId: household, mealId: id });
 				toast.success(`${meal.name} is no longer shared`);
 			} else {
-				await publishRecipe({ householdId: household, mealId: id });
+				await publishRecipe({
+					householdId: household,
+					mealId: id,
+					...(selfMemberId
+						? { callerMemberId: selfMemberId as Id<"householdMembers"> }
+						: {}),
+				});
 				toast.success(`${meal.name} shared with the community`);
 			}
 		} catch (error) {

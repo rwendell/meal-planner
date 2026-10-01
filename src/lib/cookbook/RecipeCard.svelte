@@ -9,7 +9,7 @@
 		name: string;
 		note: string;
 		category: string;
-		householdName: string;
+		authorName?: string | null;
 		ingredients: { length: number };
 	}
 
@@ -35,7 +35,7 @@
 	<Card.Content>
 		<div class="flex items-center justify-between gap-2">
 			<span class="text-[10px] text-muted-foreground"
-				>by {recipe.householdName} · {recipe.ingredients.length} ingredients</span
+				>by {recipe.authorName ?? "A member"} · {recipe.ingredients.length} ingredients</span
 			>
 			<div class="flex items-center gap-1">
 				<Button

@@ -144,7 +144,12 @@ export const create = mutation({
 		});
 		const shared = args.shared ?? true;
 		if (shared) {
-			await upsertPublishedSnapshot(ctx, args.householdId, mealId);
+			await upsertPublishedSnapshot(
+				ctx,
+				args.householdId,
+				mealId,
+				args.callerMemberId,
+			);
 		}
 		return mealId;
 	},
