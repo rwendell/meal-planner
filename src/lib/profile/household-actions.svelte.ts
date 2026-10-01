@@ -1,13 +1,11 @@
 import { useMutation } from "convex-svelte";
 import { toast } from "svelte-sonner";
-import { roster } from "$lib/stores/households.svelte.js";
 import { session } from "$lib/stores/session.svelte.js";
 import { errorMessage } from "$lib/utils/errors.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
-import type { RosterEntry } from "./roster-state.svelte.js";
 
-/** Minimal entry shape for leaving a household (roster entries satisfy it). */
+/** Minimal entry shape for leaving a household. */
 export interface LeaveTarget {
 	household: { _id: string; name: string };
 	member: { _id: string };
@@ -15,22 +13,18 @@ export interface LeaveTarget {
 
 /**
  * Household membership side-actions for the profile page: linking the
- * member to a sign-in, switching / leaving / joining / creating
- * households, and removing members. Owns the join/create form state.
- * Profile field editing lives in `ProfileEditor`.
+ * member to a sign-in, leaving / joining households, and removing
+ * members. Single-household model: joining is only possible while
+ * alone, and leaving lands back in a fresh solo kitchen via the
+ * provisioning effect. Profile field editing lives in `ProfileEditor`.
  *
- * Instantiate per page (`new HouseholdActions()`). Pass methods to
- * children wrapped in arrows (`onJoin={(e) => actions.join(e)}`) so
- * `this` stays bound.
+ * Instantiate per page (`new HouseholdActions()`).
  */
 export class HouseholdActions {
 	linkingAccount = $state(false);
 	joinCode = $state("");
-	newHouseholdName = $state("");
 	joinError = $state("");
-	createError = $state("");
 
-	private createMutation = useMutation(api.households.create);
 	private joinMutation = useMutation(api.households.join);
 	private leaveMutation = useMutation(api.households.leave);
 	private removeMutation = useMutation(api.households.removeMember);
@@ -65,20 +59,17 @@ export class HouseholdActions {
 		}
 	}
 
-	switchHousehold(entry: RosterEntry | LeaveTarget): void {
-		roster.switchTo({
-			householdId: entry.household._id,
-			memberId: entry.member._id,
-		});
-		toast.success(`Switched to ${entry.household.name}`);
-	}
-
 	async leaveHousehold(entry: LeaveTarget): Promise<void> {
 		try {
 			await this.leaveMutation({
 				memberId: entry.member._id as Id<"householdMembers">,
 			});
-			roster.forget(entry.household._id);
+			if (session.session?.householdId === entry.household._id) {
+				// Back to alone: the provisioning effect spins up a
+				// fresh solo kitchen. Portable meals and skips follow
+				// the login, so nothing personal is lost.
+				session.disconnect();
+			}
 			toast.success(`Left ${entry.household.name}`);
 		} catch (error) {
 			toast.error(errorMessage(error, "Couldn't leave the household."));
@@ -93,47 +84,27 @@ export class HouseholdActions {
 		event.preventDefault();
 		this.joinError = "";
 		try {
+			const current = session.session;
 			const result = await this.joinMutation({
 				inviteCode: this.joinCode,
 				memberName,
-				// No viewed entry means the name is the device fallback,
+				// No identity member means the name is the device fallback,
 				// safe to replace with the OAuth name later.
 				autoNamed,
+				...(current
+					? {
+							callerMemberId: current.memberId as Id<"householdMembers">,
+						}
+					: {}),
 			});
 			this.joinCode = "";
-			roster.switchTo({
+			session.connect({
 				householdId: result.householdId,
 				memberId: result.memberId,
 			});
 			toast.success("Household joined");
 		} catch (error) {
 			this.joinError = errorMessage(error, "Couldn't join with that code.");
-		}
-	}
-
-	async createHousehold(
-		event: SubmitEvent,
-		memberName: string,
-		autoNamed: boolean,
-	): Promise<void> {
-		event.preventDefault();
-		this.createError = "";
-		const name = this.newHouseholdName.trim();
-		if (!name) return;
-		try {
-			const result = await this.createMutation({
-				householdName: name,
-				memberName,
-				autoNamed,
-			});
-			this.newHouseholdName = "";
-			roster.switchTo({
-				householdId: result.householdId,
-				memberId: result.memberId,
-			});
-			toast.success(`Created ${name}`);
-		} catch (error) {
-			this.createError = errorMessage(error, "Couldn't create the household.");
 		}
 	}
 
@@ -150,7 +121,9 @@ export class HouseholdActions {
 				callerMemberId: callerMemberId as Id<"householdMembers">,
 			});
 			if (result.householdDeleted) {
-				roster.forget(householdId);
+				if (session.session?.householdId === householdId) {
+					session.disconnect();
+				}
 				toast.success(`Removed ${name} and deleted the household`);
 			} else {
 				toast.success(`Removed ${name}`);

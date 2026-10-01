@@ -42,6 +42,7 @@
 
 	let {
 		householdId,
+		callerMemberId = null,
 		initialName = "",
 		initialNote = "",
 		initialTime = undefined,
@@ -58,6 +59,7 @@
 		onCancel,
 	}: {
 		householdId: string | null;
+		callerMemberId?: string | null;
 		initialName?: string;
 		initialNote?: string;
 		initialTime?: number;
@@ -211,6 +213,12 @@
 			} else {
 				const mealId = await createMeal({
 					householdId: household,
+					...(callerMemberId
+						? {
+								callerMemberId:
+									callerMemberId as Id<"householdMembers">,
+							}
+						: {}),
 					name,
 					category,
 					note: noteValue.trim() || undefined,

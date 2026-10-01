@@ -24,7 +24,6 @@
 	import { page } from "$app/state";
 	import { PUBLIC_CONVEX_URL } from "$env/static/public";
 	import favicon from "$lib/assets/favicon.svg";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import TabBar from "$lib/components/TabBar.svelte";
 	import { Badge } from "$lib/components/ui/badge";
@@ -36,7 +35,6 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
-	import { roster } from "$lib/stores/households.svelte.js";
 	import { plannerView } from "$lib/stores/planner-view.svelte.js";
 	import { prefs } from "$lib/stores/prefs.svelte.js";
 	import {
@@ -153,11 +151,15 @@
 	);
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
 
-	const householdQuery = useQuery(api.households.get, () =>
-		session.session
-			? { householdId: session.session.householdId as Id<"households"> }
-			: "skip",
-	);
+	const householdQuery = useQuery(api.households.get, () => {
+		const current = session.session;
+		return current
+			? {
+					householdId: current.householdId as Id<"households">,
+					callerMemberId: current.memberId as Id<"householdMembers">,
+				}
+			: "skip";
+	});
 	const createHousehold = useMutation(api.households.create);
 	const membershipsQuery = useQuery(api.households.myMemberships, () =>
 		!auth.isLoading && auth.isAuthenticated ? {} : "skip",
@@ -198,38 +200,36 @@
 		void auth.signOut().catch(() => {});
 	}
 
-	// Signed-in kitchens reconcile into the local roster, so every
-	// membership — not just the active one — survives a new device.
-	// mergeServerMemberships is idempotent: the effect converges
-	// instead of retriggering itself.
+	// Single household per user: no roster, no switching. The session
+	// reference is the whole story — everything else derives from it.
+	// myMemberships still matters for one case: a signed-in user on a new
+	// device joins their first membership instead of provisioning a
+	// duplicate solo kitchen.
 	$effect(() => {
-		const memberships = membershipsQuery.data;
-		if (!memberships || !auth.isAuthenticated || signingOut) return;
-		roster.mergeServerMemberships(
-			memberships.map((membership) => ({
-				householdId: membership.householdId,
-				memberId: membership.memberId,
-			})),
-		);
-		if (!session.session && memberships[0]) {
-			roster.switchTo({
-				householdId: memberships[0].householdId,
-				memberId: memberships[0].memberId,
-			});
+		if (session.session || signingOut) return;
+		if (auth.isLoading) return;
+		if (auth.isAuthenticated) {
+			if (membershipsQuery.data === undefined) return;
+			const first = membershipsQuery.data[0];
+			if (first) {
+				session.connect({
+					householdId: first.householdId,
+					memberId: first.memberId,
+				});
+				return;
+			}
 		}
 	});
 
-	// One-time migration: link this device's roster rows to the sign-in.
-	// Re-arms when the membership set changes (stale-token miss,
-	// re-sign-in): claiming only ever grows that set, so this converges
-	// instead of looping.
-	let claimAttempted = $state(false);
-	let lastMembershipsKey = $state<string | null>(null);
+	// Claiming links the session member row to the sign-in (and backfills
+	// portable meals/skips). One attempt per session identity; failures
+	// unlatch with backoff so a later tick retries once auth settles.
 	// Bounded retries for a claim that fails or hits a stale token: token
 	// propagation settles in seconds, so a few backed-off attempts cover
 	// it without hammering the server forever. Plain let — no effect
 	// reads it, so it needs no reactivity.
 	let claimAttempts = 0;
+	let claimKey: string | null = null;
 	const CLAIM_RETRY_DELAYS = [3000, 7000, 15000, 30000];
 
 	function scheduleClaimRetry(): void {
@@ -237,51 +237,29 @@
 		const delay = CLAIM_RETRY_DELAYS[claimAttempts] ?? 30000;
 		claimAttempts += 1;
 		setTimeout(() => {
-			claimAttempted = false;
+			claimKey = null;
 		}, delay);
 	}
 	$effect(() => {
-		if (membershipsQuery.data === undefined) return;
-		const key = membershipsQuery.data
-			.map((m) => `${m.householdId}:${m.memberId}`)
-			.sort()
-			.join(",");
-		if (lastMembershipsKey !== key) {
-			lastMembershipsKey = key;
-			claimAttempted = false;
-			claimAttempts = 0;
-		}
-	});
-	$effect(() => {
-		if (!auth.isAuthenticated || claimAttempted || signingOut) return;
-		const memberships = membershipsQuery.data;
-		if (memberships === undefined || roster.refs.length === 0) {
-			return;
-		}
-		const linked = new Set(
-			memberships.map((m) => `${m.householdId}:${m.memberId}`),
-		);
-		if (
-			!roster.refs.some(
-				(ref) => !linked.has(`${ref.householdId}:${ref.memberId}`),
-			)
-		) {
-			claimAttempted = true;
-			return;
-		}
-		claimAttempted = true;
+		if (!auth.isAuthenticated || signingOut) return;
+		const current = session.session;
+		if (!current) return;
+		const key = `${current.householdId}:${current.memberId}`;
+		if (claimKey === key) return;
+		claimKey = key;
 		claimHouseholds({
-			refs: roster.refs.map((ref) => ({
-				householdId: ref.householdId as Id<"households">,
-				memberId: ref.memberId as Id<"householdMembers">,
-			})),
+			refs: [
+				{
+					householdId: current.householdId as Id<"households">,
+					memberId: current.memberId as Id<"householdMembers">,
+				},
+			],
 		}).then(
 			(result) => {
 				// Stale token beat the refresh (the server reports this
 				// explicitly via signedIn: false instead of throwing):
 				// unlatch with backoff so a later tick retries once auth
-				// settles. Without this the roster never links until a
-				// manual reload.
+				// settles.
 				if (!result.signedIn) scheduleClaimRetry();
 			},
 			() => scheduleClaimRetry(),
@@ -296,23 +274,10 @@
 		provisionTick;
 		if (!browser || session.session || signingOut) return;
 		// Wait for auth to resolve: anonymous visitors provision as
-		// before, but signed-in users provision only when no membership
-		// exists anywhere (claim/reconcile effects run first).
+		// before, but signed-in users without memberships provision only
+		// once the membership check above runs first.
 		if (auth.isLoading) return;
-		if (auth.isAuthenticated) {
-			if (membershipsQuery.data === undefined) return;
-			if (membershipsQuery.data.length > 0 || roster.refs.length > 0) {
-				return;
-			}
-		}
-		// Anonymous with known kitchens rejoins the first instead of
-		// spawning a new one every reload (e.g. after sign-out). Only a
-		// true first visit provisions.
-		const known = roster.refs[0];
-		if (known) {
-			roster.switchTo(known);
-			return;
-		}
+		if (auth.isAuthenticated && membershipsQuery.data === undefined) return;
 		const onStorage = (event: StorageEvent) => {
 			if (event.key === STORAGE_KEY) session.reload();
 		};
@@ -331,7 +296,7 @@
 				autoNamed: true,
 			})
 				.then((result) => {
-					roster.switchTo({
+					session.connect({
 						householdId: result.householdId,
 						memberId: result.memberId,
 					});
@@ -349,9 +314,8 @@
 
 	$effect(() => {
 		if (session.session && householdQuery.data === null) {
-			// Linked household is gone: fall through to the next known
-			// kitchen, or disconnect to provision a fresh one.
-			roster.forget(session.session.householdId);
+			// Linked household is gone: disconnect to provision a fresh one.
+			session.disconnect();
 		}
 	});
 
@@ -766,17 +730,6 @@
 										{/if}
 									</p>
 								</div>
-								{#if householdQuery.data}
-									<section
-										aria-label="Invite code"
-										class="grid gap-2"
-									>
-										<InviteCode
-											code={householdQuery.data.household
-												.inviteCode}
-										/>
-									</section>
-								{/if}
 							</div>
 							{#if householdQuery.data}
 								<section

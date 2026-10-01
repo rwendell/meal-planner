@@ -1,7 +1,6 @@
 import { type UseQueryReturn, useMutation, useQuery } from "convex-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
-import { refKey } from "$lib/stores/households.svelte.js";
 import { deviceName, session } from "$lib/stores/session.svelte.js";
 import { todayISO } from "$lib/utils/dates.js";
 import { errorMessage } from "$lib/utils/errors.js";
@@ -18,26 +17,24 @@ import {
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
 import { CUSTOM_INVITE_CODE_PATTERN } from "./profile-utils.js";
-import type { RosterEntry, RosterState } from "./roster-state.svelte.js";
 
 /**
- * The profile edit session, keyed off the VIEWED household tab: name /
+ * The profile edit session for the session household: name /
  * household / invite-code / owner-flag / auto-share drafts, skipped-meal
  * drafts with impact preview, validation, and the multi-mutation save.
- * Saving commits the viewed household to the session, so the household
- * active during save stays. Read-only roster data comes from
- * `RosterState`; the session switch itself is delegated to the caller
- * so this class never imports household side-actions.
+ * Single household per user: no tabs, no viewed-vs-session split.
  *
- * Instantiate per page (`new ProfileEditor(roster, opts)`). Read and
- * assign fields off the instance; pass methods to children wrapped in
- * arrows (`onCancel={() => editor.cancelEditing()}`) so `this` stays
- * bound.
+ * Instantiate per page (`new ProfileEditor()`). Read and assign fields
+ * off the instance; pass methods to children wrapped in arrows
+ * (`onCancel={() => editor.cancelEditing()}`) so `this` stays bound.
  */
-export class ProfileEditor {
-	// Viewed tab key; null follows the session household.
-	viewedKey = $state<string | null>(null);
+/** Minimal session entry (the only household there is). */
+interface SessionEntry {
+	household: { _id: string; name: string; inviteCode?: string };
+	member: { _id: string; name: string };
+}
 
+export class ProfileEditor {
 	editing = $state(false);
 	saving = $state(false);
 	myNameEdit = $state("");
@@ -45,6 +42,7 @@ export class ProfileEditor {
 	inviteCodeEdit = $state("");
 	ownerManagesPlansDraft = $state<boolean | null>(null);
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
+	allowMemberInvitesDraft = $state<boolean | null>(null);
 	autoShareMealsDraft = $state<boolean | null>(null);
 	nameInput = $state<HTMLInputElement | null>(null);
 	confirmSkipsOpen = $state(false);
@@ -61,6 +59,9 @@ export class ProfileEditor {
 	private setOwnerReviewsMeals = useMutation(
 		api.households.setOwnerReviewsMeals,
 	);
+	private setAllowMemberInvites = useMutation(
+		api.households.setAllowMemberInvites,
+	);
 	private setAutoShareMeals = useMutation(api.households.setMemberAutoShare);
 	private renameMember = useMutation(api.households.renameMember);
 	private applySkippedCells = useMutation(api.households.applySkippedCells);
@@ -69,46 +70,38 @@ export class ProfileEditor {
 	// useQuery evaluates its args eagerly, and constructor parameter
 	// properties aren't assigned until the constructor body runs.
 	private householdQuery!: UseQueryReturn<typeof api.households.get>;
-	private identityQuery!: UseQueryReturn<typeof api.households.get>;
 	private skipImpactQuery!: UseQueryReturn<typeof api.households.skipImpact>;
 
-	private static entryKey(entry: RosterEntry): string {
-		return refKey({
-			householdId: entry.household._id,
-			memberId: entry.member._id,
-		});
-	}
-
-	/** The roster entry under the viewed tab (falls back to session, then first). */
-	get viewedEntry(): RosterEntry | null {
-		if (this.viewedKey) {
-			return (
-				this.roster.entries.find(
-					(entry) => ProfileEditor.entryKey(entry) === this.viewedKey,
-				) ??
-				this.roster.activeEntry ??
-				(this.roster.entries[0] as RosterEntry | undefined) ??
-				null
-			);
-		}
-		return (
-			this.roster.activeEntry ??
-			(this.roster.entries[0] as RosterEntry | undefined) ??
-			null
+	/** The session household + member, or null when signed out. */
+	get viewedEntry(): SessionEntry | null {
+		const current = session.session;
+		const household = this.householdQuery.data?.household ?? null;
+		if (!current || !household) return null;
+		const member = (this.householdQuery.data?.members ?? []).find(
+			(m) => m._id === current.memberId,
 		);
+		if (!member) return null;
+		return {
+			household: {
+				_id: household._id,
+				name: household.name,
+				inviteCode: household.inviteCode ?? undefined,
+			},
+			member: { _id: member._id, name: member.name },
+		};
 	}
 
-	get identityEntry(): RosterEntry | null {
-		return this.roster.activeEntry;
+	get identityEntry(): SessionEntry | null {
+		return this.viewedEntry;
 	}
 	get identityDisplayName(): string {
 		return this.identityEntry?.member.name ?? deviceName();
 	}
 	get identityHousehold() {
-		return this.identityQuery.data?.household ?? null;
+		return this.householdQuery.data?.household ?? null;
 	}
 	get identityMembers() {
-		return this.identityQuery.data?.members ?? [];
+		return this.householdQuery.data?.members ?? [];
 	}
 	get identityMember() {
 		return (
@@ -117,22 +110,7 @@ export class ProfileEditor {
 		);
 	}
 	get identityLoading(): boolean {
-		return this.identityQuery.data === undefined;
-	}
-
-	get activeHouseholdKey(): string | null {
-		const entry = this.roster.activeEntry;
-		return entry ? ProfileEditor.entryKey(entry) : null;
-	}
-
-	get tabValue(): string {
-		const entry = this.viewedEntry;
-		return entry ? ProfileEditor.entryKey(entry) : "";
-	}
-
-	get viewingSession(): boolean {
-		const tab = this.tabValue;
-		return tab !== "" && tab === this.activeHouseholdKey;
+		return this.householdQuery.data === undefined;
 	}
 
 	get household() {
@@ -206,6 +184,13 @@ export class ProfileEditor {
 			this.ownerReviewsMealsDraft ?? this.household?.ownerReviewsMeals ?? false
 		);
 	}
+	get pendingAllowMemberInvites(): boolean {
+		return (
+			this.allowMemberInvitesDraft ??
+			this.household?.allowMemberInvites ??
+			false
+		);
+	}
 	get pendingAutoShareMeals(): boolean {
 		return (
 			this.autoShareMealsDraft ?? this.identityMember?.autoShareMeals ?? true
@@ -224,16 +209,20 @@ export class ProfileEditor {
 	get saveDisabled(): boolean {
 		const identity = this.identityEntry;
 		const viewed = this.viewedEntry;
+		// Invite-code checks only apply when the code is visible: members
+		// without invite permission never see it.
+		const canSeeCode = viewed?.household.inviteCode !== undefined;
 		return (
 			!this.myNameEdit.trim() ||
 			!this.householdNameEdit.trim() ||
-			this.inviteCodeError !== "" ||
+			(canSeeCode && this.inviteCodeError !== "") ||
 			!identity ||
 			!viewed ||
 			!(
 				this.myNameEdit.trim() !== identity.member.name ||
 				this.householdNameEdit.trim() !== viewed.household.name ||
-				this.pendingInviteCode !== viewed.household.inviteCode ||
+				(canSeeCode &&
+					this.pendingInviteCode !== viewed.household.inviteCode) ||
 				(this.isOwner &&
 					this.ownerManagesPlansDraft !== null &&
 					this.ownerManagesPlansDraft !==
@@ -242,6 +231,10 @@ export class ProfileEditor {
 					this.ownerReviewsMealsDraft !== null &&
 					this.ownerReviewsMealsDraft !==
 						(this.household?.ownerReviewsMeals ?? false)) ||
+				(this.isOwner &&
+					this.allowMemberInvitesDraft !== null &&
+					this.allowMemberInvitesDraft !==
+						(this.household?.allowMemberInvites ?? false)) ||
 				(this.autoShareMealsDraft !== null &&
 					this.autoShareMealsDraft !==
 						(this.identityMember?.autoShareMeals ?? true)) ||
@@ -252,21 +245,16 @@ export class ProfileEditor {
 		);
 	}
 
-	constructor(
-		private roster: RosterState,
-		private opts: { onCommitSwitch: (entry: RosterEntry) => void },
-	) {
+	constructor() {
 		this.householdQuery = useQuery(api.households.get, () => {
-			const entry = this.viewedEntry;
-			return entry
-				? { householdId: entry.household._id as Id<"households"> }
+			const current = session.session;
+			return current
+				? {
+						householdId: current.householdId as Id<"households">,
+						callerMemberId: current.memberId as Id<"householdMembers">,
+					}
 				: "skip";
 		});
-		this.identityQuery = useQuery(api.households.get, () =>
-			session.session
-				? { householdId: session.session.householdId as Id<"households"> }
-				: "skip",
-		);
 		this.skipImpactQuery = useQuery(api.households.skipImpact, () =>
 			session.session && this.skipsDirty
 				? {
@@ -299,48 +287,13 @@ export class ProfileEditor {
 			if (house && this.householdNameEditKey !== house._id) {
 				this.householdNameEditKey = house._id;
 				this.householdNameEdit = house.name;
-				this.inviteCodeEdit = house.inviteCode;
+				this.inviteCodeEdit = house.inviteCode ?? "";
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
 				this.editing = false;
 				this.saving = false;
 			}
 		});
-	}
-
-	/**
-	 * Tab switches only land when the viewed household has no unsaved
-	 * edits — the prefill would otherwise clobber them. Identity edits
-	 * (name, auto-share, skips) are session-scoped and survive tab
-	 * switches, so they don't block.
-	 */
-	selectViewed(key: string): void {
-		if (this.editing && this.householdDirty) {
-			toast.error("Save or cancel this household's edits first.");
-			return;
-		}
-		this.viewedKey = key;
-	}
-
-	get householdDirty(): boolean {
-		const entry = this.viewedEntry;
-		if (!entry || !this.editing) return false;
-		return (
-			this.householdNameEdit.trim() !== entry.household.name ||
-			this.inviteCodeEdit.trim().toUpperCase() !== entry.household.inviteCode ||
-			(this.isManager &&
-				this.ownerManagesPlansDraft !== null &&
-				this.ownerManagesPlansDraft !==
-					(this.household?.ownerManagesPlans ?? false)) ||
-			(this.isManager &&
-				this.ownerReviewsMealsDraft !== null &&
-				this.ownerReviewsMealsDraft !==
-					(this.household?.ownerReviewsMeals ?? false))
-		);
-	}
-
-	followSession(): void {
-		this.viewedKey = null;
 	}
 
 	private draftCells(): SkippedCell[] {
@@ -434,10 +387,11 @@ export class ProfileEditor {
 		const viewed = this.viewedEntry;
 		if (viewed) {
 			this.householdNameEdit = viewed.household.name;
-			this.inviteCodeEdit = viewed.household.inviteCode;
+			this.inviteCodeEdit = viewed.household.inviteCode ?? "";
 		}
 		this.ownerManagesPlansDraft = null;
 		this.ownerReviewsMealsDraft = null;
+		this.allowMemberInvitesDraft = null;
 		this.autoShareMealsDraft = null;
 		this.skippedDraft = null;
 		this.confirmSkipsOpen = false;
@@ -453,6 +407,9 @@ export class ProfileEditor {
 		const memberName = this.myNameEdit.trim();
 		const householdName = this.householdNameEdit.trim();
 		const pendingInviteCode = this.inviteCodeEdit.trim().toUpperCase();
+		// Members without invite permission never see the code: skip its
+		// validation, comparison, and save entirely for them.
+		const canSeeCode = entry?.household.inviteCode !== undefined;
 		if (
 			!entry ||
 			!identity ||
@@ -460,11 +417,11 @@ export class ProfileEditor {
 			this.saving ||
 			!memberName ||
 			!householdName ||
-			!pendingInviteCode
+			(canSeeCode && !pendingInviteCode)
 		) {
 			return;
 		}
-		if (!CUSTOM_INVITE_CODE_PATTERN.test(pendingInviteCode)) {
+		if (canSeeCode && !CUSTOM_INVITE_CODE_PATTERN.test(pendingInviteCode)) {
 			toast.error("Use exactly 6 letters or digits.");
 			return;
 		}
@@ -479,11 +436,14 @@ export class ProfileEditor {
 		const pendingOwnerPlans = this.ownerManagesPlansDraft;
 		const baselineOwnerReviews = this.household?.ownerReviewsMeals ?? false;
 		const pendingOwnerReviews = this.ownerReviewsMealsDraft;
+		const baselineAllowInvites = this.household?.allowMemberInvites ?? false;
+		const pendingAllowInvites = this.allowMemberInvitesDraft;
 		const baselineAutoShare = this.identityMember?.autoShareMeals ?? true;
 		const pendingAutoShare = this.autoShareMealsDraft;
 		const memberChanged = memberName !== identity.member.name;
 		const householdChanged = householdName !== entry.household.name;
-		const inviteCodeChanged = pendingInviteCode !== entry.household.inviteCode;
+		const inviteCodeChanged =
+			canSeeCode && pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
 			this.isOwner &&
 			pendingOwnerPlans !== null &&
@@ -492,6 +452,10 @@ export class ProfileEditor {
 			this.isOwner &&
 			pendingOwnerReviews !== null &&
 			pendingOwnerReviews !== baselineOwnerReviews;
+		const allowInvitesChanged =
+			this.isOwner &&
+			pendingAllowInvites !== null &&
+			pendingAllowInvites !== baselineAllowInvites;
 		const autoShareChanged =
 			pendingAutoShare !== null && pendingAutoShare !== baselineAutoShare;
 		if (
@@ -500,6 +464,7 @@ export class ProfileEditor {
 			!inviteCodeChanged &&
 			!ownerPlansChanged &&
 			!ownerReviewsChanged &&
+			!allowInvitesChanged &&
 			!autoShareChanged
 		) {
 			this.editing = false;
@@ -586,6 +551,23 @@ export class ProfileEditor {
 					toast.error(errorMessage(error, "Couldn't update the setting."));
 				}
 			}
+			if (allowInvitesChanged) {
+				try {
+					await this.setAllowMemberInvites({
+						householdId,
+						callerMemberId: memberId,
+						enabled: pendingAllowInvites,
+					});
+					toast.success(
+						pendingAllowInvites
+							? "Members can now invite others"
+							: "Only the owner can invite now",
+					);
+				} catch (error) {
+					failed = true;
+					toast.error(errorMessage(error, "Couldn't update the setting."));
+				}
+			}
 			if (autoShareChanged) {
 				try {
 					await this.setAutoShareMeals({
@@ -607,11 +589,9 @@ export class ProfileEditor {
 			if (!failed) {
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
+				this.allowMemberInvitesDraft = null;
 				this.autoShareMealsDraft = null;
 				this.editing = false;
-				// The viewed household becomes the session household, so
-				// the household active during save stays.
-				if (!this.viewingSession) this.opts.onCommitSwitch(entry);
 			}
 		} finally {
 			this.saving = false;

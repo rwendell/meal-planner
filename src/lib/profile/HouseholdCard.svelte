@@ -32,10 +32,12 @@
 		inviteError,
 		ownerPlans,
 		ownerReviews,
+		allowInvites,
 		onHouseholdEdit,
 		onInviteEdit,
 		onOwnerPlans,
 		onOwnerReviews,
+		onAllowInvites,
 		onRemoveMember,
 		onSave,
 		onCancel,
@@ -43,7 +45,7 @@
 		exists,
 	}: {
 		householdName: string;
-		inviteCode: string;
+		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
@@ -56,10 +58,12 @@
 		inviteError: string;
 		ownerPlans: boolean;
 		ownerReviews: boolean;
+		allowInvites: boolean;
 		onHouseholdEdit: (v: string) => void;
 		onInviteEdit: (v: string) => void;
 		onOwnerPlans: (v: boolean) => void;
 		onOwnerReviews: (v: boolean) => void;
+		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
 		onSave: (e?: SubmitEvent) => void;
 		onCancel: () => void;
@@ -105,6 +109,7 @@
 				</p>
 			{/if}
 		</div>
+		{#if inviteCode}
 		<div class="grid content-start gap-1.5">
 			<span
 				id="household-invite-code-label"
@@ -113,7 +118,7 @@
 				Invite code
 			</span>
 			<div class="flex flex-wrap items-center gap-2">
-				{#if editing}
+				{#if editing && isOwner}
 					<Input
 						id="household-invite-code"
 						value={inviteEdit}
@@ -146,6 +151,7 @@
 				</p>
 			{/if}
 		</div>
+		{/if}
 		<div class="grid gap-2 sm:col-span-2">
 			<span
 				class="text-xs font-semibold text-muted-foreground"
@@ -299,6 +305,34 @@
 							>
 							<InfoTip
 								text="When on, the owner's leftover review covers every member's plan instead of just their own."
+							/>
+						</span>
+					</span>
+				</div>
+				<div class="flex items-start gap-2.5">
+					<Switch
+						id="owner-allows-invites"
+						checked={allowInvites}
+						onCheckedChange={(value) => {
+							if (typeof value === "boolean") {
+								onAllowInvites(value);
+							}
+						}}
+						disabled={!editing || saving}
+						aria-label="Let members invite"
+						class="mt-0.5 shrink-0"
+					/>
+					<span class="grid gap-0.5">
+						<span class="flex items-center gap-1.5">
+							<label
+								for="owner-allows-invites"
+								class={cn(
+									"text-sm font-medium",
+									editing && !saving && "cursor-pointer",
+								)}>Let members invite</label
+							>
+							<InfoTip
+								text="When on, every member can see and share the invite code. When off, only the owner can invite."
 							/>
 						</span>
 					</span>

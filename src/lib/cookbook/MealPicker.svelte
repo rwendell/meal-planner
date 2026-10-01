@@ -175,6 +175,7 @@
 			{#key `${id}-${editorName}-${slot ?? "any"}`}
 				<MealEditor
 					{householdId}
+					callerMemberId={selfMemberId}
 					initialName={editorName}
 					initialMealTimes={slot ? [slot] : []}
 					initialShared={autoShareDefault}

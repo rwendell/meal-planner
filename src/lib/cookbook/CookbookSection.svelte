@@ -14,7 +14,10 @@
 	import MealCard from "$lib/cookbook/MealCard.svelte";
 	import MealDialog from "$lib/cookbook/MealDialog.svelte";
 	import MealsToolbar from "$lib/cookbook/MealsToolbar.svelte";
-	import { suggestCopyName, validateRecipeUrl } from "$lib/cookbook/meal-form.js";
+	import {
+		suggestCopyName,
+		validateRecipeUrl,
+	} from "$lib/cookbook/meal-form.js";
 	import {
 		type CookbookMeal,
 		mapToCookbookMeals,
@@ -52,7 +55,9 @@
 	let importedDraft = $state<ImportedDraft | null>(null);
 	let entryMode = $state<"choice" | "import" | "manual">("choice");
 	const importRecipe = useAction(api.recipeImport.importFromUrl);
-	const reportImportFailure = useMutation(api.importAlerts.reportImportFailure);
+	const reportImportFailure = useMutation(
+		api.importAlerts.reportImportFailure,
+	);
 
 	async function handleImportRecipe(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
@@ -283,6 +288,9 @@
 		);
 		const id = await createMeal({
 			householdId: householdId as Id<"households">,
+			...(selfMemberId
+				? { callerMemberId: selfMemberId as Id<"householdMembers"> }
+				: {}),
 			name,
 			category: meal.category,
 			note: meal.note,
@@ -299,10 +307,7 @@
 		openEditMeal({ ...meal, id, name });
 	}
 
-	async function deleteMeal(
-		id: string,
-		name: string,
-	): Promise<void> {
+	async function deleteMeal(id: string, name: string): Promise<void> {
 		await removeMeal({ id: id as Id<"meals"> });
 		toast.success(`${name} deleted`);
 	}
@@ -326,19 +331,12 @@
 <div class="flex flex-col gap-4">
 	{#if hero}<PlannerHero />{/if}
 	<Card.Root>
-		<Card.Header>
-			<Card.Title id="meals-title">Meals</Card.Title>
-			<Card.Action>
-				<Button variant="outline" size="sm" onclick={openAddMeal}
-					><PlusIcon data-icon="inline-start" /> New meal</Button
-				>
-			</Card.Action>
-		</Card.Header>
 		<Card.Content>
 			<Tabs.Root
 				value={cookbookTab}
 				onValueChange={(value) => {
-					if (value === "cookbook" || value === "discover") cookbookTab = value;
+					if (value === "cookbook" || value === "discover")
+						cookbookTab = value;
 				}}
 			>
 				<Tabs.List aria-label="Cookbook view">
@@ -348,7 +346,9 @@
 				<MealsToolbar
 					{category}
 					activeTab={cookbookTab}
-					searchValue={cookbookTab === "cookbook" ? search : discoverSearch}
+					searchValue={cookbookTab === "cookbook"
+						? search
+						: discoverSearch}
 					onCategory={(c) => (category = c)}
 					onSearch={(v) => {
 						if (cookbookTab === "cookbook") search = v;
@@ -358,13 +358,30 @@
 				<Tabs.Content value="cookbook">
 					{#if visibleMeals.length}
 						<div class="grid gap-2.5 min-[560px]:grid-cols-2">
+							<Card.Root class="border border-dashed ring-0">
+								<button
+									type="button"
+									onclick={openAddMeal}
+									aria-label="Add a new meal"
+									class="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl p-6 text-center text-muted-foreground transition-colors hover:text-primary"
+								>
+									<span
+										class="grid size-10 place-items-center rounded-full border border-current"
+										aria-hidden="true"><PlusIcon /></span
+									>
+									<span class="text-sm font-semibold"
+										>New meal</span
+									>
+								</button>
+							</Card.Root>
 							{#each visibleMeals as meal (meal.id)}
 								<MealCard
 									{meal}
 									shared={publishedMealIds.has(meal.id)}
 									onEdit={openEditMeal}
 									onDuplicate={(m) => void duplicateMeal(m)}
-									onToggleShare={(m) => void toggleMealSharing(m)}
+									onToggleShare={(m) =>
+										void toggleMealSharing(m)}
 									onDelete={(id, name) =>
 										void deleteMeal(id, name)}
 								/>
@@ -380,7 +397,8 @@
 						<Empty.Root>
 							<Empty.Header>
 								<Empty.Media><CookingPotIcon /></Empty.Media>
-								<Empty.Title>Your cookbook is empty</Empty.Title>
+								<Empty.Title>Your cookbook is empty</Empty.Title
+								>
 								<Empty.Description>
 									Add your first meal, or load the sample data
 									to explore.
@@ -444,6 +462,7 @@
 <MealDialog
 	open={showMealDialog}
 	{householdId}
+	callerMemberId={selfMemberId}
 	{editingMeal}
 	publishedIds={publishedMealIds}
 	{autoShareDefault}
@@ -455,7 +474,7 @@
 	{importedDraft}
 	onImportUrl={(v) => (importUrl = v)}
 	onImportSubmit={handleImportRecipe}
-	entryMode={entryMode}
+	{entryMode}
 	onPickMode={(mode) => (entryMode = mode)}
 	onClose={closeMealDialog}
 	onSaved={(mealId, name, shared) =>

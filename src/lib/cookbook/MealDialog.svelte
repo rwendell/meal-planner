@@ -20,6 +20,7 @@
 	let {
 		open,
 		householdId,
+		callerMemberId = null,
 		editingMeal,
 		publishedIds,
 		autoShareDefault,
@@ -38,6 +39,7 @@
 	}: {
 		open: boolean;
 		householdId: string | null;
+		callerMemberId?: string | null;
 		editingMeal: CookbookMeal | null;
 		publishedIds: Set<string>;
 		autoShareDefault: boolean;
@@ -76,6 +78,7 @@
 			{#if editingMeal}
 				<MealEditor
 					{householdId}
+					{callerMemberId}
 					initialName={editingMeal.name}
 					initialNote={editingMeal.note}
 					initialTime={editingMeal.time ?? undefined}
@@ -174,6 +177,7 @@
 			{:else}
 				<MealEditor
 					{householdId}
+					{callerMemberId}
 					initialName={importedDraft?.name ?? ""}
 					initialNote={importedDraft?.note ?? ""}
 					initialTime={importedDraft?.time ?? undefined}
