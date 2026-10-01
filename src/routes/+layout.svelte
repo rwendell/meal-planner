@@ -47,7 +47,6 @@
 		session,
 		setProvisioningLock,
 	} from "$lib/stores/session.svelte.js";
-	import { memberColor } from "$lib/utils/members.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
@@ -70,9 +69,9 @@
 	}
 
 	type ViewTransitionDocument = Document & {
-		startViewTransition?: (
-			updateCallback: () => void | Promise<void>,
-		) => { finished: Promise<unknown> };
+		startViewTransition?: (updateCallback: () => void | Promise<void>) => {
+			finished: Promise<unknown>;
+		};
 	};
 
 	const navItems: NavItem[] = [
@@ -638,8 +637,7 @@
 		>
 			<main class="grid min-h-[60vh] place-items-center">
 				<p role="alert" class="text-sm text-destructive">
-					Couldn't load your data. Check your connection and
-					reload.
+					Couldn't load your data. Check your connection and reload.
 				</p>
 			</main>
 		</div>
@@ -795,11 +793,6 @@
 											<li
 												class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
 											>
-												<span
-													class="size-2.5 shrink-0 rounded-full"
-													style={`background: ${memberColor(householdQuery.data.members, member._id)}`}
-													aria-hidden="true"
-												></span>
 												<span
 													class="min-w-0 shrink truncate"
 													>{member.name}</span
@@ -1054,7 +1047,9 @@
 			<TabBar active={activeSection} />
 			<div class="print:hidden">
 				<Toaster
-					position={wideScreen.current ? "bottom-center" : "top-center"}
+					position={wideScreen.current
+						? "bottom-center"
+						: "top-center"}
 					offset={wideScreen.current
 						? { bottom: "32px" }
 						: { top: "calc(env(safe-area-inset-top) + 68px)" }}

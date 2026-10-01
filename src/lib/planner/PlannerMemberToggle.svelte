@@ -1,6 +1,5 @@
 <script lang="ts">
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
-	import { memberColor } from "$lib/utils/members.js";
 
 	interface Props {
 		members: Array<{ _id: string; name: string }>;
@@ -22,10 +21,7 @@
 >
 	{#each members as member (member._id)}
 		<ToggleGroup.Item value={member._id} aria-label={member.name}>
-			<span
-				class="size-2.5 flex-none rounded-full"
-				style={`background: ${memberColor(members, member._id)}`}
-			></span>{member.name}</ToggleGroup.Item
-		>
+			{member.name}
+		</ToggleGroup.Item>
 	{/each}
 </ToggleGroup.Root>
