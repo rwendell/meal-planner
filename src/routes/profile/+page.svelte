@@ -88,6 +88,7 @@
 				<ProfileHeader
 					saving={editor.saving}
 					saveDisabled={editor.saveDisabled}
+					hasUnsavedChanges={editor.hasUnsavedChanges}
 					showActions={Boolean(
 						editor.viewedEntry && header.visible,
 					)}
@@ -238,7 +239,7 @@
 						>
 							<EditActions
 						editing={true}
-						disabled={editor.saving}
+						disabled={editor.saving || !editor.hasUnsavedChanges}
 						saveDisabled={editor.saveDisabled}
 						saving={editor.saving}
 						onEdit={() => {}}

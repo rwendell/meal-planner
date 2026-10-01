@@ -4,12 +4,14 @@
 	let {
 		saving,
 		saveDisabled,
+		hasUnsavedChanges,
 		showActions,
 		onCancel,
 		onSave,
 	}: {
 		saving: boolean;
 		saveDisabled: boolean;
+		hasUnsavedChanges: boolean;
 		showActions: boolean;
 		onCancel: () => void;
 		onSave: () => undefined | Promise<unknown>;
@@ -29,7 +31,7 @@
 {#if showActions}
 	<EditActions
 		editing={true}
-		disabled={saving}
+		disabled={saving || !hasUnsavedChanges}
 		saveDisabled={saveDisabled}
 		saving={saving}
 		class="shrink-0"
