@@ -149,7 +149,6 @@
 					onAllowInvites={(v) => (editor.allowMemberInvitesDraft = v)}
 					onRemoveMember={(id, name) => void removeMember(id, name)}
 					onLeave={() => void leaveViewed()}
-					loading={editor.householdLoading}
 					exists={Boolean(editor.household)}
 				/>
 			{/if}

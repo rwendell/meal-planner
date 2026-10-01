@@ -2,16 +2,17 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import InfoTip from "$lib/components/InfoTip.svelte";
 	import InviteCode from "$lib/components/InviteCode.svelte";
+	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
-	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Switch } from "$lib/components/ui/switch";
 
 	type Member = {
 		_id: string;
 		name: string;
+		image?: string | null;
 	};
 
 	let {
@@ -30,7 +31,6 @@
 		onAllowInvites,
 		onRemoveMember,
 		onLeave,
-		loading,
 		exists,
 	}: {
 		inviteCode?: string | null;
@@ -48,7 +48,6 @@
 		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
 		onLeave: () => void;
-		loading: boolean;
 		exists: boolean;
 	} = $props();
 
@@ -86,30 +85,14 @@
 	<Card.Header>
 		<Card.Title>Household</Card.Title>
 		<Card.Description>
-			Share meals and plans with your home.
+			Everyone here shares meals, plans, and one shopping list.
 		</Card.Description>
-		<Card.Action class="grid w-fit gap-1 justify-items-start">
-			{#if inviteCode}
-				<span
-					id="household-invite-code-label"
-					class="text-xs font-semibold text-muted-foreground"
-				>
-					Invite code
-				</span>
-				<InviteCode code={inviteCode} />
-			{/if}
-		</Card.Action>
 	</Card.Header>
 
 	<Card.Content class="grid gap-5">
-		<div class="grid gap-2">
-			<span class="text-xs font-semibold text-muted-foreground">
-				Members · {members.length}
-			</span>
-			{#if loading}
-				<Skeleton class="h-9" />
-				<Skeleton class="h-9" />
-			{:else if !exists}
+		<div class="grid gap-1.5">
+			<span class="text-sm font-semibold">Members</span>
+			{#if !exists}
 				<span class="text-sm text-muted-foreground">
 					This household no longer exists.
 				</span>
@@ -118,23 +101,26 @@
 					No members yet.
 				</span>
 			{:else}
-				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
+				<ul class="m-0 grid list-none gap-0.5 p-0">
 					{#each members as member (member._id)}
-						{const isSelf = $derived(member._id === myId)}
-						{const isOwnerRow = $derived(ownerId === member._id)}
-						<li class="flex items-center gap-1.5 rounded-lg py-1">
+						<li class="flex items-center gap-2 rounded-lg py-1">
+							<MemberAvatar
+								name={member.name}
+								image={member.image}
+								size="sm"
+							/>
 							<span class="truncate text-sm">{member.name}</span>
-							{#if isSelf}
+							{#if member._id === myId}
 								<Badge variant="secondary" class="shrink-0">
 									You
 								</Badge>
 							{/if}
-							{#if isOwnerRow}
+							{#if member._id === ownerId}
 								<Badge variant="secondary" class="shrink-0">
 									Owner
 								</Badge>
 							{/if}
-							{#if !isSelf && isManager}
+							{#if member._id !== myId && isManager}
 								<AlertDialog.Root>
 									<AlertDialog.Trigger>
 										{#snippet child({ props })}
@@ -178,13 +164,19 @@
 					{/each}
 				</ul>
 			{/if}
+			{#if inviteCode}
+				<div
+					class="flex items-center justify-between gap-3 pt-1.5"
+				>
+					<span class="text-sm font-medium">Invite code</span>
+					<InviteCode code={inviteCode} />
+				</div>
+			{/if}
 		</div>
 
 		{#if isOwner}
 			<div class="grid gap-3">
-				<span class="text-xs font-semibold text-muted-foreground">
-					Owner permissions
-				</span>
+				<span class="text-sm font-semibold">Owner permissions</span>
 				{#each permissions as permission (permission.id)}
 					<div class="flex items-start gap-2.5">
 						<Switch
@@ -212,39 +204,39 @@
 				{/each}
 			</div>
 		{/if}
-
-		<div class="flex justify-start">
-			<AlertDialog.Root>
-				<AlertDialog.Trigger>
-					{#snippet child({ props })}
-						<Button
-							variant="outline"
-							size="sm"
-							class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-							{...props}
-						>
-							Leave household
-						</Button>
-					{/snippet}
-				</AlertDialog.Trigger>
-				<AlertDialog.Content>
-					<AlertDialog.Header>
-						<AlertDialog.Title>
-							Leave this household?
-						</AlertDialog.Title>
-						<AlertDialog.Description>
-							You'll lose access to this household and
-							your planned meals here will be removed.
-						</AlertDialog.Description>
-					</AlertDialog.Header>
-					<AlertDialog.Footer>
-						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-						<AlertDialog.Action variant="destructive" onclick={onLeave}>
-							Leave
-						</AlertDialog.Action>
-					</AlertDialog.Footer>
-				</AlertDialog.Content>
-			</AlertDialog.Root>
-		</div>
 	</Card.Content>
+
+	<Card.Footer>
+		<AlertDialog.Root>
+			<AlertDialog.Trigger>
+				{#snippet child({ props })}
+					<Button
+						variant="outline"
+						size="sm"
+						class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+						{...props}
+					>
+						Leave household
+					</Button>
+				{/snippet}
+			</AlertDialog.Trigger>
+			<AlertDialog.Content>
+				<AlertDialog.Header>
+					<AlertDialog.Title>
+						Leave this household?
+					</AlertDialog.Title>
+					<AlertDialog.Description>
+						You'll lose access to this household and your planned
+						meals here will be removed.
+					</AlertDialog.Description>
+				</AlertDialog.Header>
+				<AlertDialog.Footer>
+					<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+					<AlertDialog.Action variant="destructive" onclick={onLeave}>
+						Leave
+					</AlertDialog.Action>
+				</AlertDialog.Footer>
+			</AlertDialog.Content>
+		</AlertDialog.Root>
+	</Card.Footer>
 </Card.Root>
