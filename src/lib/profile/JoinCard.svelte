@@ -1,8 +1,8 @@
 <script lang="ts">
+import InviteCode from "$lib/components/InviteCode.svelte";
 	import { Button } from "$lib/components/ui/button";
 import * as Card from "$lib/components/ui/card";
 import { Input } from "$lib/components/ui/input";
-import InviteCode from "$lib/components/InviteCode.svelte";
 
 let {
 	joinCode,

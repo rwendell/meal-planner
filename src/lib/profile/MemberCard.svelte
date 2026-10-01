@@ -9,8 +9,6 @@
 
 	let {
 		name,
-		isOwner,
-		householdName,
 		memberImage,
 		saving,
 		nameEdit,
@@ -25,8 +23,6 @@
 		onLink,
 	}: {
 		name: string;
-		isOwner: boolean;
-		householdName: string;
 		memberImage: string | null;
 		saving: boolean;
 		nameEdit: string;

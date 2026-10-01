@@ -1,89 +1,93 @@
 <script lang="ts">
-import XIcon from "@lucide/svelte/icons/x";
-import EditableText from "$lib/components/EditableText.svelte";
-import InfoTip from "$lib/components/InfoTip.svelte";
-import InviteCode from "$lib/components/InviteCode.svelte";
-import * as AlertDialog from "$lib/components/ui/alert-dialog";
-import { Badge } from "$lib/components/ui/badge";
-import { Button } from "$lib/components/ui/button";
-import * as Card from "$lib/components/ui/card";
-import { Separator } from "$lib/components/ui/separator";
-import { Skeleton } from "$lib/components/ui/skeleton";
-import { Switch } from "$lib/components/ui/switch";
-import { cn } from "$lib/utils.js";
+	import XIcon from "@lucide/svelte/icons/x";
+	import EditableText from "$lib/components/EditableText.svelte";
+	import InfoTip from "$lib/components/InfoTip.svelte";
+	import InviteCode from "$lib/components/InviteCode.svelte";
+	import * as AlertDialog from "$lib/components/ui/alert-dialog";
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button } from "$lib/components/ui/button";
+	import * as Card from "$lib/components/ui/card";
+	import { Separator } from "$lib/components/ui/separator";
+	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { Switch } from "$lib/components/ui/switch";
+	import { cn } from "$lib/utils.js";
 
-type Member = {
-_id: string;
-name: string;
-};
+	type Member = {
+		_id: string;
+		name: string;
+	};
 
-let {
-householdName,
-inviteCode,
-members,
-ownerId,
-myId,
-isManager,
-isOwner,
-saving,
-householdEdit,
-inviteEdit,
-inviteError,
-ownerPlans,
-ownerReviews,
-allowInvites,
-onHouseholdEdit,
-onInviteEdit,
-onOwnerPlans,
-onOwnerReviews,
-onAllowInvites,
-onRemoveMember,
-onSave,
-onCancel,
-loading,
-exists,
-}: {
-householdName: string;
-inviteCode?: string | null;
-members: Array<Member>;
-ownerId?: string | null;
-myId: string | null;
-isManager: boolean;
-isOwner: boolean;
-saving: boolean;
-householdEdit: string;
-inviteEdit: string;
-inviteError: string;
-ownerPlans: boolean;
-ownerReviews: boolean;
-allowInvites: boolean;
-onHouseholdEdit: (v: string) => void;
-onInviteEdit: (v: string) => void;
-onOwnerPlans: (v: boolean) => void;
-onOwnerReviews: (v: boolean) => void;
-onAllowInvites: (v: boolean) => void;
-onRemoveMember: (id: string, name: string) => void;
-onSave: (e?: SubmitEvent) => void;
-onCancel: () => void;
-loading: boolean;
-exists: boolean;
-} = $props();
+	let {
+		householdName,
+		inviteCode,
+		members,
+		ownerId,
+		myId,
+		isManager,
+		isOwner,
+		saving,
+		householdEdit,
+		inviteEdit,
+		inviteError,
+		ownerPlans,
+		ownerReviews,
+		allowInvites,
+		onHouseholdEdit,
+		onInviteEdit,
+		onOwnerPlans,
+		onOwnerReviews,
+		onAllowInvites,
+		onRemoveMember,
+		onSave,
+		onCancel,
+		loading,
+		exists,
+	}: {
+		householdName: string;
+		inviteCode?: string | null;
+		members: Array<Member>;
+		ownerId?: string | null;
+		myId: string | null;
+		isManager: boolean;
+		isOwner: boolean;
+		saving: boolean;
+		householdEdit: string;
+		inviteEdit: string;
+		inviteError: string;
+		ownerPlans: boolean;
+		ownerReviews: boolean;
+		allowInvites: boolean;
+		onHouseholdEdit: (v: string) => void;
+		onInviteEdit: (v: string) => void;
+		onOwnerPlans: (v: boolean) => void;
+		onOwnerReviews: (v: boolean) => void;
+		onAllowInvites: (v: boolean) => void;
+		onRemoveMember: (id: string, name: string) => void;
+		onSave: (e?: SubmitEvent) => void;
+		onCancel: () => void;
+		loading: boolean;
+		exists: boolean;
+	} = $props();
 </script>
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title> Household name </Card.Title>
+		<Card.Title>Household name</Card.Title>
 		<Card.Description>
-			<EditableText
-				value={householdEdit}
-				display={householdName}
-				placeholder="Household name"
-				ariaLabel="Household name"
-				textClass="truncate text-sm font-semibold"
-				onInput={(v) => onHouseholdEdit(v)}
-				onCommit={() => onSave()}
-				onRevert={onCancel}
-			/>
+			{#if isOwner}
+				<EditableText
+					value={householdEdit}
+					display={householdName}
+					placeholder="Household name"
+					ariaLabel="Household name"
+					textClass="truncate text-sm font-semibold"
+					onInput={(v) => onHouseholdEdit(v)}
+					onCommit={() => onSave()}
+					onRevert={onCancel}
+				/>
+			{:else}
+				<span class="truncate text-sm font-semibold">{householdName}</span>
+			{/if}
 		</Card.Description>
 		<Card.Action>
 			{#if inviteCode}
@@ -100,6 +104,20 @@ exists: boolean;
 	<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
 		{#if inviteCode && isOwner}
 			<div class="grid content-start gap-1.5">
+				<span class="text-xs font-semibold text-muted-foreground">
+					Rotate invite code
+				</span>
+				<EditableText
+					value={inviteEdit}
+					display={inviteCode}
+					placeholder="ABC123"
+					ariaLabel="Invite code"
+					inputClass="w-28 uppercase tracking-[0.2em]"
+					textClass="font-mono font-semibold tracking-[0.2em] uppercase"
+					onInput={(v) => onInviteEdit(v)}
+					onCommit={() => onSave()}
+					onRevert={onCancel}
+				/>
 				{#if inviteError !== ""}
 					<p
 						class="m-0 text-xs font-semibold text-destructive"
@@ -154,25 +172,23 @@ exists: boolean;
 											<AlertDialog.Title>
 												Remove {member.name}?
 											</AlertDialog.Title>
-											<AlertDialog.Description
-											>
-												{member.name} will lose
-												access to this household
-												and their planned meals
-												will be removed.
+											<AlertDialog.Description>
+												{member.name} will lose access to
+												this household and their planned
+												meals will be removed.
 											</AlertDialog.Description>
 										</AlertDialog.Header>
 										<AlertDialog.Footer>
 											<AlertDialog.Cancel
-											>Cancel</AlertDialog.Cancel
+												>Cancel</AlertDialog.Cancel
 											>
 											<AlertDialog.Action
 												variant="destructive"
 												onclick={() =>
-												onRemoveMember(
-												member._id,
-												member.name,
-												)}
+													onRemoveMember(
+														member._id,
+														member.name,
+													)}
 											>
 												Remove
 											</AlertDialog.Action>
@@ -184,7 +200,7 @@ exists: boolean;
 								class="flex min-w-0 flex-wrap items-center gap-1.5"
 							>
 								<strong class="truncate text-sm"
-								>{member.name}</strong
+									>{member.name}</strong
 								>
 								{#if isSelf}<Badge
 									variant="secondary"
@@ -194,7 +210,7 @@ exists: boolean;
 									<Badge
 										variant="secondary"
 										class="shrink-0"
-									>Owner</Badge
+										>Owner</Badge
 									>
 								{/if}
 							</div>
@@ -216,9 +232,9 @@ exists: boolean;
 						id="owner-manages-plans"
 						checked={ownerPlans}
 						onCheckedChange={(value) => {
-						if (typeof value === "boolean") {
-						onOwnerPlans(value);
-						}
+							if (typeof value === "boolean") {
+								onOwnerPlans(value);
+							}
 						}}
 						disabled={saving}
 						aria-label="Plan for everyone"
@@ -229,8 +245,8 @@ exists: boolean;
 							<label
 								for="owner-manages-plans"
 								class={cn(
-								"text-sm font-medium",
-								!saving && "cursor-pointer",
+									"text-sm font-medium",
+									!saving && "cursor-pointer",
 								)}>Plan for everyone</label
 							>
 							<InfoTip
@@ -244,9 +260,9 @@ exists: boolean;
 						id="owner-reviews-meals"
 						checked={ownerReviews}
 						onCheckedChange={(value) => {
-						if (typeof value === "boolean") {
-						onOwnerReviews(value);
-						}
+							if (typeof value === "boolean") {
+								onOwnerReviews(value);
+							}
 						}}
 						disabled={saving}
 						aria-label="Review all leftovers"
@@ -257,8 +273,8 @@ exists: boolean;
 							<label
 								for="owner-reviews-meals"
 								class={cn(
-								"text-sm font-medium",
-								!saving && "cursor-pointer",
+									"text-sm font-medium",
+									!saving && "cursor-pointer",
 								)}>Review all leftovers</label
 							>
 							<InfoTip
@@ -272,9 +288,9 @@ exists: boolean;
 						id="owner-allows-invites"
 						checked={allowInvites}
 						onCheckedChange={(value) => {
-						if (typeof value === "boolean") {
-						onAllowInvites(value);
-						}
+							if (typeof value === "boolean") {
+								onAllowInvites(value);
+							}
 						}}
 						disabled={saving}
 						aria-label="Let members invite"
@@ -285,8 +301,8 @@ exists: boolean;
 							<label
 								for="owner-allows-invites"
 								class={cn(
-								"text-sm font-medium",
-								!saving && "cursor-pointer",
+									"text-sm font-medium",
+									!saving && "cursor-pointer",
 								)}>Let members invite</label
 							>
 							<InfoTip

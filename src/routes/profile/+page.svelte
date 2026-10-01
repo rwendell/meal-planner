@@ -97,8 +97,6 @@
 			{#if editor.identityEntry}
 				<MemberCard
 					name={editor.identityDisplayName}
-					isOwner={editor.isOwner}
-					householdName={editor.identityHousehold?.name ?? ""}
 					memberImage={editor.identityMember?.image ?? null}
 					saving={editor.saving}
 					nameEdit={editor.myNameEdit}

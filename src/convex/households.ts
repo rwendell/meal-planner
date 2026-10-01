@@ -302,6 +302,11 @@ export const renameHousehold = mutation({
 			throw new Error("Household member not found.");
 		}
 		await assertCallerMutation(ctx, args.householdId, args.memberId);
+		const household = await ctx.db.get("households", args.householdId);
+		if (!household) throw new Error("Household not found.");
+		if (!canManage(household, args.memberId)) {
+			throw new Error("Only the kitchen owner can rename it.");
+		}
 		const name = cleanName(args.name);
 		if (!name) throw new Error("Household name is required.");
 		await ctx.db.patch("households", args.householdId, { name });
