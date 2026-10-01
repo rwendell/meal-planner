@@ -73,7 +73,9 @@
 				Household name
 			</span>
 		</Card.Title>
-		<Card.Description class="grid w-fit justify-items-start gap-1">
+		<Card.Description
+			class="grid w-fit justify-items-start gap-1 text-foreground"
+		>
 			{#if isOwner}
 				<EditableText
 					value={householdEdit}
