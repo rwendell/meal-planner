@@ -2,15 +2,18 @@
 	import { Button } from "$lib/components/ui/button";
 import * as Card from "$lib/components/ui/card";
 import { Input } from "$lib/components/ui/input";
+import InviteCode from "$lib/components/InviteCode.svelte";
 
 let {
 	joinCode,
 	joinError,
+	inviteCode = null,
 	onJoinCode,
 	onJoin,
 }: {
 	joinCode: string;
 	joinError: string;
+	inviteCode?: string | null;
 	onJoinCode: (v: string) => void;
 	onJoin: (e: SubmitEvent) => void;
 } = $props();
@@ -25,6 +28,20 @@ let {
 		</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-6">
+		{#if inviteCode}
+			<div class="grid content-start gap-2">
+				<h3 class="m-0 text-sm font-semibold">
+					Invite friends
+				</h3>
+				<p class="m-0 text-xs text-muted-foreground">
+					Share this code so others can join your
+					household.
+				</p>
+				<div>
+					<InviteCode code={inviteCode} />
+				</div>
+			</div>
+		{/if}
 		<div class="grid content-start gap-2">
 			<h3 class="m-0 text-sm font-semibold">
 				Join with code
