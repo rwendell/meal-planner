@@ -2,8 +2,6 @@
 	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import { beforeNavigate } from "$app/navigation";
 	import EditActions from "$lib/components/EditActions.svelte";
-	import TextButton from "$lib/components/TextButton.svelte";
-	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import HouseholdCard from "$lib/profile/HouseholdCard.svelte";
 	import { HeaderVisibility } from "$lib/profile/header-visibility.svelte.js";
 	import { HouseholdActions } from "$lib/profile/household-actions.svelte.js";
@@ -150,45 +148,10 @@
 					onOwnerReviews={(v) => (editor.ownerReviewsMealsDraft = v)}
 					onAllowInvites={(v) => (editor.allowMemberInvitesDraft = v)}
 					onRemoveMember={(id, name) => void removeMember(id, name)}
+					onLeave={() => void leaveViewed()}
 					loading={editor.householdLoading}
 					exists={Boolean(editor.household)}
 				/>
-
-				<div class="flex justify-start">
-					<AlertDialog.Root>
-						<AlertDialog.Trigger>
-							{#snippet child({ props })}
-								<TextButton
-									tone="destructive"
-										label="Leave household"
-										{...props}
-									>
-										Leave household
-									</TextButton>
-							{/snippet}
-						</AlertDialog.Trigger>
-						<AlertDialog.Content>
-							<AlertDialog.Header>
-								<AlertDialog.Title>
-									Leave this household?
-								</AlertDialog.Title>
-								<AlertDialog.Description>
-									You will lose access to this household and
-									your planned meals there will be removed.
-								</AlertDialog.Description>
-							</AlertDialog.Header>
-							<AlertDialog.Footer>
-								<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-								<AlertDialog.Action
-									variant="destructive"
-									onclick={() => void leaveViewed()}
-								>
-									Leave
-								</AlertDialog.Action>
-							</AlertDialog.Footer>
-						</AlertDialog.Content>
-					</AlertDialog.Root>
-				</div>
 			{/if}
 
 			{#if editor.members.length <= 1}

@@ -30,6 +30,7 @@
 		onOwnerReviews,
 		onAllowInvites,
 		onRemoveMember,
+		onLeave,
 		loading,
 		exists,
 	}: {
@@ -47,6 +48,7 @@
 		onOwnerReviews: (v: boolean) => void;
 		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
+		onLeave: () => void;
 		loading: boolean;
 		exists: boolean;
 	} = $props();
@@ -212,5 +214,40 @@
 				{/each}
 			</div>
 		{/if}
+
+		<Separator />
+		<div class="flex justify-start">
+			<AlertDialog.Root>
+				<AlertDialog.Trigger>
+					{#snippet child({ props })}
+						<Button
+							variant="outline"
+							size="sm"
+							class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+							{...props}
+						>
+							Leave household
+						</Button>
+					{/snippet}
+				</AlertDialog.Trigger>
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>
+							Leave this household?
+						</AlertDialog.Title>
+						<AlertDialog.Description>
+							You'll lose access to this household and
+							your planned meals here will be removed.
+						</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+						<AlertDialog.Action variant="destructive" onclick={onLeave}>
+							Leave
+						</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			</AlertDialog.Root>
+		</div>
 	</Card.Content>
 </Card.Root>

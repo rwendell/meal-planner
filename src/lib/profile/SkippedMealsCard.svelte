@@ -46,6 +46,7 @@
 <Card.Root>
 	<Card.Header>
 		<Card.Title>Skip Meals</Card.Title>
+		<Card.Description>Don't eat breakfast?</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-3">
 		{#if loading}
