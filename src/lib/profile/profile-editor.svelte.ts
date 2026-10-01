@@ -29,7 +29,7 @@ import { CUSTOM_INVITE_CODE_PATTERN } from "./profile-utils.js";
  */
 /** Minimal session entry (the only household there is). */
 interface SessionEntry {
-	household: { _id: string; name: string; inviteCode?: string };
+	household: { _id: string; inviteCode?: string };
 	member: { _id: string; name: string };
 }
 
@@ -79,7 +79,6 @@ export class ProfileEditor {
 		return {
 			household: {
 				_id: household._id,
-				name: household.name,
 				inviteCode: household.inviteCode ?? undefined,
 			},
 			member: { _id: member._id, name: member.name },

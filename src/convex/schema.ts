@@ -61,7 +61,6 @@ export default defineSchema({
 	// Households group members who share one meal database, per-member
 	// plans, and a unified shopping list. Joined via invite code.
 	households: defineTable({
-		name: v.string(),
 		inviteCode: v.string(),
 		// The creating member. Unset on older rows, where any member may
 		// manage the household.

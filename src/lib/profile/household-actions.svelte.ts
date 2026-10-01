@@ -7,7 +7,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 /** Minimal entry shape for leaving a household. */
 export interface LeaveTarget {
-	household: { _id: string; name: string };
+	household: { _id: string };
 	member: { _id: string };
 }
 
@@ -70,7 +70,7 @@ export class HouseholdActions {
 				// the login, so nothing personal is lost.
 				session.disconnect();
 			}
-			toast.success(`Left ${entry.household.name}`);
+			toast.success("Left the household");
 		} catch (error) {
 			toast.error(errorMessage(error, "Couldn't leave the household."));
 		}

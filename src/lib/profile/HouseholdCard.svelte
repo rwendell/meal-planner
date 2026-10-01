@@ -9,7 +9,6 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Switch } from "$lib/components/ui/switch";
-	import { cn } from "$lib/utils.js";
 
 	type Member = {
 		_id: string;
@@ -17,45 +16,77 @@
 	};
 
 	let {
-			inviteCode,
+		inviteCode,
 		members,
 		ownerId,
 		myId,
 		isManager,
 		isOwner,
 		saving,
-					ownerPlans,
+		ownerPlans,
 		ownerReviews,
 		allowInvites,
-				onOwnerPlans,
+		onOwnerPlans,
 		onOwnerReviews,
 		onAllowInvites,
 		onRemoveMember,
 		loading,
 		exists,
 	}: {
-			inviteCode?: string | null;
+		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
 		isManager: boolean;
 		isOwner: boolean;
 		saving: boolean;
-					ownerPlans: boolean;
+		ownerPlans: boolean;
 		ownerReviews: boolean;
 		allowInvites: boolean;
-				onOwnerPlans: (v: boolean) => void;
+		onOwnerPlans: (v: boolean) => void;
 		onOwnerReviews: (v: boolean) => void;
 		onAllowInvites: (v: boolean) => void;
 		onRemoveMember: (id: string, name: string) => void;
 		loading: boolean;
 		exists: boolean;
 	} = $props();
+
+	/**
+	 * Owner-only permissions. Data-driven so the three rows stay in sync.
+	 * `$derived` is load-bearing: a plain const would pin the initial
+	 * prop values and the switches would never reflect a change.
+	 */
+	const permissions = $derived([
+		{
+			id: "owner-manages-plans",
+			label: "Plan for everyone",
+			hint: "When on, the owner can switch between members' plans and pick meals for them. Everyone else only ever sees and edits their own plan.",
+			checked: ownerPlans,
+			onChange: onOwnerPlans,
+		},
+		{
+			id: "owner-reviews-meals",
+			label: "Review all leftovers",
+			hint: "When on, the owner's leftover review covers every member's plan instead of just their own.",
+			checked: ownerReviews,
+			onChange: onOwnerReviews,
+		},
+		{
+			id: "owner-allows-invites",
+			label: "Let members invite",
+			hint: "When on, every member can see and share the invite code. When off, only the owner can invite.",
+			checked: allowInvites,
+			onChange: onAllowInvites,
+		},
+	]);
 </script>
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title> Household settings </Card.Title>
+		<Card.Title>Household</Card.Title>
+		<Card.Description>
+			Share meals and plans with your home.
+		</Card.Description>
 		<Card.Action class="grid w-fit gap-1 justify-items-start">
 			{#if inviteCode}
 				<span
@@ -68,16 +99,15 @@
 			{/if}
 		</Card.Action>
 	</Card.Header>
-	<Card.Content class="grid items-start gap-4 sm:grid-cols-2">
-		<div class="grid gap-2 sm:col-span-2">
-			<span
-				class="text-xs font-semibold text-muted-foreground"
-			>
+
+	<Card.Content class="grid gap-4">
+		<div class="grid gap-2">
+			<span class="text-xs font-semibold text-muted-foreground">
 				Members · {members.length}
 			</span>
 			{#if loading}
-				<Skeleton class="h-10" />
-				<Skeleton class="h-10" />
+				<Skeleton class="h-9" />
+				<Skeleton class="h-9" />
 			{:else if !exists}
 				<span class="text-sm text-muted-foreground">
 					This household no longer exists.
@@ -87,12 +117,22 @@
 					No members yet.
 				</span>
 			{:else}
-				<div class="grid w-fit max-w-full gap-1">
+				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
 					{#each members as member (member._id)}
 						{const isSelf = $derived(member._id === myId)}
-						<div
-							class="flex items-center gap-1.5 rounded-lg py-1.5"
-						>
+						{const isOwnerRow = $derived(ownerId === member._id)}
+						<li class="flex items-center gap-1.5 rounded-lg py-1">
+							<span class="truncate text-sm">{member.name}</span>
+							{#if isSelf}
+								<Badge variant="secondary" class="shrink-0">
+									You
+								</Badge>
+							{/if}
+							{#if isOwnerRow}
+								<Badge variant="secondary" class="shrink-0">
+									Owner
+								</Badge>
+							{/if}
 							{#if !isSelf && isManager}
 								<AlertDialog.Root>
 									<AlertDialog.Trigger>
@@ -100,8 +140,9 @@
 											<Button
 												variant="ghost"
 												size="icon-sm"
+												class="ml-auto"
 												aria-label={`Remove ${member.name}`}
-												title="Remove"
+												title="Remove from household"
 												{...props}
 											>
 												<XIcon />
@@ -114,22 +155,17 @@
 												Remove {member.name}?
 											</AlertDialog.Title>
 											<AlertDialog.Description>
-												{member.name} will lose access to
-												this household and their planned
-												meals will be removed.
+												{member.name} loses access to this
+												household, and their planned meals here
+												are removed.
 											</AlertDialog.Description>
 										</AlertDialog.Header>
 										<AlertDialog.Footer>
-											<AlertDialog.Cancel
-												>Cancel</AlertDialog.Cancel
-											>
+											<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 											<AlertDialog.Action
 												variant="destructive"
 												onclick={() =>
-													onRemoveMember(
-														member._id,
-														member.name,
-													)}
+													onRemoveMember(member._id, member.name)}
 											>
 												Remove
 											</AlertDialog.Action>
@@ -137,121 +173,43 @@
 									</AlertDialog.Content>
 								</AlertDialog.Root>
 							{/if}
-							<div
-								class="flex min-w-0 flex-wrap items-center gap-1.5"
-							>
-								<strong class="truncate text-sm"
-									>{member.name}</strong
-								>
-								{#if isSelf}<Badge
-									variant="secondary"
-									class="shrink-0">You</Badge
-								>{/if}
-								{#if ownerId === member._id}
-									<Badge
-										variant="secondary"
-										class="shrink-0"
-										>Owner</Badge
-									>
-								{/if}
-							</div>
-						</div>
+						</li>
 					{/each}
-				</div>
+				</ul>
 			{/if}
 		</div>
+
 		{#if isOwner}
-			<Separator class="sm:col-span-2" />
-			<div class="grid gap-2 sm:col-span-2">
-				<span
-					class="text-xs font-semibold text-muted-foreground"
-				>
-					Owner settings
+			<Separator />
+			<div class="grid gap-3">
+				<span class="text-xs font-semibold text-muted-foreground">
+					Owner permissions
 				</span>
-				<div class="flex items-start gap-2.5">
-					<Switch
-						id="owner-manages-plans"
-						checked={ownerPlans}
-						onCheckedChange={(value) => {
-							if (typeof value === "boolean") {
-								onOwnerPlans(value);
-							}
-						}}
-						disabled={saving}
-						aria-label="Plan for everyone"
-						class="mt-0.5 shrink-0"
-					/>
-					<span class="grid gap-0.5">
-						<span class="flex items-center gap-1.5">
+				{#each permissions as permission (permission.id)}
+					<div class="flex items-start gap-2.5">
+						<Switch
+							id={permission.id}
+							checked={permission.checked}
+							onCheckedChange={(value) => {
+								if (typeof value === "boolean") {
+									permission.onChange(value);
+								}
+							}}
+							disabled={saving}
+							aria-label={permission.label}
+							class="mt-0.5 shrink-0"
+						/>
+						<span class="flex min-w-0 items-center gap-1.5">
 							<label
-								for="owner-manages-plans"
-								class={cn(
-									"text-sm font-medium",
-									!saving && "cursor-pointer",
-								)}>Plan for everyone</label
+								for={permission.id}
+								class="text-sm font-medium"
 							>
-							<InfoTip
-								text="When on, the owner can switch between members' plans and pick meals for them. Everyone else only ever sees and edits their own plan."
-							/>
+								{permission.label}
+							</label>
+							<InfoTip text={permission.hint} />
 						</span>
-					</span>
-				</div>
-				<div class="flex items-start gap-2.5">
-					<Switch
-						id="owner-reviews-meals"
-						checked={ownerReviews}
-						onCheckedChange={(value) => {
-							if (typeof value === "boolean") {
-								onOwnerReviews(value);
-							}
-						}}
-						disabled={saving}
-						aria-label="Review all leftovers"
-						class="mt-0.5 shrink-0"
-					/>
-					<span class="grid gap-0.5">
-						<span class="flex items-center gap-1.5">
-							<label
-								for="owner-reviews-meals"
-								class={cn(
-									"text-sm font-medium",
-									!saving && "cursor-pointer",
-								)}>Review all leftovers</label
-							>
-							<InfoTip
-								text="When on, the owner's leftover review covers every member's plan instead of just their own."
-							/>
-						</span>
-					</span>
-				</div>
-				<div class="flex items-start gap-2.5">
-					<Switch
-						id="owner-allows-invites"
-						checked={allowInvites}
-						onCheckedChange={(value) => {
-							if (typeof value === "boolean") {
-								onAllowInvites(value);
-							}
-						}}
-						disabled={saving}
-						aria-label="Let members invite"
-						class="mt-0.5 shrink-0"
-					/>
-					<span class="grid gap-0.5">
-						<span class="flex items-center gap-1.5">
-							<label
-								for="owner-allows-invites"
-								class={cn(
-									"text-sm font-medium",
-									!saving && "cursor-pointer",
-								)}>Let members invite</label
-							>
-							<InfoTip
-								text="When on, every member can see and share the invite code. When off, only the owner can invite."
-							/>
-						</span>
-					</span>
-				</div>
+					</div>
+				{/each}
 			</div>
 		{/if}
 	</Card.Content>

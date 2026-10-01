@@ -160,18 +160,17 @@
 							{#snippet child({ props })}
 								<TextButton
 									tone="destructive"
-									label={`Leave ${editor.viewedEntry?.household.name ?? "household"}`}
-									{...props}
-								>
-									Leave {editor.viewedEntry?.household.name ??
-										"household"}
-								</TextButton>
+										label="Leave household"
+										{...props}
+									>
+										Leave household
+									</TextButton>
 							{/snippet}
 						</AlertDialog.Trigger>
 						<AlertDialog.Content>
 							<AlertDialog.Header>
 								<AlertDialog.Title>
-									Leave {editor.viewedEntry?.household.name}?
+									Leave this household?
 								</AlertDialog.Title>
 								<AlertDialog.Description>
 									You will lose access to this household and

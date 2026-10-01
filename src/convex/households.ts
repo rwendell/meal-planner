@@ -99,7 +99,6 @@ export const get = query({
 			household: v.object({
 				_id: v.id("households"),
 				_creationTime: v.number(),
-				name: v.string(),
 				inviteCode: v.optional(v.string()),
 				ownerId: v.optional(v.id("householdMembers")),
 				ownerManagesPlans: v.optional(v.boolean()),
@@ -114,14 +113,11 @@ export const get = query({
 
 export const create = mutation({
 	args: {
-		householdName: v.string(),
 		memberName: v.string(),
 		autoNamed: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
-		const householdName = cleanName(args.householdName);
 		const memberName = cleanName(args.memberName);
-		if (!householdName) throw new Error("Household name is required.");
 		if (!memberName) throw new Error("Your name is required.");
 		let inviteCode = "";
 		for (let attempt = 0; attempt < 10; attempt++) {
@@ -136,10 +132,7 @@ export const create = mutation({
 			}
 		}
 		if (!inviteCode) throw new Error("Couldn't generate an invite code.");
-		const householdId = await ctx.db.insert("households", {
-			name: householdName,
-			inviteCode,
-		});
+		const householdId = await ctx.db.insert("households", { inviteCode });
 		const memberId = await ctx.db.insert("householdMembers", {
 			householdId,
 			name: memberName,
@@ -288,31 +281,6 @@ export const leave = mutation({
 		return { householdDeleted: true };
 	},
 	returns: v.object({ householdDeleted: v.boolean() }),
-});
-
-export const renameHousehold = mutation({
-	args: {
-		householdId: v.id("households"),
-		memberId: v.id("householdMembers"),
-		name: v.string(),
-	},
-	handler: async (ctx, args) => {
-		const member = await ctx.db.get("householdMembers", args.memberId);
-		if (!member || member.householdId !== args.householdId) {
-			throw new Error("Household member not found.");
-		}
-		await assertCallerMutation(ctx, args.householdId, args.memberId);
-		const household = await ctx.db.get("households", args.householdId);
-		if (!household) throw new Error("Household not found.");
-		if (!canManage(household, args.memberId)) {
-			throw new Error("Only the kitchen owner can rename it.");
-		}
-		const name = cleanName(args.name);
-		if (!name) throw new Error("Household name is required.");
-		await ctx.db.patch("households", args.householdId, { name });
-		return null;
-	},
-	returns: v.null(),
 });
 
 export const setInviteCode = mutation({
@@ -847,7 +815,6 @@ export const myMemberships = query({
 		const out: Array<{
 			householdId: Id<"households">;
 			memberId: Id<"householdMembers">;
-			householdName: string;
 			memberName: string;
 			memberImage: string | null;
 		}> = [];
@@ -857,7 +824,6 @@ export const myMemberships = query({
 			out.push({
 				householdId: household._id,
 				memberId: member._id,
-				householdName: household.name,
 				memberName: member.name,
 				memberImage: member.image ?? null,
 			});
@@ -868,7 +834,6 @@ export const myMemberships = query({
 		v.object({
 			householdId: v.id("households"),
 			memberId: v.id("householdMembers"),
-			householdName: v.string(),
 			memberName: v.string(),
 			memberImage: v.union(v.string(), v.null()),
 		}),

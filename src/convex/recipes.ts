@@ -319,10 +319,7 @@ export const seedSamples = mutation({
 			}
 		}
 		if (!inviteCode) throw new Error("Couldn't generate an invite code.");
-		const householdId = await ctx.db.insert("households", {
-			name: "Sample Kitchen",
-			inviteCode,
-		});
+		const householdId = await ctx.db.insert("households", { inviteCode });
 		const memberId = await ctx.db.insert("householdMembers", {
 			householdId,
 			name: "Chef",

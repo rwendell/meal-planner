@@ -291,7 +291,6 @@
 		} else {
 			setProvisioningLock();
 			createHousehold({
-				householdName: "My House",
 				memberName: deviceName(),
 				autoNamed: true,
 			})
@@ -713,8 +712,7 @@
 										id="profile-heading"
 										class="font-serif text-[18px] tracking-[-0.03em] [overflow-wrap:anywhere]"
 									>
-										{householdQuery.data?.household.name ??
-											"Profile"}
+										Profile
 									</h2>
 									<p
 										class="m-0 text-xs text-muted-foreground"
