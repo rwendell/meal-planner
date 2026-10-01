@@ -158,12 +158,12 @@
 						</span>
 					</label>
 					{#if importError}
-						<p
-							class="m-0 text-xs font-semibold text-destructive"
+						<span
+							class="text-xs font-semibold text-destructive"
 							role="alert"
 						>
 							{importError}
-						</p>
+						</span>
 					{/if}
 				</form>
 				<Button

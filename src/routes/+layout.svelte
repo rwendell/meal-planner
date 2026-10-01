@@ -600,9 +600,9 @@
 			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
 		>
 			<main class="grid min-h-[60vh] place-items-center">
-				<p role="alert" class="text-sm text-destructive">
+				<span role="alert" class="text-sm text-destructive">
 					Couldn't load your data. Check your connection and reload.
-				</p>
+				</span>
 			</main>
 		</div>
 	</div>

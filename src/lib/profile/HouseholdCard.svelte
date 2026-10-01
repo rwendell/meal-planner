@@ -72,32 +72,38 @@
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Household name</Card.Title>
-		<Card.Description>
+		<Card.Title>
+			<span
+				class="text-xs font-semibold text-muted-foreground"
+			>
+				Household name
+			</span>
+		</Card.Title>
+		<Card.Description class="min-w-0">
 			{#if isOwner}
 				<EditableText
 					value={householdEdit}
 					display={householdName}
 					placeholder="Household name"
 					ariaLabel="Household name"
-					textClass="truncate text-sm font-semibold"
+					textClass="truncate font-semibold"
 					onInput={(v) => onHouseholdEdit(v)}
 					onCommit={() => onSave()}
 					onRevert={onCancel}
 				/>
 			{:else}
-				<span class="truncate text-sm font-semibold">{householdName}</span>
+				<span class="truncate font-semibold">{householdName}</span>
 			{/if}
 		</Card.Description>
 		<Card.Action>
 			{#if inviteCode}
+				<span
+					id="household-invite-code-label"
+					class="text-xs font-semibold text-muted-foreground"
+				>
+					Invite code
+				</span>
 				{#if isOwner}
-					<span
-						id="household-invite-code-label"
-						class="text-xs font-semibold text-muted-foreground"
-					>
-						Invite code
-					</span>
 					<EditableText
 						value={inviteEdit}
 						display={inviteCode}
@@ -118,12 +124,6 @@
 						</span>
 					{/if}
 				{:else}
-					<span
-						id="household-invite-code-label"
-						class="text-xs font-semibold text-muted-foreground"
-					>
-						Invite code
-					</span>
 					<InviteCode code={inviteCode} />
 				{/if}
 			{/if}
