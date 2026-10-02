@@ -101,7 +101,7 @@
 					No members yet.
 				</span>
 			{:else}
-				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
+				<ul class="m-0 grid list-none gap-0.5 p-0">
 					{#each members as member (member._id)}
 						<li class="flex items-center gap-2 rounded-lg py-1">
 							<MemberAvatar
@@ -109,7 +109,7 @@
 								image={member.image}
 								size="sm"
 							/>
-							<span class="truncate text-sm">{member.name}</span>
+							<span class="min-w-0 truncate text-sm">{member.name}</span>
 							{#if member._id === myId}
 								<Badge variant="secondary" class="shrink-0">
 									You
@@ -127,7 +127,8 @@
 											<Button
 												variant="ghost"
 												size="icon-sm"
-												aria-label={`Remove ${member.name}`}
+												class="ml-auto"
+											aria-label={`Remove ${member.name}`}
 												title="Remove from household"
 												{...props}
 											>

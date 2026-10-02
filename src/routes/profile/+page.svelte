@@ -71,7 +71,7 @@
 />
 
 <main
-	class="mx-auto max-w-[1180px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
+	class="mx-auto max-w-[720px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
 >
 	{#if !session.session}
 		<ProfileEmptyState />
@@ -175,7 +175,7 @@
 				<div
 					class="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] z-30 px-[18px] sm:bottom-6 sm:px-7"
 				>
-					<div class="mx-auto flex max-w-[1180px] justify-end">
+					<div class="mx-auto flex max-w-[720px] justify-end">
 						<div
 							class="rounded-xl border bg-card/95 p-2 shadow-lg backdrop-blur"
 						>
