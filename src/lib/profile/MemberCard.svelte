@@ -43,7 +43,6 @@
 		<MemberAvatar {name} image={memberImage} size="lg" />
 		<EditableText
 			value={nameEdit}
-			display={name}
 			placeholder="Your name"
 			ariaLabel="Display name"
 			inputClass="h-8"

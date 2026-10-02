@@ -268,6 +268,10 @@ export class ProfileEditor {
 				this.viewedHouseholdKey = house._id;
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
+				// Was missing here, so the draft outlived a household switch
+				// and hasUnsavedChanges compared a stale value against the
+				// new household. Only cancelEditing() cleared it.
+				this.allowMemberInvitesDraft = null;
 				this.saving = false;
 			}
 		});

@@ -12,7 +12,6 @@
 	 */
 	let {
 		value,
-		display,
 		placeholder = "",
 		ariaLabel,
 		inputClass = "",
@@ -23,8 +22,6 @@
 	}: {
 		/** Live draft text (controlled by the parent). */
 		value: string;
-		/** Text shown when idle (defaults to the draft). */
-		display?: string;
 		placeholder?: string;
 		ariaLabel: string;
 		inputClass?: string;
@@ -44,7 +41,11 @@
 		}
 	});
 
-	let shown = $derived(display ?? value);
+	// Idle text is the draft, never the server value. Preferring a
+	// separate `display` prop meant blurring an edit snapped the text back
+	// to the old name while the parent still held the draft -- the edit
+	// looked lost even though Save would have persisted it.
+	let shown = $derived(value);
 </script>
 
 {#if editing}
