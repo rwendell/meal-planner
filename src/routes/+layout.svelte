@@ -15,7 +15,7 @@
 	import { tick } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { browser } from "$app/environment";
-	import { goto, onNavigate } from "$app/navigation";
+	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
 	import { PUBLIC_CONVEX_URL } from "$env/static/public";
@@ -31,6 +31,7 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
+	import { SwipeNavigation } from "$lib/shell/swipe-navigation.svelte.js";
 	import { plannerView } from "$lib/stores/planner-view.svelte.js";
 	import { prefs } from "$lib/stores/prefs.svelte.js";
 	import {
@@ -42,7 +43,7 @@
 		setProvisioningLock,
 	} from "$lib/stores/session.svelte.js";
 	import { themeStore } from "$lib/stores/theme.svelte.js";
-	import { activeNavId, navItems, swipeTarget } from "$lib/utils/nav.js";
+	import { activeNavId, navItems } from "$lib/utils/nav.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
@@ -51,17 +52,17 @@
 
 	let { children } = $props();
 
+	const swipe = new SwipeNavigation();
+
 	// Client-only auth: talks to Convex actions directly. Reuses the
 	// setupConvex() client from context; tokens attach to the same
 	// client useQuery/useMutation already use.
 	setupConvexAuth({ convexUrl: PUBLIC_CONVEX_URL });
+	// Registers the router hook that drives directional view transitions
+	// for swipe-initiated navigation. Must run during init.
+	swipe.attach();
 	const auth = useAuth();
 
-	type ViewTransitionDocument = Document & {
-		startViewTransition?: (updateCallback: () => void | Promise<void>) => {
-			finished: Promise<unknown>;
-		};
-	};
 
 	// Mirror the resolved scheme onto <html> for CSS and native controls.
 	// `themeStore` owns the choice, persistence, and system resolution.
@@ -77,19 +78,7 @@
 	let profileView = $state<ProfileView>("profile");
 	let profileMenu = $state<HTMLDivElement | null>(null);
 	let profileTrigger = $state<HTMLElement | null>(null);
-	let swipeState = $state<{
-		pointerId: number;
-		startX: number;
-		startY: number;
-	} | null>(null);
-	let swipeNavigating = false;
-	let swipeDirection = $state<-1 | 0 | 1>(0);
-	let swipeTargetPath = $state<string | null>(null);
 	let profileBackTrigger = $state<HTMLButtonElement | null>(null);
-	const reducedMotion = new MediaQuery(
-		"(prefers-reduced-motion: reduce)",
-		false,
-	);
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
 
 	const householdQuery = useQuery(api.households.get, () => {
@@ -366,153 +355,16 @@
 			first.focus();
 		}
 	}
-
-	function swipeBlockedByOverlay(): boolean {
-		if (typeof document === "undefined") return false;
-		return Boolean(
-			document.querySelector(
-				'[data-slot="dialog-content"], [data-slot="popover-content"], [data-slot="alert-dialog-content"]',
-			),
-		);
-	}
-
-	function shouldIgnoreSwipe(target: EventTarget | null): boolean {
-		if (!(target instanceof Element)) return true;
-		return Boolean(
-			target.closest(
-				'a, button, input, select, textarea, label, [contenteditable]:not([contenteditable="false"]), [role="dialog"], dialog, [data-no-swipe]',
-			),
-		);
-	}
-
-	function onSwipePointerdown(event: PointerEvent): void {
-		if (
-			window.innerWidth >= 1024 ||
-			!event.isPrimary ||
-			swipeBlockedByOverlay() ||
-			shouldIgnoreSwipe(event.target)
-		) {
-			swipeState = null;
-			return;
-		}
-		swipeState = {
-			pointerId: event.pointerId,
-			startX: event.clientX,
-			startY: event.clientY,
-		};
-	}
-
-	function onSwipePointermove(event: PointerEvent): void {
-		if (!swipeState || event.pointerId !== swipeState.pointerId) return;
-		const deltaX = event.clientX - swipeState.startX;
-		const deltaY = event.clientY - swipeState.startY;
-		if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 12) {
-			swipeState = null;
-		}
-	}
-
-	async function onSwipePointerup(event: PointerEvent): Promise<void> {
-		if (!swipeState || event.pointerId !== swipeState.pointerId) return;
-		const { startX, startY } = swipeState;
-		swipeState = null;
-
-		const deltaX = event.clientX - startX;
-		const deltaY = event.clientY - startY;
-		if (
-			window.innerWidth >= 1024 ||
-			Math.abs(deltaX) < 56 ||
-			Math.abs(deltaX) <= Math.abs(deltaY) * 1.2 ||
-			swipeNavigating
-		) {
-			return;
-		}
-
-		const direction = deltaX < 0 ? 1 : -1;
-		const targetHref = swipeTarget(page.url.pathname, direction);
-		if (!targetHref) return;
-
-		const targetPath = new URL(
-			resolve(targetHref),
-			window.location.href,
-		).pathname;
-		swipeDirection = direction;
-		swipeTargetPath = targetPath;
-		swipeNavigating = true;
-		try {
-			await goto(resolve(targetHref));
-		} finally {
-			swipeNavigating = false;
-			if (page.url.pathname !== targetPath) {
-				clearSwipeTransition();
-			}
-		}
-	}
-
-	function onSwipePointercancel(): void {
-		swipeState = null;
-	}
-
-	function clearSwipeTransition(): void {
-		swipeDirection = 0;
-		swipeTargetPath = null;
-		if (browser)
-			delete document.documentElement.dataset.viewTransitionDirection;
-	}
-
-	onNavigate((navigation) => {
-		const targetMatches =
-			swipeDirection !== 0 &&
-			swipeTargetPath === navigation.to?.url.pathname;
-		if (!targetMatches) {
-			if (swipeDirection !== 0) clearSwipeTransition();
-			return;
-		}
-
-		if (reducedMotion.current) {
-			clearSwipeTransition();
-			return;
-		}
-
-		const viewTransitionDocument = document as ViewTransitionDocument;
-		if (!viewTransitionDocument.startViewTransition) {
-			clearSwipeTransition();
-			return;
-		}
-
-		document.documentElement.dataset.viewTransitionDirection =
-			swipeDirection === 1 ? "next" : "previous";
-		return new Promise<void>((resolve) => {
-			try {
-				const transition = viewTransitionDocument.startViewTransition?.(
-					async () => {
-						resolve();
-						await navigation.complete;
-					},
-				);
-				if (transition) {
-					void transition.finished.then(
-						clearSwipeTransition,
-						clearSwipeTransition,
-					);
-				} else {
-					clearSwipeTransition();
-					resolve();
-				}
-			} catch {
-				clearSwipeTransition();
-				resolve();
-			}
-		});
-	});
 </script>
+
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <svelte:window onkeydown={onKeydown} />
 <svelte:document
-	onpointerdown={onSwipePointerdown}
-	onpointermove={onSwipePointermove}
-	onpointerup={onSwipePointerup}
-	onpointercancel={onSwipePointercancel}
+	onpointerdown={(event) => swipe.onPointerdown(event)}
+	onpointermove={(event) => swipe.onPointermove(event)}
+	onpointerup={(event) => void swipe.onPointerup(event)}
+	onpointercancel={() => swipe.onPointercancel()}
 />
 
 {#if session.session && householdQuery.data === undefined && !householdQuery.error}
