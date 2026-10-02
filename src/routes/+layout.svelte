@@ -5,7 +5,7 @@
 		setupConvexAuth,
 		useAuth,
 	} from "@mmailaender/convex-auth-svelte/svelte";
-	import { setupConvex, useMutation, useQuery } from "convex-svelte";
+	import { setupConvex } from "convex-svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { browser } from "$app/environment";
 	import { resolve } from "$app/paths";
@@ -18,21 +18,16 @@
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import { Toaster } from "$lib/components/ui/sonner";
 	import ProfileMenu from "$lib/shell/ProfileMenu.svelte";
+	import { SessionLifecycle } from "$lib/shell/session-lifecycle.svelte.js";
 	import { SwipeNavigation } from "$lib/shell/swipe-navigation.svelte.js";
 	import { prefs } from "$lib/stores/prefs.svelte.js";
 	import {
-		clearProvisioningLock,
 		deviceName,
-		provisioningLockAge,
-		STORAGE_KEY,
 		session,
-		setProvisioningLock,
 	} from "$lib/stores/session.svelte.js";
 	import { themeStore } from "$lib/stores/theme.svelte.js";
 	import { activeNavId, navItems } from "$lib/utils/nav.js";
 	import { cn } from "$lib/utils.js";
-	import { api } from "../convex/_generated/api.js";
-	import type { Id } from "../convex/_generated/dataModel";
 
 	setupConvex(PUBLIC_CONVEX_URL);
 
@@ -49,6 +44,20 @@
 	swipe.attach();
 	const auth = useAuth();
 
+	// Owns the household query plus the four effects that decide which
+	// household the session points at. Both callbacks are passed by
+	// reference so the effects track live state, never a snapshot.
+	const lifecycle = new SessionLifecycle(auth, () => signingOut);
+	let selfName = $derived(selfMember()?.name ?? deviceName());
+	let selfImage = $derived(selfMember()?.image ?? null);
+	function selfMember() {
+		return (
+			lifecycle.members?.find(
+				(member) => member._id === session.session?.memberId,
+			) ?? null
+		);
+	}
+
 
 	// Mirror the resolved scheme onto <html> for CSS and native controls.
 	// `themeStore` owns the choice, persistence, and system resolution.
@@ -61,20 +70,6 @@
 
 	const wideScreen = new MediaQuery("(min-width: 1024px)", false);
 
-	const householdQuery = useQuery(api.households.get, () => {
-		const current = session.session;
-		return current
-			? {
-					householdId: current.householdId as Id<"households">,
-					callerMemberId: current.memberId as Id<"householdMembers">,
-				}
-			: "skip";
-	});
-	const createHousehold = useMutation(api.households.create);
-	const membershipsQuery = useQuery(api.households.myMemberships, () =>
-		!auth.isLoading && auth.isAuthenticated ? {} : "skip",
-	);
-	const claimHouseholds = useMutation(api.households.claimHouseholds);
 	let signingIn = $state(false);
 
 	// Set on explicit sign-out for the rest of the page lifecycle.
@@ -110,140 +105,6 @@
 		void auth.signOut().catch(() => {});
 	}
 
-	// Single household per user: no roster, no switching. The session
-	// reference is the whole story — everything else derives from it.
-	// myMemberships still matters for one case: a signed-in user on a new
-	// device joins their first membership instead of provisioning a
-	// duplicate solo kitchen.
-	$effect(() => {
-		if (session.session || signingOut) return;
-		if (auth.isLoading) return;
-		if (auth.isAuthenticated) {
-			if (membershipsQuery.data === undefined) return;
-			const first = membershipsQuery.data[0];
-			if (first) {
-				session.connect({
-					householdId: first.householdId,
-					memberId: first.memberId,
-				});
-				return;
-			}
-		}
-	});
-
-	// Claiming links the session member row to the sign-in (and backfills
-	// portable meals/skips). One attempt per session identity; failures
-	// unlatch with backoff so a later tick retries once auth settles.
-	// Bounded retries for a claim that fails or hits a stale token: token
-	// propagation settles in seconds, so a few backed-off attempts cover
-	// it without hammering the server forever. Plain let — no effect
-	// reads it, so it needs no reactivity.
-	let claimAttempts = 0;
-	let claimKey: string | null = null;
-	const CLAIM_RETRY_DELAYS = [3000, 7000, 15000, 30000];
-
-	function scheduleClaimRetry(): void {
-		if (claimAttempts >= CLAIM_RETRY_DELAYS.length) return;
-		const delay = CLAIM_RETRY_DELAYS[claimAttempts] ?? 30000;
-		claimAttempts += 1;
-		setTimeout(() => {
-			claimKey = null;
-		}, delay);
-	}
-	$effect(() => {
-		if (!auth.isAuthenticated || signingOut) return;
-		const current = session.session;
-		if (!current) return;
-		const key = `${current.householdId}:${current.memberId}`;
-		if (claimKey === key) return;
-		claimKey = key;
-		claimHouseholds({
-			refs: [
-				{
-					householdId: current.householdId as Id<"households">,
-					memberId: current.memberId as Id<"householdMembers">,
-				},
-			],
-		}).then(
-			(result) => {
-				// Stale token beat the refresh (the server reports this
-				// explicitly via signedIn: false instead of throwing):
-				// unlatch with backoff so a later tick retries once auth
-				// settles.
-				if (!result.signedIn) scheduleClaimRetry();
-			},
-			() => scheduleClaimRetry(),
-		);
-	});
-
-	// First visit lands straight in the planner with a personal household.
-	// A linked-but-deleted household resets the same way. A lock plus a
-	// storage listener keeps two tabs opened at once from each provisioning.
-	let provisionTick = $state(0);
-	$effect(() => {
-		provisionTick;
-		if (!browser || session.session || signingOut) return;
-		// Wait for auth to resolve: anonymous visitors provision as
-		// before, but signed-in users without memberships provision only
-		// once the membership check above runs first.
-		if (auth.isLoading) return;
-		if (auth.isAuthenticated && membershipsQuery.data === undefined) return;
-		const onStorage = (event: StorageEvent) => {
-			if (event.key === STORAGE_KEY) session.reload();
-		};
-		window.addEventListener("storage", onStorage);
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		if (provisioningLockAge() < 30000) {
-			timer = setTimeout(() => {
-				clearProvisioningLock();
-				provisionTick += 1;
-			}, 3000);
-		} else {
-			setProvisioningLock();
-			createHousehold({
-				memberName: deviceName(),
-				autoNamed: true,
-			})
-				.then((result) => {
-					session.connect({
-						householdId: result.householdId,
-						memberId: result.memberId,
-					});
-				})
-				.catch(() => {})
-				.finally(() => {
-					clearProvisioningLock();
-				});
-		}
-		return () => {
-			window.removeEventListener("storage", onStorage);
-			if (timer) clearTimeout(timer);
-		};
-	});
-
-	$effect(() => {
-		if (session.session && householdQuery.data === null) {
-			// Linked household is gone: disconnect to provision a fresh one.
-			session.disconnect();
-		}
-	});
-
-	function selfMember() {
-		return (
-			householdQuery.data?.members.find(
-				(member) => member._id === session.session?.memberId,
-			) ?? null
-		);
-	}
-
-	function selfName(): string {
-		return selfMember()?.name ?? deviceName();
-	}
-
-	function selfImage(): string | null {
-		return selfMember()?.image ?? null;
-	}
-
 </script>
 
 
@@ -255,7 +116,7 @@
 	onpointercancel={() => swipe.onPointercancel()}
 />
 
-{#if session.session && householdQuery.data === undefined && !householdQuery.error}
+{#if session.session && lifecycle.loading && !lifecycle.error}
 	<div class="min-h-screen max-lg:[touch-action:pan-y]">
 		<div
 			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
@@ -269,7 +130,7 @@
 			</main>
 		</div>
 	</div>
-{:else if householdQuery.error}
+{:else if lifecycle.error}
 	<div class="min-h-screen max-lg:[touch-action:pan-y]">
 		<div
 			class="min-w-0 pb-[env(safe-area-inset-bottom)] max-lg:[touch-action:pan-y] lg:pb-0"
@@ -337,9 +198,9 @@
 					{/if}
 					<div class="ml-auto flex items-center gap-2">
 						<ProfileMenu
-							name={selfName()}
-							image={selfImage()}
-							members={householdQuery.data?.members ?? null}
+							name={selfName}
+							image={selfImage}
+							members={lifecycle.members}
 							myMemberId={session.session?.memberId ?? null}
 							wideScreen={wideScreen.current}
 							isAuthenticated={auth.isAuthenticated}
