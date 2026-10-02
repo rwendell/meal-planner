@@ -1,5 +1,4 @@
 <script lang="ts">
-	import PageMain from "$lib/components/PageMain.svelte";
 	import CookbookSection from "$lib/cookbook/CookbookSection.svelte";
 </script>
 
@@ -11,6 +10,4 @@
 	/>
 </svelte:head>
 
-<PageMain class="lg:px-10 lg:pt-[34px]">
 	<CookbookSection />
-</PageMain>

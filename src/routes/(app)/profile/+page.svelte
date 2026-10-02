@@ -70,9 +70,6 @@
 	}}
 />
 
-<main
-	class="mx-auto max-w-[720px] px-[18px] pt-5 pb-[72px] min-[560px]:px-7 min-[560px]:pt-6 min-[560px]:pb-20 lg:px-10 lg:pt-[34px] lg:pb-20"
->
 	{#if !session.session}
 		<ProfileEmptyState />
 	{:else if editor.householdLoading}
@@ -195,4 +192,3 @@
 			{/if}
 		</div>
 	{/if}
-</main>
