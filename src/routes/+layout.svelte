@@ -1,13 +1,10 @@
 <script lang="ts">
 	import "./layout.css";
 	import { MonitorCogIcon } from "@lucide/svelte";
-	import BookIcon from "@lucide/svelte/icons/book";
-	import CalendarIcon from "@lucide/svelte/icons/calendar";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
 	import LogInIcon from "@lucide/svelte/icons/log-in";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
-	import ShoppingCartIcon from "@lucide/svelte/icons/shopping-cart";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import UtensilsIcon from "@lucide/svelte/icons/utensils";
 	import {
@@ -15,7 +12,6 @@
 		useAuth,
 	} from "@mmailaender/convex-auth-svelte/svelte";
 	import { setupConvex, useMutation, useQuery } from "convex-svelte";
-	import type { Component } from "svelte";
 	import { tick } from "svelte";
 	import { MediaQuery } from "svelte/reactivity";
 	import { browser } from "$app/environment";
@@ -46,6 +42,7 @@
 		setProvisioningLock,
 	} from "$lib/stores/session.svelte.js";
 	import { themeStore } from "$lib/stores/theme.svelte.js";
+	import { activeNavId, navItems, swipeTarget } from "$lib/utils/nav.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
@@ -60,34 +57,11 @@
 	setupConvexAuth({ convexUrl: PUBLIC_CONVEX_URL });
 	const auth = useAuth();
 
-	interface NavItem {
-		id: string;
-		label: string;
-		Icon: Component;
-		href: "/#planner" | "/cookbook" | "/shopping";
-	}
-
 	type ViewTransitionDocument = Document & {
 		startViewTransition?: (updateCallback: () => void | Promise<void>) => {
 			finished: Promise<unknown>;
 		};
 	};
-
-	const navItems: NavItem[] = [
-		{
-			id: "planner",
-			label: "Planner",
-			Icon: CalendarIcon,
-			href: "/#planner",
-		},
-		{ id: "meals", label: "Cookbook", Icon: BookIcon, href: "/cookbook" },
-		{
-			id: "shopping",
-			label: "Shopping list",
-			Icon: ShoppingCartIcon,
-			href: "/shopping",
-		},
-	];
 
 	// Mirror the resolved scheme onto <html> for CSS and native controls.
 	// `themeStore` owns the choice, persistence, and system resolution.
@@ -96,17 +70,7 @@
 		themeStore.applyToDocument(document.documentElement);
 	});
 
-	let activeSection = $derived(
-		page.url.pathname === "/cookbook"
-			? "meals"
-			: page.url.pathname === "/shopping"
-				? "shopping"
-				: page.url.pathname === "/profile"
-					? "profile"
-					: page.url.hash
-						? page.url.hash.slice(1)
-						: "planner",
-	);
+	let activeSection = $derived(activeNavId(page.url));
 
 	let profileOpen = $state(false);
 	type ProfileView = "profile" | "preferences";
@@ -463,24 +427,19 @@
 			return;
 		}
 
-		const currentIndex =
-			page.url.pathname === "/cookbook"
-				? 1
-				: page.url.pathname === "/shopping"
-					? 2
-					: 0;
-		const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
-		if (nextIndex < 0 || nextIndex >= navItems.length) return;
+		const direction = deltaX < 0 ? 1 : -1;
+		const targetHref = swipeTarget(page.url.pathname, direction);
+		if (!targetHref) return;
 
 		const targetPath = new URL(
-			resolve(navItems[nextIndex].href),
+			resolve(targetHref),
 			window.location.href,
 		).pathname;
-		swipeDirection = deltaX < 0 ? 1 : -1;
+		swipeDirection = direction;
 		swipeTargetPath = targetPath;
 		swipeNavigating = true;
 		try {
-			await goto(resolve(navItems[nextIndex].href));
+			await goto(resolve(targetHref));
 		} finally {
 			swipeNavigating = false;
 			if (page.url.pathname !== targetPath) {
