@@ -86,7 +86,7 @@ importers:
         version: 4.3.3(vite@8.2.2(@types/node@26.6.2))
       shadcn-add:
         specifier: github:rwendell/shadcn-add
-        version: https://github.com/rwendell/shadcn-add.git#441703341cfbf06f465936e5a6957e0fae763c9c
+        version: https://github.com/rwendell/shadcn-add.git#71164009657e162d4a080aa8b7b5355076eefe37
       svelte:
         specifier: ^5.56.1
         version: 5.56.10
@@ -1192,8 +1192,8 @@ packages:
   set-cookie-parser@3.1.2:
     resolution: {integrity: sha512-5/r/lTwbJ3zQ+qwdUFZYeRNqda7P5HD8zQKqlSjdGt1/S0cjLAphHusj4Y58ahDtWn/g32xrIS58/ikOvwl0Lw==}
 
-  shadcn-add@https://github.com/rwendell/shadcn-add.git#441703341cfbf06f465936e5a6957e0fae763c9c:
-    resolution: {commit: 441703341cfbf06f465936e5a6957e0fae763c9c, gitHosted: true, repo: https://github.com/rwendell/shadcn-add.git, type: git}
+  shadcn-add@https://github.com/rwendell/shadcn-add.git#71164009657e162d4a080aa8b7b5355076eefe37:
+    resolution: {commit: 71164009657e162d4a080aa8b7b5355076eefe37, gitHosted: true, repo: https://github.com/rwendell/shadcn-add.git, type: git}
 
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
@@ -2174,7 +2174,7 @@ snapshots:
 
   set-cookie-parser@3.1.2: {}
 
-  shadcn-add@https://github.com/rwendell/shadcn-add.git#441703341cfbf06f465936e5a6957e0fae763c9c: {}
+  shadcn-add@https://github.com/rwendell/shadcn-add.git#71164009657e162d4a080aa8b7b5355076eefe37: {}
 
   sirv@3.0.2:
     dependencies:
