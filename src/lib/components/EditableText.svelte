@@ -12,7 +12,8 @@
 	 *
 	 * Idle text is always the draft, never the last saved value, so a
 	 * blur can't make an edit look lost. Pass `original` to flag the
-	 * pending state: a dot marks text that differs from what is saved.
+	 * pending state: the hover underline becomes persistent, in the
+	 * accent colour, so pending text is still bare text -- just marked.
 	 */
 	let {
 		value,
@@ -80,22 +81,12 @@
 		aria-label={dirty ? `${ariaLabel}, not saved yet` : ariaLabel}
 		onclick={() => (editing = true)}
 		class={cn(
-			"min-w-0 cursor-text rounded-sm text-left hover:underline hover:decoration-dashed hover:decoration-muted-foreground/60 hover:underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
-			dirty && "underline decoration-dashed decoration-primary/70 underline-offset-4",
+			"min-w-0 cursor-text rounded-sm text-left underline-offset-4 hover:underline hover:decoration-dashed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+			dirty && "underline decoration-dashed decoration-primary",
 			textClass,
 		)}
 		title={dirty ? "Not saved yet — press Enter or use Save" : undefined}
 	>
-		{#if dirty}
-			<!--
-				Announced through the button's aria-label, so the dot itself
-				is decorative for screen readers.
-			-->
-			<span
-				aria-hidden="true"
-				class="mr-1.5 inline-block size-1.5 translate-y-[-1px] rounded-full bg-primary align-middle"
-			></span>
-		{/if}
 		{shown || placeholder}
 	</button>
 {/if}
