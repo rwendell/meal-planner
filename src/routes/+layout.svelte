@@ -45,6 +45,7 @@
 		session,
 		setProvisioningLock,
 	} from "$lib/stores/session.svelte.js";
+	import { themeStore } from "$lib/stores/theme.svelte.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../convex/_generated/api.js";
 	import type { Id } from "../convex/_generated/dataModel";
@@ -88,35 +89,11 @@
 		},
 	];
 
-	type Theme = "system" | "light" | "dark";
-	const THEME_KEY = "meal-planner-theme";
-	const themeOptions: { id: Theme; label: string }[] = [
-		{ id: "system", label: "System" },
-		{ id: "light", label: "Light" },
-		{ id: "dark", label: "Dark" },
-	];
-
-	let theme = $state<Theme>("system");
-	if (browser) {
-		const saved = localStorage.getItem(THEME_KEY);
-		if (saved === "light" || saved === "dark" || saved === "system") {
-			theme = saved;
-		}
-	}
-
-	function setTheme(value: Theme): void {
-		theme = value;
-		if (browser) localStorage.setItem(THEME_KEY, value);
-	}
-
-	const systemDark = new MediaQuery("(prefers-color-scheme: dark)", false);
-
+	// Mirror the resolved scheme onto <html> for CSS and native controls.
+	// `themeStore` owns the choice, persistence, and system resolution.
 	$effect(() => {
 		if (!browser) return;
-		const dark =
-			theme === "dark" || (theme === "system" && systemDark.current);
-		document.documentElement.classList.toggle("dark", dark);
-		document.documentElement.style.colorScheme = dark ? "dark" : "light";
+		themeStore.applyToDocument(document.documentElement);
 	});
 
 	let activeSection = $derived(
@@ -878,7 +855,7 @@
 									<ToggleGroup.Root
 										type="single"
 										variant="outline"
-										value={theme}
+										value={themeStore.choice}
 										class="w-full"
 										aria-label="Appearance"
 										onValueChange={(value) => {
@@ -887,11 +864,11 @@
 												value === "light" ||
 												value === "dark"
 											) {
-												setTheme(value);
+												themeStore.setTheme(value);
 											}
 										}}
 									>
-										{#each themeOptions as option (option.id)}
+										{#each themeStore.options as option (option.id)}
 											<ToggleGroup.Item
 												value={option.id}
 												aria-label={option.label}
@@ -1004,7 +981,7 @@
 					offset={wideScreen.current
 						? { bottom: "32px" }
 						: { top: "calc(env(safe-area-inset-top) + 68px)" }}
-					{theme}
+					theme={themeStore.theme}
 				/>
 			</div>
 		</div>
