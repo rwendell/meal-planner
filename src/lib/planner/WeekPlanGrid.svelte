@@ -102,7 +102,7 @@
 									class="flex min-h-[46px] w-full cursor-default items-center gap-[5px] rounded-[11px] border border-dashed border-border bg-transparent p-2 text-[10px] font-extrabold text-muted-foreground opacity-70"
 									title="Skipped in profile settings"
 									aria-disabled="true"
-									><BanIcon size={11} /> Skipped</span>
+									><BanIcon size={11} /> Skipped</span
 								>
 							{:else if isSkipped(date, type.id)}
 								{#if canEdit}

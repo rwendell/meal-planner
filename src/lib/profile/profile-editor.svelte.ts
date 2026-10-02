@@ -15,7 +15,6 @@ import {
 } from "$lib/utils/skipped.js";
 import { api } from "../../convex/_generated/api.js";
 import type { Id } from "../../convex/_generated/dataModel";
-import { CUSTOM_INVITE_CODE_PATTERN } from "./profile-utils.js";
 
 /**
  * The profile edit session for the session household: name /
@@ -36,7 +35,6 @@ interface SessionEntry {
 export class ProfileEditor {
 	saving = $state(false);
 	myNameEdit = $state("");
-	inviteCodeEdit = $state("");
 	ownerManagesPlansDraft = $state<boolean | null>(null);
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
 	allowMemberInvitesDraft = $state<boolean | null>(null);
@@ -47,7 +45,6 @@ export class ProfileEditor {
 	private viewedHouseholdKey = $state<string | null>(null);
 	private skippedDraft = $state<SkippedCell[] | null>(null);
 
-	private setInviteCode = useMutation(api.householdOwner.setInviteCode);
 	private setOwnerManagesPlans = useMutation(
 		api.householdOwner.setOwnerManagesPlans,
 	);
@@ -191,16 +188,6 @@ export class ProfileEditor {
 			this.autoShareMealsDraft ?? this.identityMember?.autoShareMeals ?? true
 		);
 	}
-	private pendingInviteCode = $derived(
-		this.inviteCodeEdit.trim().toUpperCase(),
-	);
-	inviteCodeError = $derived(
-		!this.pendingInviteCode
-			? "Invite code is required."
-			: !CUSTOM_INVITE_CODE_PATTERN.test(this.pendingInviteCode)
-				? "Use exactly 6 letters or digits."
-				: "",
-	);
 	/**
 	 * Anything differing from the server: drives the Save button state,
 	 * the dirty-guard on navigation, and the auto-commit on leave.
@@ -209,12 +196,8 @@ export class ProfileEditor {
 		const identity = this.identityEntry;
 		const viewed = this.viewedEntry;
 		if (!identity || !viewed) return false;
-		// Invite-code comparison only applies when the code is visible:
-		// members without invite permission never see it.
-		const canSeeCode = viewed.household.inviteCode !== undefined;
 		return (
 			this.myNameEdit.trim() !== identity.member.name ||
-			(canSeeCode && this.pendingInviteCode !== viewed.household.inviteCode) ||
 			(this.isOwner &&
 				this.ownerManagesPlansDraft !== null &&
 				this.ownerManagesPlansDraft !==
@@ -234,11 +217,8 @@ export class ProfileEditor {
 		);
 	}
 	get saveDisabled(): boolean {
-		const viewed = this.viewedEntry;
-		const canSeeCode = viewed?.household.inviteCode !== undefined;
 		return (
 			!this.myNameEdit.trim() ||
-			(canSeeCode && this.inviteCodeError !== "") ||
 			!this.hasUnsavedChanges ||
 			this.impactPending ||
 			this.saving
@@ -374,7 +354,6 @@ export class ProfileEditor {
 		}
 		const viewed = this.viewedEntry;
 		if (viewed) {
-			this.inviteCodeEdit = viewed.household.inviteCode ?? "";
 		}
 		this.ownerManagesPlansDraft = null;
 		this.ownerReviewsMealsDraft = null;
@@ -391,21 +370,7 @@ export class ProfileEditor {
 		const entry = this.viewedEntry;
 		const identity = this.identityEntry;
 		const memberName = this.myNameEdit.trim();
-		const pendingInviteCode = this.inviteCodeEdit.trim().toUpperCase();
-		// Members without invite permission never see the code: skip its
-		// validation, comparison, and save entirely for them.
-		const canSeeCode = entry?.household.inviteCode !== undefined;
-		if (
-			!entry ||
-			!identity ||
-			this.saving ||
-			!memberName ||
-			(canSeeCode && !pendingInviteCode)
-		) {
-			return;
-		}
-		if (canSeeCode && !CUSTOM_INVITE_CODE_PATTERN.test(pendingInviteCode)) {
-			toast.error("Use exactly 6 letters or digits.");
+		if (!entry || !identity || this.saving || !memberName) {
 			return;
 		}
 		// Skipped-meals confirm first: nothing else saves until the user
@@ -424,8 +389,6 @@ export class ProfileEditor {
 		const baselineAutoShare = this.identityMember?.autoShareMeals ?? true;
 		const pendingAutoShare = this.autoShareMealsDraft;
 		const memberChanged = memberName !== identity.member.name;
-		const inviteCodeChanged =
-			canSeeCode && pendingInviteCode !== entry.household.inviteCode;
 		const ownerPlansChanged =
 			this.isOwner &&
 			pendingOwnerPlans !== null &&
@@ -442,7 +405,6 @@ export class ProfileEditor {
 			pendingAutoShare !== null && pendingAutoShare !== baselineAutoShare;
 		if (
 			!memberChanged &&
-			!inviteCodeChanged &&
 			!ownerPlansChanged &&
 			!ownerReviewsChanged &&
 			!allowInvitesChanged &&
@@ -467,19 +429,6 @@ export class ProfileEditor {
 				} catch (error) {
 					failed = true;
 					toast.error(errorMessage(error, "Couldn't update your name."));
-				}
-			}
-			if (inviteCodeChanged) {
-				try {
-					await this.setInviteCode({
-						householdId,
-						memberId,
-						inviteCode: pendingInviteCode,
-					});
-					toast.success("Invite code updated");
-				} catch (error) {
-					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the invite code."));
 				}
 			}
 			if (ownerPlansChanged) {
