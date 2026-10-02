@@ -1,5 +1,5 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
-	"installCommand": "npm install -g @endevco/aube@2.2.0 && aube ci",
+	"installCommand": "npm install -g --allow-scripts=@endevco/aube @endevco/aube@2.2.0 && aube ci",
 	"rewrites": [{ "source": "/(.*)", "destination": "/200.html" }]
 }
