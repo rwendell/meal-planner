@@ -47,25 +47,29 @@ export class ProfileEditor {
 	private viewedHouseholdKey = $state<string | null>(null);
 	private skippedDraft = $state<SkippedCell[] | null>(null);
 
-	private setInviteCode = useMutation(api.households.setInviteCode);
+	private setInviteCode = useMutation(api.householdOwner.setInviteCode);
 	private setOwnerManagesPlans = useMutation(
-		api.households.setOwnerManagesPlans,
+		api.householdOwner.setOwnerManagesPlans,
 	);
 	private setOwnerReviewsMeals = useMutation(
-		api.households.setOwnerReviewsMeals,
+		api.householdOwner.setOwnerReviewsMeals,
 	);
 	private setAllowMemberInvites = useMutation(
-		api.households.setAllowMemberInvites,
+		api.householdOwner.setAllowMemberInvites,
 	);
-	private setAutoShareMeals = useMutation(api.households.setMemberAutoShare);
-	private renameMember = useMutation(api.households.renameMember);
-	private applySkippedCells = useMutation(api.households.applySkippedCells);
+	private setAutoShareMeals = useMutation(
+		api.householdMembers.setMemberAutoShare,
+	);
+	private renameMember = useMutation(api.householdMembers.renameMember);
+	private applySkippedCells = useMutation(api.householdSkips.applySkippedCells);
 
 	// Created in the constructor body (not field initializers):
 	// useQuery evaluates its args eagerly, and constructor parameter
 	// properties aren't assigned until the constructor body runs.
-	private householdQuery!: UseQueryReturn<typeof api.households.get>;
-	private skipImpactQuery!: UseQueryReturn<typeof api.households.skipImpact>;
+	private householdQuery!: UseQueryReturn<typeof api.householdLifecycle.get>;
+	private skipImpactQuery!: UseQueryReturn<
+		typeof api.householdSkips.skipImpact
+	>;
 
 	/** The session household + member, or null when signed out. */
 	get viewedEntry(): SessionEntry | null {
@@ -242,7 +246,7 @@ export class ProfileEditor {
 	}
 
 	constructor() {
-		this.householdQuery = useQuery(api.households.get, () => {
+		this.householdQuery = useQuery(api.householdLifecycle.get, () => {
 			const current = session.session;
 			return current
 				? {
@@ -251,7 +255,7 @@ export class ProfileEditor {
 					}
 				: "skip";
 		});
-		this.skipImpactQuery = useQuery(api.households.skipImpact, () =>
+		this.skipImpactQuery = useQuery(api.householdSkips.skipImpact, () =>
 			session.session && this.skipsDirty
 				? {
 						householdId: session.session.householdId as Id<"households">,

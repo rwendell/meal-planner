@@ -68,7 +68,7 @@
 
 	// New meals share publicly unless this member opted out; the
 	// editor passes the switch through on create.
-	const householdQuery = useQuery(api.households.get, () =>
+	const householdQuery = useQuery(api.householdLifecycle.get, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 	// Ready-made meals get a fridge icon next to the household picks.

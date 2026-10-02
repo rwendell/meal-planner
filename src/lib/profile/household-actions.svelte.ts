@@ -25,10 +25,10 @@ export class HouseholdActions {
 	joinCode = $state("");
 	joinError = $state("");
 
-	private joinMutation = useMutation(api.households.join);
-	private leaveMutation = useMutation(api.households.leave);
-	private removeMutation = useMutation(api.households.removeMember);
-	private claimMutation = useMutation(api.households.claimHouseholds);
+	private joinMutation = useMutation(api.householdLifecycle.join);
+	private leaveMutation = useMutation(api.householdLifecycle.leave);
+	private removeMutation = useMutation(api.householdMembers.removeMember);
+	private claimMutation = useMutation(api.householdIdentity.claimHouseholds);
 
 	// One-click recovery for members the roster never saw (e.g. the
 	// device roster was wiped): link the active member row directly.

@@ -30,16 +30,16 @@ import type { Id } from "../../convex/_generated/dataModel";
  * component context, so this cannot be a module-level singleton.
  */
 export class SessionLifecycle {
-	private createHousehold = useMutation(api.households.create);
-	private claimHouseholds = useMutation(api.households.claimHouseholds);
+	private createHousehold = useMutation(api.householdLifecycle.create);
+	private claimHouseholds = useMutation(api.householdIdentity.claimHouseholds);
 
 	// Created in the constructor body, not as field initializers: useQuery
 	// evaluates its args eagerly and constructor parameter properties aren't
 	// assigned until the constructor body runs.
 	private membershipsQuery!: UseQueryReturn<
-		typeof api.households.myMemberships
+		typeof api.householdIdentity.myMemberships
 	>;
-	private householdQuery!: UseQueryReturn<typeof api.households.get>;
+	private householdQuery!: UseQueryReturn<typeof api.householdLifecycle.get>;
 
 	/**
 	 * @param auth Sign-in status, read live. `isLoading` gates
@@ -58,10 +58,10 @@ export class SessionLifecycle {
 		},
 		private isSignedOut: () => boolean,
 	) {
-		this.membershipsQuery = useQuery(api.households.myMemberships, () =>
+		this.membershipsQuery = useQuery(api.householdIdentity.myMemberships, () =>
 			!auth.isLoading && auth.isAuthenticated ? {} : "skip",
 		);
-		this.householdQuery = useQuery(api.households.get, () => {
+		this.householdQuery = useQuery(api.householdLifecycle.get, () => {
 			const current = session.session;
 			return current
 				? {

@@ -43,7 +43,7 @@
 	const mealsQuery = useQuery(api.meals.list, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
-	const householdQuery = useQuery(api.households.get, () =>
+	const householdQuery = useQuery(api.householdLifecycle.get, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 

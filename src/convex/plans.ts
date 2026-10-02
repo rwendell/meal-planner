@@ -7,6 +7,7 @@ import {
 	query,
 } from "./_generated/server";
 import { assertCallerMutation, callerUserId } from "./authCheck";
+import { canManage } from "./householdAccess";
 import schema, { mealSlot, planSlotValue } from "./schema";
 
 const weekDayDoc = schema.doc("weekDays");
@@ -21,13 +22,6 @@ function assertDate(date: string): void {
 /** 0–6 weekday index (Sunday-first, like Date#getDay) of an ISO date. */
 function weekdayOf(date: string): number {
 	return new Date(`${date}T12:00:00Z`).getUTCDay();
-}
-
-function canManage(
-	household: { ownerId?: Id<"householdMembers"> },
-	callerMemberId: Id<"householdMembers">,
-): boolean {
-	return !household.ownerId || household.ownerId === callerMemberId;
 }
 
 async function assertMember(

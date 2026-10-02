@@ -10,7 +10,12 @@
 
 import type * as auth from "../auth.js";
 import type * as authCheck from "../authCheck.js";
-import type * as households from "../households.js";
+import type * as householdAccess from "../householdAccess.js";
+import type * as householdIdentity from "../householdIdentity.js";
+import type * as householdLifecycle from "../householdLifecycle.js";
+import type * as householdMembers from "../householdMembers.js";
+import type * as householdOwner from "../householdOwner.js";
+import type * as householdSkips from "../householdSkips.js";
 import type * as http from "../http.js";
 import type * as importAlerts from "../importAlerts.js";
 import type * as meals from "../meals.js";
@@ -30,7 +35,12 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authCheck: typeof authCheck;
-  households: typeof households;
+  householdAccess: typeof householdAccess;
+  householdIdentity: typeof householdIdentity;
+  householdLifecycle: typeof householdLifecycle;
+  householdMembers: typeof householdMembers;
+  householdOwner: typeof householdOwner;
+  householdSkips: typeof householdSkips;
   http: typeof http;
   importAlerts: typeof importAlerts;
   meals: typeof meals;

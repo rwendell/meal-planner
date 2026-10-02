@@ -70,7 +70,7 @@
 	let householdId = $derived(session.session?.householdId ?? null);
 	let selfMemberId = $derived(session.session?.memberId ?? null);
 
-	const householdQuery = useQuery(api.households.get, () =>
+	const householdQuery = useQuery(api.householdLifecycle.get, () =>
 		householdId ? { householdId: householdId as Id<"households"> } : "skip",
 	);
 	let members = $derived(householdQuery.data?.members ?? []);
@@ -199,7 +199,7 @@
 
 	const setSlot = useMutation(api.plans.setSlot);
 	const clearDayMutation = useMutation(api.plans.clearDay);
-	const setPlannerMode = useMutation(api.households.setPlannerMode);
+	const setPlannerMode = useMutation(api.householdMembers.setPlannerMode);
 
 	async function setMode(next: "planner" | "list"): Promise<void> {
 		if (
