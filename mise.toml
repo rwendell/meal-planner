@@ -1,0 +1,5 @@
+[tools]
+# Pinned to match vercel.json's installCommand so local resolution and CI
+# install from the same lockfile with the same aube build.
+aube = "2.2.0"
+vercel = { version = "latest", allow_builds = ["esbuild"], trust_policy_excludes = ["undici"] }
