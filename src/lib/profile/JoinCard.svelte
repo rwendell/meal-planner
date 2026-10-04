@@ -1,19 +1,16 @@
 <script lang="ts">
-import InviteCode from "$lib/components/InviteCode.svelte";
 	import { Button } from "$lib/components/ui/button";
-import * as Card from "$lib/components/ui/card";
+	import * as Card from "$lib/components/ui/card";
 import { Input } from "$lib/components/ui/input";
 
 let {
 	joinCode,
 	joinError,
-	inviteCode = null,
 	onJoinCode,
 	onJoin,
 }: {
 	joinCode: string;
 	joinError: string;
-	inviteCode?: string | null;
 	onJoinCode: (v: string) => void;
 	onJoin: (e: SubmitEvent) => void;
 } = $props();
@@ -27,25 +24,12 @@ let {
 			skipped meals come with you.
 		</Card.Description>
 	</Card.Header>
-	<Card.Content class="grid gap-6 sm:grid-cols-2">
-		{#if inviteCode}
-			<div class="grid content-start gap-2">
-				<h3 class="m-0 text-sm font-semibold">
-					Invite friends
-				</h3>
-				<span class="text-xs text-muted-foreground">
-					Share this code so others can join your
-					household.
-				</span>
-				<div>
-					<InviteCode code={inviteCode} />
-				</div>
-			</div>
-		{/if}
+	<Card.Content class="grid gap-2">
 		<div class="grid content-start gap-2">
-			<h3 class="m-0 text-sm font-semibold">
-				Join with code
-			</h3>
+			<span class="text-xs text-muted-foreground">
+				Share your own code from the profile menu in the header, or
+				ask a member for theirs.
+			</span>
 			<span class="text-xs text-muted-foreground">
 				Ask a member for their 6-character invite code.
 			</span>

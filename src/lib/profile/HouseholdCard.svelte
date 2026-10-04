@@ -1,12 +1,12 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import InfoTip from "$lib/components/InfoTip.svelte";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Card from "$lib/components/ui/card";
+	import { Separator } from "$lib/components/ui/separator";
 	import { Switch } from "$lib/components/ui/switch";
 
 	type Member = {
@@ -16,7 +16,6 @@
 	};
 
 	let {
-		inviteCode,
 		members,
 		ownerId,
 		myId,
@@ -33,7 +32,6 @@
 		onLeave,
 		exists,
 	}: {
-		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
@@ -85,25 +83,36 @@
 	<Card.Header>
 		<Card.Title>Household</Card.Title>
 		<Card.Description>
-			Everyone here shares meals, plans, and one shopping list.
+			{members.length === 1
+				? "You're the only member."
+				: `${members.length} people share meals, plans, and one shopping list.`}
 		</Card.Description>
 	</Card.Header>
 
 	<Card.Content class="grid gap-5">
-		<div class="grid gap-1.5">
-			<span class="text-sm font-semibold">Members</span>
+		<!--
+			The invite code used to sit here too, but sharing is a per-session
+			action rather than a setting, so it now lives in the profile menu
+			popup. The server already withholds it from members who may not
+			see it, so nothing new is exposed by moving it.
+		-->
+		<section aria-labelledby="household-members" class="grid gap-2.5">
+			<h3 id="household-members" class="m-0 text-sm font-semibold">
+				Members
+			</h3>
+
 			{#if !exists}
-				<span class="text-sm text-muted-foreground">
+				<p class="m-0 text-sm text-muted-foreground">
 					This household no longer exists.
-				</span>
+				</p>
 			{:else if members.length === 0}
-				<span class="text-sm text-muted-foreground">
-					No members yet.
-				</span>
+				<p class="m-0 text-sm text-muted-foreground">No members yet.</p>
 			{:else}
-				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
+				<ul class="m-0 grid list-none gap-0.5 p-0">
 					{#each members as member (member._id)}
-						<li class="flex items-center gap-2 rounded-lg py-1">
+						<li
+							class="flex min-w-0 items-center gap-2 rounded-lg py-1"
+						>
 							<MemberAvatar
 								name={member.name}
 								image={member.image}
@@ -127,6 +136,7 @@
 											<Button
 												variant="ghost"
 												size="icon-sm"
+												class="ml-auto"
 												aria-label={`Remove ${member.name}`}
 												title="Remove from household"
 												{...props}
@@ -163,17 +173,22 @@
 					{/each}
 				</ul>
 			{/if}
-			{#if inviteCode}
-				<div class="flex items-center gap-3 pt-1.5">
-					<span class="text-sm font-medium">Invite code</span>
-					<InviteCode code={inviteCode} />
-				</div>
-			{/if}
-		</div>
+		</section>
 
 		{#if isOwner}
-			<div class="grid gap-3">
-				<span class="text-sm font-semibold">Owner permissions</span>
+			<!--
+				A real separator plus its own heading: these are owner-scoped
+				settings, not a continuation of the member list, and the
+				previous flat layout made that boundary invisible.
+			-->
+			<Separator />
+			<section
+				aria-labelledby="household-owner-permissions"
+				class="grid gap-3"
+			>
+				<h3 id="household-owner-permissions" class="m-0 text-sm font-semibold">
+					Owner permissions
+				</h3>
 				{#each permissions as permission (permission.id)}
 					<div class="flex items-start gap-2.5">
 						<Switch
@@ -189,17 +204,14 @@
 							class="mt-0.5 shrink-0"
 						/>
 						<span class="flex min-w-0 items-center gap-1.5">
-							<label
-								for={permission.id}
-								class="text-sm font-medium"
-							>
+							<label for={permission.id} class="text-sm font-medium">
 								{permission.label}
 							</label>
 							<InfoTip text={permission.hint} />
 						</span>
 					</div>
 				{/each}
-			</div>
+			</section>
 		{/if}
 	</Card.Content>
 
@@ -219,12 +231,10 @@
 			</AlertDialog.Trigger>
 			<AlertDialog.Content>
 				<AlertDialog.Header>
-					<AlertDialog.Title>
-						Leave this household?
-					</AlertDialog.Title>
+					<AlertDialog.Title>Leave this household?</AlertDialog.Title>
 					<AlertDialog.Description>
-						You'll lose access to this household and your planned
-						meals here will be removed.
+						You'll lose access to this household and your planned meals
+						here will be removed.
 					</AlertDialog.Description>
 				</AlertDialog.Header>
 				<AlertDialog.Footer>

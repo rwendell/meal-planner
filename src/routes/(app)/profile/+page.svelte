@@ -131,7 +131,6 @@
 
 			{#if editor.viewedEntry && editor.members.length > 1}
 				<HouseholdCard
-					inviteCode={editor.viewedEntry.household.inviteCode}
 					members={editor.members}
 					ownerId={editor.household?.ownerId}
 					myId={editor.myId}
@@ -154,7 +153,6 @@
 				<JoinCard
 					joinCode={households.joinCode}
 					joinError={households.joinError}
-					inviteCode={editor.viewedEntry?.household.inviteCode}
 					onJoinCode={(v) => (households.joinCode = v)}
 					onJoin={(e) => void join(e)}
 				/>
