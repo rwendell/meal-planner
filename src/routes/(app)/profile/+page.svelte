@@ -129,8 +129,9 @@
 				/>
 			{/if}
 
-			{#if editor.viewedEntry && editor.members.length > 1}
+			{#if editor.viewedEntry}
 				<HouseholdCard
+					inviteCode={editor.viewedEntry.household.inviteCode}
 					members={editor.members}
 					ownerId={editor.household?.ownerId}
 					myId={editor.myId}

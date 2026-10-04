@@ -1,6 +1,7 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import InfoTip from "$lib/components/InfoTip.svelte";
+	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
@@ -16,6 +17,7 @@
 	};
 
 	let {
+		inviteCode,
 		members,
 		ownerId,
 		myId,
@@ -32,6 +34,11 @@
 		onLeave,
 		exists,
 	}: {
+		/**
+		 * Invite code, already withheld server-side for members who may not
+		 * see it. Null renders no invite row.
+		 */
+		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
@@ -91,10 +98,10 @@
 
 	<Card.Content class="grid gap-5">
 		<!--
-			The invite code used to sit here too, but sharing is a per-session
-			action rather than a setting, so it now lives in the profile menu
-			popup. The server already withholds it from members who may not
-			see it, so nothing new is exposed by moving it.
+			Roster and invite code in one labelled section: both answer
+			"who is here, and how does someone else get here". The server
+			withholds the code from members who may not see it, so a null
+			code simply renders no row.
 		-->
 		<section aria-labelledby="household-members" class="grid gap-2.5">
 			<h3 id="household-members" class="m-0 text-sm font-semibold">
@@ -108,7 +115,7 @@
 			{:else if members.length === 0}
 				<p class="m-0 text-sm text-muted-foreground">No members yet.</p>
 			{:else}
-				<ul class="m-0 grid list-none gap-0.5 p-0">
+				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
 					{#each members as member (member._id)}
 						<li
 							class="flex min-w-0 items-center gap-2 rounded-lg py-1"
@@ -136,8 +143,7 @@
 											<Button
 												variant="ghost"
 												size="icon-sm"
-												class="ml-auto"
-												aria-label={`Remove ${member.name}`}
+													aria-label={`Remove ${member.name}`}
 												title="Remove from household"
 												{...props}
 											>
@@ -172,6 +178,17 @@
 						</li>
 					{/each}
 				</ul>
+			{/if}
+
+			{#if inviteCode}
+				<div class="flex flex-wrap items-center gap-2 pt-1.5">
+					<span class="text-sm text-muted-foreground">
+						{members.length > 1
+							? "Invite someone new"
+							: "Invite someone to join"}
+					</span>
+					<InviteCode code={inviteCode} />
+				</div>
 			{/if}
 		</section>
 

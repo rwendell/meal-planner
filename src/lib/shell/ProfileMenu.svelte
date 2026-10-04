@@ -9,7 +9,6 @@
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -28,7 +27,6 @@
 		image = null,
 		members = null,
 		myMemberId = null,
-		inviteCode = null,
 		wideScreen,
 		isAuthenticated,
 		authLoading,
@@ -40,11 +38,6 @@
 		image?: string | null;
 		members?: Array<Member> | null;
 		myMemberId?: string | null;
-		/**
-		 * Invite code, already withheld server-side for callers who may not
-		 * see it. Null renders no invite row at all.
-		 */
-		inviteCode?: string | null;
 		wideScreen: boolean;
 		isAuthenticated: boolean;
 		authLoading: boolean;
@@ -58,10 +51,6 @@
 	let menuEl = $state<HTMLDivElement | null>(null);
 	let triggerEl = $state<HTMLElement | null>(null);
 	let backEl = $state<HTMLButtonElement | null>(null);
-
-	let othersCount = $derived(
-		(members ?? []).filter((member) => member._id !== myMemberId).length,
-	);
 
 	const FOCUSABLE =
 		'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -185,7 +174,8 @@
 				aria-expanded={open}
 			>
 				<MemberAvatar {name} {image} size="sm" />
-				<span class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden"
+				<span
+					class="min-w-0 truncate text-[11px] font-bold max-[360px]:hidden"
 					>{name}</span
 				>
 			</Button>
@@ -234,9 +224,14 @@
 								<li
 									class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
 								>
-									<span class="min-w-0 shrink truncate">{member.name}</span>
+									<span class="min-w-0 shrink truncate"
+										>{member.name}</span
+									>
 									{#if member._id === myMemberId}
-										<Badge variant="secondary" class="shrink-0">You</Badge>
+										<Badge
+											variant="secondary"
+											class="shrink-0">You</Badge
+										>
 									{/if}
 								</li>
 							{/each}
@@ -244,31 +239,6 @@
 					</section>
 				{/if}
 				<Separator />
-				<!--
-					The invite code lives here rather than on the profile page:
-					sharing is a per-session action, not a setting, and the
-					server already withholds the code from members who may not
-					see it. Absent code renders nothing.
-				-->
-				{#if inviteCode}
-					<section aria-labelledby="profile-menu-invite" class="grid gap-1.5">
-						<h3
-							id="profile-menu-invite"
-							class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-						>
-							Invite
-						</h3>
-						<div class="flex flex-wrap items-center gap-2 px-2 pb-1">
-							<span class="text-xs text-muted-foreground">
-								{othersCount > 0
-									? "Add someone to this household"
-									: "Share this code to invite someone"}
-							</span>
-							<InviteCode code={inviteCode} />
-						</div>
-					</section>
-					<Separator />
-				{/if}
 				<nav aria-label="Account" class="grid gap-1">
 					<h3
 						class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
@@ -282,7 +252,8 @@
 					>
 						<UserIcon data-icon="inline-start" />
 						<span class="flex-1 text-left">Profile</span>
-						<span class="grid shrink-0 -rotate-90 text-muted-foreground"
+						<span
+							class="grid shrink-0 -rotate-90 text-muted-foreground"
 							><ChevronDownIcon /></span
 						>
 					</Button>
@@ -292,8 +263,10 @@
 						onclick={() => void openPreferences()}
 					>
 						<MonitorCogIcon data-icon="inline-start" />
-						<span class="flex-1 text-left">Display Preferences</span>
-						<span class="grid shrink-0 -rotate-90 text-muted-foreground"
+						<span class="flex-1 text-left">Display Preferences</span
+						>
+						<span
+							class="grid shrink-0 -rotate-90 text-muted-foreground"
 							><ChevronDownIcon /></span
 						>
 					</Button>
@@ -322,7 +295,9 @@
 								<LogInIcon data-icon="inline-start" />
 							{/if}
 							<span class="flex-1 text-left"
-								>{signingIn ? "Signing in…" : "Sign in with Google"}</span
+								>{signingIn
+									? "Signing in…"
+									: "Sign in with Google"}</span
 							>
 						</Button>
 					{/if}
@@ -390,7 +365,10 @@
 						</ToggleGroup.Root>
 					</section>
 					{#if !wideScreen}
-						<section aria-label="Mobile planner view" class="grid gap-2">
+						<section
+							aria-label="Mobile planner view"
+							class="grid gap-2"
+						>
 							<h3
 								class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
 							>
@@ -431,11 +409,14 @@
 							<ToggleGroup.Root
 								type="single"
 								variant="outline"
-								value={prefs.desktopDashboard ? "dashboard" : "pages"}
+								value={prefs.desktopDashboard
+									? "dashboard"
+									: "pages"}
 								class="w-full"
 								aria-label="Desktop layout"
 								onValueChange={(value) => {
-									if (value === "dashboard") void setDesktopLayout(true);
+									if (value === "dashboard")
+										void setDesktopLayout(true);
 									else if (value === "pages")
 										void setDesktopLayout(false);
 								}}
@@ -458,3 +439,4 @@
 		{/if}
 	</Popover.Content>
 </Popover.Root>
+
