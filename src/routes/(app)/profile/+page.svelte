@@ -3,12 +3,10 @@
 	import { beforeNavigate } from "$app/navigation";
 	import EditActions from "$lib/components/EditActions.svelte";
 	import HouseholdCard from "$lib/profile/HouseholdCard.svelte";
-	import { HeaderVisibility } from "$lib/profile/header-visibility.svelte.js";
 	import { HouseholdActions } from "$lib/profile/household-actions.svelte.js";
 	import JoinCard from "$lib/profile/JoinCard.svelte";
 	import MemberCard from "$lib/profile/MemberCard.svelte";
 	import ProfileEmptyState from "$lib/profile/ProfileEmptyState.svelte";
-	import ProfileHeader from "$lib/profile/ProfileHeader.svelte";
 	import ProfileLoadingState from "$lib/profile/ProfileLoadingState.svelte";
 	import { ProfileEditor } from "$lib/profile/profile-editor.svelte.js";
 	import SkippedConfirmDialog from "$lib/profile/SkippedConfirmDialog.svelte";
@@ -18,7 +16,6 @@
 	const auth = useAuth();
 	const households = new HouseholdActions();
 	const editor = new ProfileEditor();
-	const header = new HeaderVisibility();
 
 	async function join(event: SubmitEvent): Promise<void> {
 		const member = editor.identityMember;
@@ -76,19 +73,17 @@
 		<ProfileLoadingState />
 	{:else}
 		<div class="grid items-start gap-3 min-[560px]:gap-4">
-			<div
-				{@attach (element) => header.attach(element)}
-				class="flex flex-wrap items-start justify-between gap-3"
-			>
-				<ProfileHeader
-					saving={editor.saving}
-					saveDisabled={editor.saveDisabled}
-					hasUnsavedChanges={editor.hasUnsavedChanges}
-					showActions={Boolean(editor.viewedEntry && header.visible)}
-					onCancel={() => editor.cancelEditing()}
-					onSave={() => void editor.save()}
-				/>
-			</div>
+			<!--
+				No page header: this is a household settings page, not "your
+				profile", and the cards below name their own sections. The
+				visually-hidden h1 keeps a single top-level heading for
+				screen readers and the document outline.
+
+				Save/Cancel used to live in this header. They now come from
+				the floating bar below, which is shown unconditionally -- there
+				is no longer a header to observe for visibility.
+			-->
+			<h1 class="sr-only">Household settings</h1>
 			{#if editor.identityEntry}
 				<MemberCard
 					name={editor.identityDisplayName}
@@ -129,9 +124,8 @@
 				/>
 			{/if}
 
-			{#if editor.viewedEntry}
+			{#if editor.viewedEntry && editor.members.length > 1}
 				<HouseholdCard
-					inviteCode={editor.viewedEntry.household.inviteCode}
 					members={editor.members}
 					ownerId={editor.household?.ownerId}
 					myId={editor.myId}
@@ -167,7 +161,7 @@
 				onConfirm={() => void editor.save()}
 			/>
 
-			{#if editor.viewedEntry && !header.visible}
+			{#if editor.viewedEntry}
 				<div
 					class="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] z-30 px-[18px] sm:bottom-6 sm:px-7"
 				>

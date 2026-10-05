@@ -1,7 +1,6 @@
 <script lang="ts">
 	import XIcon from "@lucide/svelte/icons/x";
 	import InfoTip from "$lib/components/InfoTip.svelte";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
@@ -17,7 +16,6 @@
 	};
 
 	let {
-		inviteCode,
 		members,
 		ownerId,
 		myId,
@@ -34,11 +32,6 @@
 		onLeave,
 		exists,
 	}: {
-		/**
-		 * Invite code, already withheld server-side for members who may not
-		 * see it. Null renders no invite row.
-		 */
-		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
@@ -98,10 +91,9 @@
 
 	<Card.Content class="grid gap-5">
 		<!--
-			Roster and invite code in one labelled section: both answer
-			"who is here, and how does someone else get here". The server
-			withholds the code from members who may not see it, so a null
-			code simply renders no row.
+			The roster only. The invite code lives in the profile menu: it is
+			need-to-know, and the server already withholds it from members
+			who may not see it, so it is not a settings-page concern.
 		-->
 		<section aria-labelledby="household-members" class="grid gap-2.5">
 			<h3 id="household-members" class="m-0 text-sm font-semibold">
@@ -178,17 +170,6 @@
 						</li>
 					{/each}
 				</ul>
-			{/if}
-
-			{#if inviteCode}
-				<div class="flex flex-wrap items-center gap-2 pt-1.5">
-					<span class="text-sm text-muted-foreground">
-						{members.length > 1
-							? "Invite someone new"
-							: "Invite someone to join"}
-					</span>
-					<InviteCode code={inviteCode} />
-				</div>
 			{/if}
 		</section>
 

@@ -6,9 +6,11 @@
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { tick } from "svelte";
+	import { MediaQuery } from "svelte/reactivity";
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
+	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -27,6 +29,7 @@
 		image = null,
 		members = null,
 		myMemberId = null,
+		inviteCode = null,
 		wideScreen,
 		isAuthenticated,
 		authLoading,
@@ -38,6 +41,11 @@
 		image?: string | null;
 		members?: Array<Member> | null;
 		myMemberId?: string | null;
+		/**
+		 * Invite code, already withheld server-side for members who may not
+		 * see it. Null renders no invite row.
+		 */
+		inviteCode?: string | null;
 		wideScreen: boolean;
 		isAuthenticated: boolean;
 		authLoading: boolean;
@@ -52,6 +60,10 @@
 	let triggerEl = $state<HTMLElement | null>(null);
 	let backEl = $state<HTMLButtonElement | null>(null);
 
+	let othersCount = $derived(
+		(members ?? []).filter((member) => member._id !== myMemberId).length,
+	);
+
 	const FOCUSABLE =
 		'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -62,6 +74,7 @@
 	}
 
 	function close(): void {
+		clearHoverTimers();
 		open = false;
 		view = "profile";
 		triggerEl?.focus();
@@ -144,6 +157,48 @@
 		await goto(resolve("/profile"));
 	}
 
+	// Hover-to-open, click-to-navigate, but only where hovering is a real
+	// pointer rather than a touch tap that would fire both.
+	let finePointer = new MediaQuery("(hover: hover) and (pointer: fine)", false);
+	let hoverIntent: ReturnType<typeof setTimeout> | undefined;
+	let hoverLeave: ReturnType<typeof setTimeout> | undefined;
+
+	function clearHoverTimers(): void {
+		clearTimeout(hoverIntent);
+		clearTimeout(hoverLeave);
+		hoverIntent = undefined;
+		hoverLeave = undefined;
+	}
+
+	/**
+	 * Pointer entering the trigger opens the menu. A short delay avoids
+	 * firing on incidental passes across the header.
+	 */
+	function openOnHover(): void {
+		if (!finePointer.current) return;
+		clearTimeout(hoverLeave);
+		clearTimeout(hoverIntent);
+		hoverIntent = setTimeout(() => {
+			if (!open) view = "profile";
+		}, 90);
+	}
+
+	/**
+	 * Leaving closes, but only after a grace period so the pointer can
+	 * travel from the trigger into the popover without dismissing it.
+	 */
+	function closeOnHover(): void {
+		if (!finePointer.current) return;
+		clearTimeout(hoverIntent);
+		clearTimeout(hoverLeave);
+		hoverLeave = setTimeout(() => {
+			if (open && document.activeElement === triggerEl) close();
+			else if (open && !menuEl?.contains(document.activeElement ?? null)) {
+				close();
+			}
+		}, 220);
+	}
+
 	/**
 	 * Close before signing out: the menu owns its open state, so the
 	 * caller can no longer close it on our behalf. Order matters -- the
@@ -165,13 +220,26 @@
 				{...props}
 				bind:ref={triggerEl}
 				class="max-w-[min(170px,20vw)] gap-[7px] rounded-full py-0 pr-2.5 pl-2 max-[360px]:size-[34px] max-[360px]:justify-center max-[360px]:p-0"
-				aria-label={open
-					? "Close profile menu"
-					: `Open profile menu for ${name}`}
+					aria-label={`Profile and household settings for ${name}`}
 				title={`Profile: ${name}`}
 				aria-haspopup="dialog"
 				aria-controls="profile-menu"
 				aria-expanded={open}
+					onpointerenter={openOnHover}
+					onpointerleave={closeOnHover}
+					onclick={(event: MouseEvent) => {
+						// A real pointer click goes to the settings page; the
+						// menu is the hover affordance. Keyboard activation
+						// reports detail 0 and instead toggles the popover,
+						// so the menu stays reachable without a pointer.
+						if (event.detail === 0) {
+							(props.onclick as ((e: MouseEvent) => void) | undefined)?.(
+								event,
+							);
+							return;
+						}
+						void goToProfile();
+					}}
 			>
 				<MemberAvatar {name} {image} size="sm" />
 				<span
@@ -186,6 +254,8 @@
 		id="profile-menu"
 		bind:ref={menuEl}
 		data-no-swipe
+		onpointerenter={openOnHover}
+		onpointerleave={closeOnHover}
 		align="end"
 		sideOffset={8}
 		aria-label={view === "profile" ? "Profile menu" : "Preferences"}
@@ -239,6 +309,31 @@
 					</section>
 				{/if}
 				<Separator />
+				<!--
+					Sharing belongs to the profile menu rather than the settings
+					page: the code is need-to-know, and the server already
+					withholds it from members who may not see it. A null code
+					renders nothing at all.
+				-->
+				{#if inviteCode}
+					<section aria-labelledby="profile-menu-invite" class="grid gap-1.5">
+						<h3
+							id="profile-menu-invite"
+							class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+						>
+							Invite
+						</h3>
+						<div class="flex flex-wrap items-center gap-2 px-2 pb-1">
+							<span class="text-xs text-muted-foreground">
+								{othersCount > 0
+									? "Add someone to this household"
+									: "Share this code to invite someone"}
+							</span>
+							<InviteCode code={inviteCode} />
+						</div>
+					</section>
+					<Separator />
+				{/if}
 				<nav aria-label="Account" class="grid gap-1">
 					<h3
 						class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"

@@ -84,6 +84,17 @@ export class SessionLifecycle {
 		return this.householdQuery.data?.members ?? null;
 	}
 
+	/**
+	 * The session household, or null while signed out.
+	 *
+	 * `inviteCode` is already withheld server-side for callers who may not
+	 * see it: owners always get it, members only when the household allows
+	 * member invites. Consumers must treat it as optional and render no
+	 * invite UI when it is absent.
+	 */
+	get household() {
+		return this.householdQuery.data?.household ?? null;
+	}
 
 	/** True while the session household is still loading. */
 	get loading() {
