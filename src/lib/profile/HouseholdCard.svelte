@@ -158,15 +158,21 @@
 
 	<Card.Content class="grid gap-5">
 		<!--
-			Roster and invite in one labelled section: both answer "who is
-			here, and how does someone else get here". The server withholds
-			the code from members who may not see it, so a null code simply
-			renders no row.
+			Roster left, invite right when there is a code to show: both
+			answer "who is here, and how does someone else get here". The
+			server withholds the code from members who may not see it, so a
+			null code collapses back to a single roster column. Columns
+			stack below 420px, where two would squeeze the code button.
 		-->
-		<section aria-labelledby="household-members" class="grid gap-2.5">
-			<h3 id="household-members" class="m-0 text-sm font-semibold">
-				Members
-			</h3>
+		<section
+			aria-label="Members and invite"
+			class={inviteCode ? "grid gap-4 min-[420px]:grid-cols-2" : "grid gap-4"}
+		>
+			<div class="grid min-w-0 content-start gap-1.5">
+				<h3 id="household-members" class="m-0 text-sm font-semibold">
+					Members
+				</h3>
+
 
 			{#if !exists}
 				<p class="m-0 text-sm text-muted-foreground">
@@ -238,54 +244,53 @@
 						</li>
 					{/each}
 				</ul>
-			{/if}
+				{/if}
+			</div>
 
 			{#if inviteCode}
-				<div class="flex flex-wrap items-center gap-2 pt-1.5">
-					<span class="text-sm text-muted-foreground">
-						{members.length > 1
-							? "Invite someone new"
-							: "Invite someone to join"}
-					</span>
-					<InviteCode code={inviteCode} />
-					<Button
-						variant="outline"
-						size="icon-sm"
-						aria-label="Share invite link"
-						title="Share invite link"
-						onclick={() => void shareInvite()}
-					>
-						<ShareIcon />
-					</Button>
-					<Button
-						variant="outline"
-						size="icon-sm"
-						aria-label={qrOpen ? "Hide QR code" : "Show QR code"}
-						title={qrOpen ? "Hide QR code" : "Show QR code"}
-						aria-expanded={qrOpen}
-						onclick={() => void toggleQr()}
-					>
-						<QrCodeIcon />
-					</Button>
-				</div>
-				{#if qrOpen}
-					<div class="grid justify-items-start gap-1.5 pt-1">
-						{#if qrSrc}
-							<img
-								src={qrSrc}
-								alt="QR code linking to this household's join page"
-								class="size-44 rounded-lg border bg-white p-2"
-							/>
-							<span class="text-xs text-muted-foreground">
+				<div class="grid min-w-0 content-start gap-1.5">
+					<h3 class="m-0 text-sm font-semibold">Invite</h3>
+					<div class="flex flex-wrap items-center gap-2">
+						<InviteCode code={inviteCode} />
+						<Button
+							variant="outline"
+							size="icon-sm"
+							aria-label="Share invite link"
+							title="Share invite link"
+							onclick={() => void shareInvite()}
+						>
+							<ShareIcon />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon-sm"
+							aria-label={qrOpen ? "Hide QR code" : "Show QR code"}
+							title={qrOpen ? "Hide QR code" : "Show QR code"}
+							aria-expanded={qrOpen}
+							onclick={() => void toggleQr()}
+						>
+							<QrCodeIcon />
+						</Button>
+					</div>
+					{#if qrOpen}
+						<div class="grid justify-items-start gap-1.5 pt-1">
+							{#if qrSrc}
+								<img
+									src={qrSrc}
+									alt="QR code linking to this household's join page"
+									class="aspect-square w-full max-w-44 rounded-lg border bg-white p-2"
+								/>
+								<span class="text-xs text-muted-foreground">
 								Scan with your phone camera to join
 							</span>
-						{:else}
-							<span class="text-xs text-muted-foreground">
+							{:else}
+								<span class="text-xs text-muted-foreground">
 								Generating the QR code…
 							</span>
-						{/if}
-					</div>
-				{/if}
+							{/if}
+						</div>
+					{/if}
+				</div>
 			{/if}
 		</section>
 

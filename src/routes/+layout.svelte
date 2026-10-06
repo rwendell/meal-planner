@@ -200,8 +200,6 @@
 						<ProfileMenu
 							name={selfName}
 							image={selfImage}
-							members={lifecycle.members}
-							myMemberId={session.session?.memberId ?? null}
 							wideScreen={wideScreen.current}
 							isAuthenticated={auth.isAuthenticated}
 							authLoading={auth.isLoading}

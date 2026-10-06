@@ -10,23 +10,18 @@
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
-	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
 	import * as Popover from "$lib/components/ui/popover";
-	import { Separator } from "$lib/components/ui/separator";
 	import * as ToggleGroup from "$lib/components/ui/toggle-group";
 	import { plannerView } from "$lib/stores/planner-view.svelte.js";
 	import { prefs } from "$lib/stores/prefs.svelte.js";
 	import { themeStore } from "$lib/stores/theme.svelte.js";
 
-	type Member = { _id: string; name: string };
 	type ProfileView = "profile" | "preferences";
 
 	let {
 		name,
 		image = null,
-		members = null,
-		myMemberId = null,
 		wideScreen,
 		isAuthenticated,
 		authLoading,
@@ -36,8 +31,6 @@
 	}: {
 		name: string;
 		image?: string | null;
-		members?: Array<Member> | null;
-		myMemberId?: string | null;
 		wideScreen: boolean;
 		isAuthenticated: boolean;
 		authLoading: boolean;
@@ -189,45 +182,11 @@
 		align="end"
 		sideOffset={8}
 		aria-label={view === "profile" ? "Profile menu" : "Preferences"}
-		class="max-h-[calc(100vh-70px)] w-[min(360px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
+		class="max-h-[calc(100vh-70px)] w-[min(260px,calc(100vw-24px))] overflow-y-auto overscroll-contain"
 	>
 		{#if view === "profile"}
-			<div class="grid gap-4">
-				{#if members}
-					<section
-						aria-label="Members"
-						class="grid gap-2"
-					>
-						{#if members}
-							<div class="grid min-w-0 content-start gap-1.5">
-								<h3
-									class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-								>
-									Members
-								</h3>
-								<ul class="m-0 grid list-none gap-1.5 px-2">
-								{#each members as member (member._id)}
-									<li
-										class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
-									>
-										<span class="min-w-0 shrink truncate"
-											>{member.name}</span
-										>
-										{#if member._id === myMemberId}
-											<Badge
-												variant="secondary"
-												class="shrink-0">You</Badge
-											>
-										{/if}
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
-				</section>
-				{/if}
-				<Separator />
-				<nav aria-label="Account" class="grid gap-1">
+			<div class="grid">
+				<nav aria-label="Account" class="grid">
 					<h3
 						class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
 					>
@@ -235,7 +194,7 @@
 					</h3>
 					<Button
 						variant="ghost"
-						class="w-full justify-start gap-2 px-2"
+						class="justify-start gap-2 px-2"
 						onclick={() => void goToProfile()}
 					>
 						<UserIcon data-icon="inline-start" />
@@ -247,7 +206,7 @@
 					</Button>
 					<Button
 						variant="ghost"
-						class="w-full justify-start gap-2 px-2"
+						class="justify-start gap-2 px-2"
 						onclick={() => void openPreferences()}
 					>
 						<MonitorCogIcon data-icon="inline-start" />
