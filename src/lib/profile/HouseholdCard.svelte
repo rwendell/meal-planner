@@ -1,6 +1,11 @@
 <script lang="ts">
+	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
+	import ShareIcon from "@lucide/svelte/icons/share";
 	import XIcon from "@lucide/svelte/icons/x";
+	import { toast } from "svelte-sonner";
+	import { resolve } from "$app/paths";
 	import InfoTip from "$lib/components/InfoTip.svelte";
+	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
@@ -8,6 +13,7 @@
 	import * as Card from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Switch } from "$lib/components/ui/switch";
+	import { copyText } from "$lib/utils/clipboard.js";
 
 	type Member = {
 		_id: string;
@@ -16,6 +22,7 @@
 	};
 
 	let {
+		inviteCode,
 		members,
 		ownerId,
 		myId,
@@ -32,6 +39,11 @@
 		onLeave,
 		exists,
 	}: {
+		/**
+		 * Invite code, already withheld server-side for members who may not
+		 * see it. Null renders no invite row.
+		 */
+		inviteCode?: string | null;
 		members: Array<Member>;
 		ownerId?: string | null;
 		myId: string | null;
@@ -77,6 +89,61 @@
 			onChange: onAllowInvites,
 		},
 	]);
+
+	let qrOpen = $state(false);
+	let qrSrc = $state<string | null>(null);
+
+	function joinUrl(): string {
+		return new URL(
+			`${resolve("/join")}?code=${inviteCode}`,
+			window.location.href,
+		).href;
+	}
+
+	/**
+	 * One-tap share via the system sheet, falling back to copying the
+	 * invite link. A dismissed sheet (AbortError) is silence, not an
+	 * error: the user simply changed their mind.
+	 */
+	async function shareInvite(): Promise<void> {
+		if (!inviteCode) return;
+		const url = joinUrl();
+		try {
+			if (typeof navigator !== "undefined" && "share" in navigator) {
+				await navigator.share({
+					title: "Join my household on Meal Planner",
+					text: "Join my household on Meal Planner:",
+					url,
+				});
+				return;
+			}
+			throw new Error("no system share sheet");
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") {
+				return;
+			}
+			const ok = await copyText(url);
+			if (ok) toast.success("Invite link copied");
+			else toast.error("Copy was blocked by the browser");
+		}
+	}
+
+	/**
+	 * QR is generated lazily on first open so the encoder stays out of the
+	 * initial bundle, and only runs on a tap so it never executes during
+	 * prerender.
+	 */
+	async function toggleQr(): Promise<void> {
+		qrOpen = !qrOpen;
+		if (!qrOpen || qrSrc || !inviteCode) return;
+		try {
+			const QRCode = (await import("qrcode")).default;
+			qrSrc = await QRCode.toDataURL(joinUrl(), { width: 352, margin: 1 });
+		} catch {
+			toast.error("Couldn't generate the QR code.");
+			qrOpen = false;
+		}
+	}
 </script>
 
 <Card.Root>
@@ -91,9 +158,10 @@
 
 	<Card.Content class="grid gap-5">
 		<!--
-			The roster only. The invite code lives in the profile menu: it is
-			need-to-know, and the server already withholds it from members
-			who may not see it, so it is not a settings-page concern.
+			Roster and invite in one labelled section: both answer "who is
+			here, and how does someone else get here". The server withholds
+			the code from members who may not see it, so a null code simply
+			renders no row.
 		-->
 		<section aria-labelledby="household-members" class="grid gap-2.5">
 			<h3 id="household-members" class="m-0 text-sm font-semibold">
@@ -171,6 +239,54 @@
 					{/each}
 				</ul>
 			{/if}
+
+			{#if inviteCode}
+				<div class="flex flex-wrap items-center gap-2 pt-1.5">
+					<span class="text-sm text-muted-foreground">
+						{members.length > 1
+							? "Invite someone new"
+							: "Invite someone to join"}
+					</span>
+					<InviteCode code={inviteCode} />
+					<Button
+						variant="outline"
+						size="icon-sm"
+						aria-label="Share invite link"
+						title="Share invite link"
+						onclick={() => void shareInvite()}
+					>
+						<ShareIcon />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon-sm"
+						aria-label={qrOpen ? "Hide QR code" : "Show QR code"}
+						title={qrOpen ? "Hide QR code" : "Show QR code"}
+						aria-expanded={qrOpen}
+						onclick={() => void toggleQr()}
+					>
+						<QrCodeIcon />
+					</Button>
+				</div>
+				{#if qrOpen}
+					<div class="grid justify-items-start gap-1.5 pt-1">
+						{#if qrSrc}
+							<img
+								src={qrSrc}
+								alt="QR code linking to this household's join page"
+								class="size-44 rounded-lg border bg-white p-2"
+							/>
+							<span class="text-xs text-muted-foreground">
+								Scan with your phone camera to join
+							</span>
+						{:else}
+							<span class="text-xs text-muted-foreground">
+								Generating the QR code…
+							</span>
+						{/if}
+					</div>
+				{/if}
+			{/if}
 		</section>
 
 		{#if isOwner}
@@ -213,6 +329,7 @@
 		{/if}
 	</Card.Content>
 
+	{#if members.length > 1}
 	<Card.Footer>
 		<AlertDialog.Root>
 			<AlertDialog.Trigger>
@@ -244,4 +361,5 @@
 			</AlertDialog.Content>
 		</AlertDialog.Root>
 	</Card.Footer>
+	{/if}
 </Card.Root>

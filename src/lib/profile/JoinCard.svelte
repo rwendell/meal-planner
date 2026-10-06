@@ -27,11 +27,8 @@ let {
 	<Card.Content class="grid gap-2">
 		<div class="grid content-start gap-2">
 			<span class="text-xs text-muted-foreground">
-				Share your own code from the profile menu in the header, or
-				ask a member for theirs.
-			</span>
-			<span class="text-xs text-muted-foreground">
-				Ask a member for their 6-character invite code.
+				Ask a member for their 6-character invite code, or open
+				their invite link.
 			</span>
 			<form class="grid gap-2" onsubmit={(event) => onJoin(event)}>
 				<label

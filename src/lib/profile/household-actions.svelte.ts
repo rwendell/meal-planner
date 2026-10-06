@@ -83,10 +83,25 @@ export class HouseholdActions {
 	): Promise<void> {
 		event.preventDefault();
 		this.joinError = "";
+		const ok = await this.joinWithCode(this.joinCode, memberName, autoNamed);
+		if (ok) this.joinCode = "";
+	}
+
+	/**
+	 * Join by code, shared by the profile join form and the /join landing
+	 * page. Returns success. Failures land in `joinError` for the caller
+	 * to render inline; only success toasts, preserving the form's
+	 * inline-only error behavior.
+	 */
+	async joinWithCode(
+		code: string,
+		memberName: string,
+		autoNamed: boolean,
+	): Promise<boolean> {
 		try {
 			const current = session.session;
 			const result = await this.joinMutation({
-				inviteCode: this.joinCode,
+				inviteCode: code,
 				memberName,
 				// No identity member means the name is the device fallback,
 				// safe to replace with the OAuth name later.
@@ -97,14 +112,15 @@ export class HouseholdActions {
 						}
 					: {}),
 			});
-			this.joinCode = "";
 			session.connect({
 				householdId: result.householdId,
 				memberId: result.memberId,
 			});
 			toast.success("Household joined");
+			return true;
 		} catch (error) {
 			this.joinError = errorMessage(error, "Couldn't join with that code.");
+			return false;
 		}
 	}
 

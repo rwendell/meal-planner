@@ -161,6 +161,72 @@ export const join = mutation({
 	}),
 });
 
+/**
+ * Resolve an invite code for the join landing page, before committing to
+ * anything. Public by code possession: anyone holding the code could join
+ * and then see the whole household anyway, so the member count reveals
+ * nothing new. Callers already inside the household get `already_member`;
+ * callers whose own household has other people get `must_leave_first`,
+ * mirroring the guard inside `join`.
+ */
+export const lookupInvite = query({
+	args: {
+		inviteCode: v.string(),
+		callerMemberId: v.optional(v.id("householdMembers")),
+	},
+	handler: async (ctx, args) => {
+		const code = args.inviteCode.trim().toUpperCase();
+		if (!code) return { status: "not_found" as const };
+		const household = await ctx.db
+			.query("households")
+			.withIndex("by_inviteCode", (q) => q.eq("inviteCode", code))
+			.first();
+		if (!household) return { status: "not_found" as const };
+		const members = await ctx.db
+			.query("householdMembers")
+			.withIndex("by_household", (q) => q.eq("householdId", household._id))
+			.take(50);
+		if (
+			args.callerMemberId &&
+			members.some((member) => member._id === args.callerMemberId)
+		) {
+			return { status: "already_member" as const, memberCount: members.length };
+		}
+		if (args.callerMemberId) {
+			const caller = await ctx.db.get("householdMembers", args.callerMemberId);
+			if (caller) {
+				const siblings = await ctx.db
+					.query("householdMembers")
+					.withIndex("by_household", (q) =>
+						q.eq("householdId", caller.householdId),
+					)
+					.collect();
+				if (siblings.length > 1) {
+					return {
+						status: "must_leave_first" as const,
+						memberCount: members.length,
+						currentCount: siblings.length,
+					};
+				}
+			}
+		}
+		return { status: "ok" as const, memberCount: members.length };
+	},
+	returns: v.union(
+		v.object({ status: v.literal("not_found") }),
+		v.object({
+			status: v.literal("already_member"),
+			memberCount: v.number(),
+		}),
+		v.object({
+			status: v.literal("must_leave_first"),
+			memberCount: v.number(),
+			currentCount: v.number(),
+		}),
+		v.object({ status: v.literal("ok"), memberCount: v.number() }),
+	),
+});
+
 export const leave = mutation({
 	args: { memberId: v.id("householdMembers") },
 	handler: async (ctx, args) => {

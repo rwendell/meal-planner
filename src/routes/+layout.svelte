@@ -202,7 +202,6 @@
 							image={selfImage}
 							members={lifecycle.members}
 							myMemberId={session.session?.memberId ?? null}
-							inviteCode={lifecycle.household?.inviteCode ?? null}
 							wideScreen={wideScreen.current}
 							isAuthenticated={auth.isAuthenticated}
 							authLoading={auth.isLoading}

@@ -9,7 +9,6 @@
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button } from "$lib/components/ui/button";
@@ -28,7 +27,6 @@
 		image = null,
 		members = null,
 		myMemberId = null,
-		inviteCode = null,
 		wideScreen,
 		isAuthenticated,
 		authLoading,
@@ -40,11 +38,6 @@
 		image?: string | null;
 		members?: Array<Member> | null;
 		myMemberId?: string | null;
-		/**
-		 * Invite code, already withheld server-side for members who may not
-		 * see it. Null renders no invite row.
-		 */
-		inviteCode?: string | null;
 		wideScreen: boolean;
 		isAuthenticated: boolean;
 		authLoading: boolean;
@@ -200,10 +193,10 @@
 	>
 		{#if view === "profile"}
 			<div class="grid gap-4">
-				{#if members || inviteCode}
+				{#if members}
 					<section
-						aria-label="Members and invite"
-						class="grid grid-cols-2 gap-2"
+						aria-label="Members"
+						class="grid gap-2"
 					>
 						{#if members}
 							<div class="grid min-w-0 content-start gap-1.5">
@@ -229,20 +222,6 @@
 									</li>
 								{/each}
 							</ul>
-						</div>
-					{/if}
-					{#if inviteCode}
-						<div class="grid min-w-0 content-start gap-1.5">
-							<h3
-								class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-							>
-								Invite
-							</h3>
-							<div
-								class="flex flex-wrap items-center gap-2 px-2 pb-1"
-							>
-								<InviteCode code={inviteCode} />
-							</div>
 						</div>
 					{/if}
 				</section>
