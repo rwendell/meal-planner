@@ -59,10 +59,6 @@
 	let triggerEl = $state<HTMLElement | null>(null);
 	let backEl = $state<HTMLButtonElement | null>(null);
 
-	let othersCount = $derived(
-		(members ?? []).filter((member) => member._id !== myMemberId).length,
-	);
-
 	const FOCUSABLE =
 		'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -204,77 +200,54 @@
 	>
 		{#if view === "profile"}
 			<div class="grid gap-4">
-				<div class="flex items-start justify-between">
-					<div>
-						<h2
-							id="profile-heading"
-							class="font-serif text-[18px] tracking-[-0.03em] [overflow-wrap:anywhere]"
-						>
-							Profile
-						</h2>
-						<p class="m-0 text-xs text-muted-foreground">
-							{#if members}
-								{members.length}
-								{members.length === 1 ? "member" : "members"} in this
-								household
-							{:else}
-								Your household and account settings
-							{/if}
-						</p>
-					</div>
-				</div>
-				{#if members}
-					<section aria-label="Members" class="grid gap-2">
-						<h3
-							class="m-0 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-						>
-							Members
-						</h3>
-						<ul class="m-0 grid list-none gap-1.5 p-0">
-							{#each members as member (member._id)}
-								<li
-									class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
+				{#if members || inviteCode}
+					<section
+						aria-label="Members and invite"
+						class="grid grid-cols-2 gap-2"
+					>
+						{#if members}
+							<div class="grid min-w-0 content-start gap-1.5">
+								<h3
+									class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
 								>
-									<span class="min-w-0 shrink truncate"
-										>{member.name}</span
+									Members
+								</h3>
+								<ul class="m-0 grid list-none gap-1.5 px-2">
+								{#each members as member (member._id)}
+									<li
+										class="flex min-w-0 items-center gap-2 text-[13px] font-medium"
 									>
-									{#if member._id === myMemberId}
-										<Badge
-											variant="secondary"
-											class="shrink-0">You</Badge
+										<span class="min-w-0 shrink truncate"
+											>{member.name}</span
 										>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					</section>
+										{#if member._id === myMemberId}
+											<Badge
+												variant="secondary"
+												class="shrink-0">You</Badge
+											>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+					{#if inviteCode}
+						<div class="grid min-w-0 content-start gap-1.5">
+							<h3
+								class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+							>
+								Invite
+							</h3>
+							<div
+								class="flex flex-wrap items-center gap-2 px-2 pb-1"
+							>
+								<InviteCode code={inviteCode} />
+							</div>
+						</div>
+					{/if}
+				</section>
 				{/if}
 				<Separator />
-				<!--
-					Sharing belongs to the profile menu rather than the settings
-					page: the code is need-to-know, and the server already
-					withholds it from members who may not see it. A null code
-					renders nothing at all.
-				-->
-				{#if inviteCode}
-					<section aria-labelledby="profile-menu-invite" class="grid gap-1.5">
-						<h3
-							id="profile-menu-invite"
-							class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
-						>
-							Invite
-						</h3>
-						<div class="flex flex-wrap items-center gap-2 px-2 pb-1">
-							<span class="text-xs text-muted-foreground">
-								{othersCount > 0
-									? "Add someone to this household"
-									: "Share this code to invite someone"}
-							</span>
-							<InviteCode code={inviteCode} />
-						</div>
-					</section>
-					<Separator />
-				{/if}
 				<nav aria-label="Account" class="grid gap-1">
 					<h3
 						class="m-0 px-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
@@ -475,4 +448,3 @@
 		{/if}
 	</Popover.Content>
 </Popover.Root>
-
