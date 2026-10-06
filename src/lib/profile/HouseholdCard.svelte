@@ -1,11 +1,7 @@
 <script lang="ts">
-	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
-	import ShareIcon from "@lucide/svelte/icons/share";
+	import UserPlusIcon from "@lucide/svelte/icons/user-plus";
 	import XIcon from "@lucide/svelte/icons/x";
-	import { toast } from "svelte-sonner";
-	import { resolve } from "$app/paths";
 	import InfoTip from "$lib/components/InfoTip.svelte";
-	import InviteCode from "$lib/components/InviteCode.svelte";
 	import MemberAvatar from "$lib/components/MemberAvatar.svelte";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog";
 	import { Badge } from "$lib/components/ui/badge";
@@ -13,7 +9,7 @@
 	import * as Card from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Switch } from "$lib/components/ui/switch";
-	import { copyText } from "$lib/utils/clipboard.js";
+	import InviteDialog from "$lib/profile/InviteDialog.svelte";
 
 	type Member = {
 		_id: string;
@@ -90,60 +86,8 @@
 		},
 	]);
 
-	let qrOpen = $state(false);
-	let qrSrc = $state<string | null>(null);
+	let showInvite = $state(false);
 
-	function joinUrl(): string {
-		return new URL(
-			`${resolve("/join")}?code=${inviteCode}`,
-			window.location.href,
-		).href;
-	}
-
-	/**
-	 * One-tap share via the system sheet, falling back to copying the
-	 * invite link. A dismissed sheet (AbortError) is silence, not an
-	 * error: the user simply changed their mind.
-	 */
-	async function shareInvite(): Promise<void> {
-		if (!inviteCode) return;
-		const url = joinUrl();
-		try {
-			if (typeof navigator !== "undefined" && "share" in navigator) {
-				await navigator.share({
-					title: "Join my household on Meal Planner",
-					text: "Join my household on Meal Planner:",
-					url,
-				});
-				return;
-			}
-			throw new Error("no system share sheet");
-		} catch (error) {
-			if (error instanceof DOMException && error.name === "AbortError") {
-				return;
-			}
-			const ok = await copyText(url);
-			if (ok) toast.success("Invite link copied");
-			else toast.error("Copy was blocked by the browser");
-		}
-	}
-
-	/**
-	 * QR is generated lazily on first open so the encoder stays out of the
-	 * initial bundle, and only runs on a tap so it never executes during
-	 * prerender.
-	 */
-	async function toggleQr(): Promise<void> {
-		qrOpen = !qrOpen;
-		if (!qrOpen || qrSrc || !inviteCode) return;
-		try {
-			const QRCode = (await import("qrcode")).default;
-			qrSrc = await QRCode.toDataURL(joinUrl(), { width: 352, margin: 1 });
-		} catch {
-			toast.error("Couldn't generate the QR code.");
-			qrOpen = false;
-		}
-	}
 </script>
 
 <Card.Root>
@@ -154,144 +98,101 @@
 				? "You're the only member."
 				: `${members.length} people share meals, plans, and one shopping list.`}
 		</Card.Description>
+		{#if inviteCode}
+			<Card.Action>
+				<Button size="sm" onclick={() => (showInvite = true)}>
+					<UserPlusIcon data-icon="inline-start" />
+					Invite
+				</Button>
+			</Card.Action>
+		{/if}
 	</Card.Header>
 
 	<Card.Content class="grid gap-5">
 		<!--
-			Roster left, invite right when there is a code to show: both
-			answer "who is here, and how does someone else get here". The
-			server withholds the code from members who may not see it, so a
-			null code collapses back to a single roster column. Columns
-			stack below 420px, where two would squeeze the code button.
+			The roster only. Inviting happens through the Invite button
+			in the header, which opens a dialog with the link, code,
+			and QR code -- the same shape as adding a meal.
 		-->
-		<section
-			aria-label="Members and invite"
-			class={inviteCode ? "grid gap-4 min-[420px]:grid-cols-2" : "grid gap-4"}
-		>
+		<section aria-labelledby="household-members" class="grid gap-2.5">
 			<div class="grid min-w-0 content-start gap-1.5">
 				<h3 id="household-members" class="m-0 text-sm font-semibold">
 					Members
 				</h3>
 
-
-			{#if !exists}
-				<p class="m-0 text-sm text-muted-foreground">
-					This household no longer exists.
-				</p>
-			{:else if members.length === 0}
-				<p class="m-0 text-sm text-muted-foreground">No members yet.</p>
-			{:else}
-				<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
-					{#each members as member (member._id)}
-						<li
-							class="flex min-w-0 items-center gap-2 rounded-lg py-1"
-						>
-							<MemberAvatar
-								name={member.name}
-								image={member.image}
-								size="sm"
-							/>
-							<span class="min-w-0 truncate text-sm">{member.name}</span>
-							{#if member._id === myId}
-								<Badge variant="secondary" class="shrink-0">
-									You
-								</Badge>
-							{/if}
-							{#if member._id === ownerId}
-								<Badge variant="secondary" class="shrink-0">
-									Owner
-								</Badge>
-							{/if}
-							{#if member._id !== myId && isManager}
-								<AlertDialog.Root>
-									<AlertDialog.Trigger>
-										{#snippet child({ props })}
-											<Button
-												variant="ghost"
-												size="icon-sm"
-													aria-label={`Remove ${member.name}`}
-												title="Remove from household"
-												{...props}
-											>
-												<XIcon />
-											</Button>
-										{/snippet}
-									</AlertDialog.Trigger>
-									<AlertDialog.Content>
-										<AlertDialog.Header>
-											<AlertDialog.Title>
-												Remove {member.name}?
-											</AlertDialog.Title>
-											<AlertDialog.Description>
-												{member.name} loses access to this
-												household, and their planned meals here
-												are removed.
-											</AlertDialog.Description>
-										</AlertDialog.Header>
-										<AlertDialog.Footer>
-											<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-											<AlertDialog.Action
-												variant="destructive"
-												onclick={() =>
-													onRemoveMember(member._id, member.name)}
-											>
-												Remove
-											</AlertDialog.Action>
-										</AlertDialog.Footer>
-									</AlertDialog.Content>
-								</AlertDialog.Root>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-				{/if}
+				{#if !exists}
+					<p class="m-0 text-sm text-muted-foreground">
+						This household no longer exists.
+					</p>
+				{:else if members.length === 0}
+					<p class="m-0 text-sm text-muted-foreground">No members yet.</p>
+				{:else}
+					<ul class="m-0 grid w-fit max-w-full list-none gap-0.5 p-0">
+						{#each members as member (member._id)}
+							<li
+								class="flex min-w-0 items-center gap-2 rounded-lg py-1"
+							>
+								<MemberAvatar
+									name={member.name}
+									image={member.image}
+									size="sm"
+								/>
+								<span class="min-w-0 truncate text-sm">{member.name}</span>
+								{#if member._id === myId}
+									<Badge variant="secondary" class="shrink-0">
+										You
+									</Badge>
+								{/if}
+								{#if member._id === ownerId}
+									<Badge variant="secondary" class="shrink-0">
+										Owner
+									</Badge>
+								{/if}
+								{#if member._id !== myId && isManager}
+									<AlertDialog.Root>
+										<AlertDialog.Trigger>
+											{#snippet child({ props })}
+												<Button
+													variant="ghost"
+													size="icon-sm"
+														aria-label={`Remove ${member.name}`}
+													title="Remove from household"
+													{...props}
+												>
+													<XIcon />
+												</Button>
+											{/snippet}
+										</AlertDialog.Trigger>
+										<AlertDialog.Content>
+											<AlertDialog.Header>
+												<AlertDialog.Title>
+													Remove {member.name}?
+												</AlertDialog.Title>
+												<AlertDialog.Description>
+													{member.name} loses access to this
+													household, and their planned meals here
+													are removed.
+												</AlertDialog.Description>
+											</AlertDialog.Header>
+											<AlertDialog.Footer>
+												<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+												<AlertDialog.Action
+													variant="destructive"
+													onclick={() =>
+														onRemoveMember(member._id, member.name)}
+												>
+													Remove
+												</AlertDialog.Action>
+											</AlertDialog.Footer>
+										</AlertDialog.Content>
+									</AlertDialog.Root>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+					{/if}
 			</div>
 
-			{#if inviteCode}
-				<div class="grid min-w-0 content-start gap-1.5">
-					<h3 class="m-0 text-sm font-semibold">Invite</h3>
-					<div class="flex flex-wrap items-center gap-2">
-						<InviteCode code={inviteCode} />
-						<Button
-							variant="outline"
-							size="icon-sm"
-							aria-label="Share invite link"
-							title="Share invite link"
-							onclick={() => void shareInvite()}
-						>
-							<ShareIcon />
-						</Button>
-						<Button
-							variant="outline"
-							size="icon-sm"
-							aria-label={qrOpen ? "Hide QR code" : "Show QR code"}
-							title={qrOpen ? "Hide QR code" : "Show QR code"}
-							aria-expanded={qrOpen}
-							onclick={() => void toggleQr()}
-						>
-							<QrCodeIcon />
-						</Button>
-					</div>
-					{#if qrOpen}
-						<div class="grid justify-items-start gap-1.5 pt-1">
-							{#if qrSrc}
-								<img
-									src={qrSrc}
-									alt="QR code linking to this household's join page"
-									class="aspect-square w-full max-w-44 rounded-lg border bg-white p-2"
-								/>
-								<span class="text-xs text-muted-foreground">
-								Scan with your phone camera to join
-							</span>
-							{:else}
-								<span class="text-xs text-muted-foreground">
-								Generating the QR code…
-							</span>
-							{/if}
-						</div>
-					{/if}
-				</div>
-			{/if}
 		</section>
 
 		{#if isOwner}
@@ -366,5 +267,12 @@
 			</AlertDialog.Content>
 		</AlertDialog.Root>
 	</Card.Footer>
+	{/if}
+	{#if inviteCode}
+		<InviteDialog
+			open={showInvite}
+			code={inviteCode}
+			onClose={() => (showInvite = false)}
+		/>
 	{/if}
 </Card.Root>
