@@ -6,7 +6,6 @@
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { tick } from "svelte";
-	import { MediaQuery } from "svelte/reactivity";
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 	import { page } from "$app/state";
@@ -74,7 +73,6 @@
 	}
 
 	function close(): void {
-		clearHoverTimers();
 		open = false;
 		view = "profile";
 		triggerEl?.focus();
@@ -157,48 +155,6 @@
 		await goto(resolve("/profile"));
 	}
 
-	// Hover-to-open, click-to-navigate, but only where hovering is a real
-	// pointer rather than a touch tap that would fire both.
-	let finePointer = new MediaQuery("(hover: hover) and (pointer: fine)", false);
-	let hoverIntent: ReturnType<typeof setTimeout> | undefined;
-	let hoverLeave: ReturnType<typeof setTimeout> | undefined;
-
-	function clearHoverTimers(): void {
-		clearTimeout(hoverIntent);
-		clearTimeout(hoverLeave);
-		hoverIntent = undefined;
-		hoverLeave = undefined;
-	}
-
-	/**
-	 * Pointer entering the trigger opens the menu. A short delay avoids
-	 * firing on incidental passes across the header.
-	 */
-	function openOnHover(): void {
-		if (!finePointer.current) return;
-		clearTimeout(hoverLeave);
-		clearTimeout(hoverIntent);
-		hoverIntent = setTimeout(() => {
-			if (!open) view = "profile";
-		}, 90);
-	}
-
-	/**
-	 * Leaving closes, but only after a grace period so the pointer can
-	 * travel from the trigger into the popover without dismissing it.
-	 */
-	function closeOnHover(): void {
-		if (!finePointer.current) return;
-		clearTimeout(hoverIntent);
-		clearTimeout(hoverLeave);
-		hoverLeave = setTimeout(() => {
-			if (open && document.activeElement === triggerEl) close();
-			else if (open && !menuEl?.contains(document.activeElement ?? null)) {
-				close();
-			}
-		}, 220);
-	}
-
 	/**
 	 * Close before signing out: the menu owns its open state, so the
 	 * caller can no longer close it on our behalf. Order matters -- the
@@ -220,26 +176,13 @@
 				{...props}
 				bind:ref={triggerEl}
 				class="max-w-[min(170px,20vw)] gap-[7px] rounded-full py-0 pr-2.5 pl-2 max-[360px]:size-[34px] max-[360px]:justify-center max-[360px]:p-0"
-					aria-label={`Profile and household settings for ${name}`}
+				aria-label={open
+					? "Close profile menu"
+					: `Open profile menu for ${name}`}
 				title={`Profile: ${name}`}
 				aria-haspopup="dialog"
 				aria-controls="profile-menu"
 				aria-expanded={open}
-					onpointerenter={openOnHover}
-					onpointerleave={closeOnHover}
-					onclick={(event: MouseEvent) => {
-						// A real pointer click goes to the settings page; the
-						// menu is the hover affordance. Keyboard activation
-						// reports detail 0 and instead toggles the popover,
-						// so the menu stays reachable without a pointer.
-						if (event.detail === 0) {
-							(props.onclick as ((e: MouseEvent) => void) | undefined)?.(
-								event,
-							);
-							return;
-						}
-						void goToProfile();
-					}}
 			>
 				<MemberAvatar {name} {image} size="sm" />
 				<span
@@ -254,8 +197,6 @@
 		id="profile-menu"
 		bind:ref={menuEl}
 		data-no-swipe
-		onpointerenter={openOnHover}
-		onpointerleave={closeOnHover}
 		align="end"
 		sideOffset={8}
 		aria-label={view === "profile" ? "Profile menu" : "Preferences"}
