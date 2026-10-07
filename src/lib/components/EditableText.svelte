@@ -7,8 +7,8 @@
 	 * idle renders as bare text — editability is only hinted at on
 	 * hover/focus (dashed underline), so it doesn't read as a button.
 	 * Click swaps in an Input with the text focused + selected. Blur
-	 * collapses back (draft already updated), Enter commits via
-	 * onCommit (e.g. full save), Escape reverts via onRevert.
+	 * collapses back and commits via onBlur, Enter commits via onCommit,
+	 * Escape reverts via onRevert.
 	 *
 	 * Idle text is always the draft, never the last saved value, so a
 	 * blur can't make an edit look lost. Pass `original` to flag the
@@ -25,6 +25,7 @@
 		onInput,
 		onCommit,
 		onRevert,
+		onBlur,
 	}: {
 		/** Live draft text (controlled by the parent). */
 		value: string;
@@ -37,6 +38,8 @@
 		onInput: (v: string) => void;
 		onCommit: () => void;
 		onRevert: () => void;
+		/** Commit on focus loss (autosave). Optional; collapse-only when absent. */
+		onBlur?: () => void;
 	} = $props();
 
 	let editing = $state(false);
@@ -61,7 +64,10 @@
 		bind:ref={inputEl}
 		{value}
 		oninput={(event) => onInput(event.currentTarget.value)}
-		onblur={() => (editing = false)}
+		onblur={() => {
+			editing = false;
+			onBlur?.();
+		}}
 		onkeydown={(event) => {
 			if (event.key === "Enter") {
 				onCommit();

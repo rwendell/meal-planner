@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { useAuth } from "@mmailaender/convex-auth-svelte/svelte";
 	import { beforeNavigate } from "$app/navigation";
-	import EditActions from "$lib/components/EditActions.svelte";
 	import HouseholdCard from "$lib/profile/HouseholdCard.svelte";
 	import { HouseholdActions } from "$lib/profile/household-actions.svelte.js";
 	import JoinCard from "$lib/profile/JoinCard.svelte";
@@ -36,11 +35,11 @@
 		);
 	}
 
-	// Commits name/toggle drafts and flushes any pending skips autosave
-	// before leaving. Skips need no confirmation: hiding is not removal.
+	// Flushes anything autosave hasn't yet (an un-blurred name edit, a
+	// pending debounce) before leaving. In-flight mutations resolve
+	// server-side regardless.
 	beforeNavigate(async () => {
-		if (!editor.hasUnsavedChanges) return;
-		await editor.save();
+		await editor.flushPending();
 	});
 
 	async function leaveViewed(): Promise<void> {
@@ -82,8 +81,8 @@
 					saving={editor.saving}
 					nameEdit={editor.myNameEdit}
 					onNameEdit={(v) => (editor.myNameEdit = v)}
-					onSave={(e) => void editor.save(e)}
-					onCancel={() => editor.cancelEditing()}
+					onCommitName={() => void editor.persistName()}
+					onRevertName={() => editor.revertName()}
 					autoShare={editor.pendingAutoShareMeals}
 					showAutoShare={Boolean(editor.identityMember)}
 					onAutoShare={(v) => (editor.autoShareMealsDraft = v)}
@@ -141,28 +140,5 @@
 				/>
 			{/if}
 
-
-			{#if editor.viewedEntry}
-				<div
-					class="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] z-30 px-[18px] sm:bottom-6 sm:px-7"
-				>
-					<div class="mx-auto flex max-w-[720px] justify-end">
-						<div
-							class="rounded-xl border bg-card/95 p-2 shadow-lg backdrop-blur"
-						>
-							<EditActions
-								editing={true}
-								disabled={editor.saving ||
-									!editor.hasUnsavedChanges}
-								saveDisabled={editor.saveDisabled}
-								saving={editor.saving}
-								onEdit={() => {}}
-								onCancel={() => editor.cancelEditing()}
-								onSave={() => void editor.save()}
-							/>
-						</div>
-					</div>
-				</div>
-			{/if}
 		</div>
 	{/if}

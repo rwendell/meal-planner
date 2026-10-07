@@ -24,7 +24,7 @@ import type { Id } from "../../convex/_generated/dataModel";
  *
  * Instantiate per page (`new ProfileEditor()`). Read and assign fields
  * off the instance; pass methods to children wrapped in arrows
- * (`onCancel={() => editor.cancelEditing()}`) so `this` stays bound.
+ * (`onCommitName={() => editor.persistName()}`) so `this` stays bound.
  */
 /** Minimal session entry (the only household there is). */
 interface SessionEntry {
@@ -44,6 +44,7 @@ export class ProfileEditor {
 	private viewedHouseholdKey = $state<string | null>(null);
 	private skippedDraft = $state<SkippedCell[] | null>(null);
 	private skipSaveTimer: ReturnType<typeof setTimeout> | undefined;
+	private toggleTimer: ReturnType<typeof setTimeout> | undefined;
 
 	private setOwnerManagesPlans = useMutation(
 		api.householdOwner.setOwnerManagesPlans,
@@ -172,8 +173,9 @@ export class ProfileEditor {
 		);
 	}
 	/**
-	 * Anything differing from the server: drives the Save button state,
-	 * the dirty-guard on navigation, and the auto-commit on leave.
+	 * Anything not yet persisted: an un-blurred name edit, toggle or
+	 * skips drafts awaiting their debounce, or a save in flight. Only
+	 * drives the unload warning and the navigate-away flush.
 	 */
 	get hasUnsavedChanges(): boolean {
 		const identity = this.identityEntry;
@@ -198,9 +200,6 @@ export class ProfileEditor {
 					(this.identityMember?.autoShareMeals ?? true)) ||
 			this.skipsDirty
 		);
-	}
-	get saveDisabled(): boolean {
-		return !this.myNameEdit.trim() || !this.hasUnsavedChanges || this.saving;
 	}
 
 	constructor() {
@@ -235,9 +234,6 @@ export class ProfileEditor {
 				this.viewedHouseholdKey = house._id;
 				this.ownerManagesPlansDraft = null;
 				this.ownerReviewsMealsDraft = null;
-				// Was missing here, so the draft outlived a household switch
-				// and hasUnsavedChanges compared a stale value against the
-				// new household. Only cancelEditing() cleared it.
 				this.allowMemberInvitesDraft = null;
 				this.saving = false;
 			}
@@ -254,14 +250,33 @@ export class ProfileEditor {
 			if (!draft || this.saving) return;
 			this.skipSaveTimer = setTimeout(() => {
 				this.skipSaveTimer = undefined;
-				// Read fresh: a manual Save may have flushed it meanwhile.
+				// Read fresh: a flush may have saved it meanwhile.
 				if (this.skippedDraft) void this.saveSkips();
 			}, 700);
 			return () => clearTimeout(this.skipSaveTimer);
 		});
+
+		// Toggles persist themselves shortly after flipping, same shape
+		// as skips: any draft change restarts the timer. Internal resets
+		// (household switch nulling every draft) read as clean and cancel
+		// anything pending through the cleanup.
+		$effect(() => {
+			const drafts = [
+				this.ownerManagesPlansDraft,
+				this.ownerReviewsMealsDraft,
+				this.allowMemberInvitesDraft,
+				this.autoShareMealsDraft,
+			];
+			if (drafts.every((draft) => draft === null) || this.saving) return;
+			this.toggleTimer = setTimeout(() => {
+				this.toggleTimer = undefined;
+				void this.persistToggles();
+			}, 500);
+			return () => clearTimeout(this.toggleTimer);
+		});
 	}
 
-	/** Cancel a pending skips autosave (a manual Save flushes instead). */
+	/** Cancel a pending skips autosave (a manual flush saves instead). */
 	private clearSkipAutosave(): void {
 		clearTimeout(this.skipSaveTimer);
 		this.skipSaveTimer = undefined;
@@ -327,167 +342,188 @@ export class ProfileEditor {
 		}
 	}
 
-	cancelEditing(): void {
+	/** Revert the name buffer (Escape in the name field). */
+	revertName(): void {
 		const identity = this.identityEntry;
-		if (identity) {
-			this.myNameEdit = identity.member.name;
-		}
-		const viewed = this.viewedEntry;
-		if (viewed) {
-		}
-		this.ownerManagesPlansDraft = null;
-		this.ownerReviewsMealsDraft = null;
-		this.allowMemberInvitesDraft = null;
-		this.autoShareMealsDraft = null;
-		this.skippedDraft = null;
-		this.clearSkipAutosave();
+		if (identity) this.myNameEdit = identity.member.name;
 	}
 
-	async save(event?: SubmitEvent): Promise<void> {
-		event?.preventDefault();
-		const current = session.session;
-		if (!current) return;
-		const entry = this.viewedEntry;
+	get nameDirty(): boolean {
 		const identity = this.identityEntry;
-		const memberName = this.myNameEdit.trim();
-		if (!entry || !identity || this.saving || !memberName) {
-			return;
-		}
-		// Skips flush first so a manual Save never races the autosave
-		// timer: clearing it makes the pending fire a no-op.
-		if (this.skipsDirty) {
-			this.clearSkipAutosave();
-			await this.saveSkips();
-			if (this.skipsDirty) return;
-		}
-		const baselineOwnerPlans = this.household?.ownerManagesPlans ?? false;
-		const pendingOwnerPlans = this.ownerManagesPlansDraft;
-		const baselineOwnerReviews = this.household?.ownerReviewsMeals ?? false;
-		const pendingOwnerReviews = this.ownerReviewsMealsDraft;
-		const baselineAllowInvites = this.household?.allowMemberInvites ?? false;
-		const pendingAllowInvites = this.allowMemberInvitesDraft;
-		const baselineAutoShare = this.identityMember?.autoShareMeals ?? true;
-		const pendingAutoShare = this.autoShareMealsDraft;
-		const memberChanged = memberName !== identity.member.name;
-		const ownerPlansChanged =
-			this.isOwner &&
-			pendingOwnerPlans !== null &&
-			pendingOwnerPlans !== baselineOwnerPlans;
-		const ownerReviewsChanged =
-			this.isOwner &&
-			pendingOwnerReviews !== null &&
-			pendingOwnerReviews !== baselineOwnerReviews;
-		const allowInvitesChanged =
-			this.isOwner &&
-			pendingAllowInvites !== null &&
-			pendingAllowInvites !== baselineAllowInvites;
-		const autoShareChanged =
-			pendingAutoShare !== null && pendingAutoShare !== baselineAutoShare;
-		if (
-			!memberChanged &&
-			!ownerPlansChanged &&
-			!ownerReviewsChanged &&
-			!allowInvitesChanged &&
-			!autoShareChanged
-		) {
-			return;
-		}
-		this.saving = true;
-		let failed = false;
+		return !!identity && this.myNameEdit.trim() !== identity.member.name;
+	}
+
+	/**
+	 * Persist toggle drafts, reading them fresh. Drafts matching the
+	 * baseline just clear. Silent on success (the flipped switch is the
+	 * feedback); a failure clears the draft so the switch snaps back,
+	 * plus an error toast -- with no Save button there is no other path
+	 * back.
+	 */
+	private async persistToggles(): Promise<void> {
+		const current = session.session;
+		const entry = this.viewedEntry;
+		if (!current || !entry) return;
 		const householdId = entry.household._id as Id<"households">;
 		const memberId = entry.member._id as Id<"householdMembers">;
+		const jobs: Array<{
+			draft: boolean | null;
+			baseline: boolean;
+			ownerOnly: boolean;
+			clear: () => void;
+			run: (enabled: boolean) => Promise<unknown>;
+		}> = [
+			{
+				draft: this.ownerManagesPlansDraft,
+				baseline: this.household?.ownerManagesPlans ?? false,
+				ownerOnly: true,
+				clear: () => (this.ownerManagesPlansDraft = null),
+				run: (enabled) =>
+					this.setOwnerManagesPlans({
+						householdId,
+						callerMemberId: memberId,
+						enabled,
+					}),
+			},
+			{
+				draft: this.ownerReviewsMealsDraft,
+				baseline: this.household?.ownerReviewsMeals ?? false,
+				ownerOnly: true,
+				clear: () => (this.ownerReviewsMealsDraft = null),
+				run: (enabled) =>
+					this.setOwnerReviewsMeals({
+						householdId,
+						callerMemberId: memberId,
+						enabled,
+					}),
+			},
+			{
+				draft: this.allowMemberInvitesDraft,
+				baseline: this.household?.allowMemberInvites ?? false,
+				ownerOnly: true,
+				clear: () => (this.allowMemberInvitesDraft = null),
+				run: (enabled) =>
+					this.setAllowMemberInvites({
+						householdId,
+						callerMemberId: memberId,
+						enabled,
+					}),
+			},
+			{
+				draft: this.autoShareMealsDraft,
+				baseline: this.identityMember?.autoShareMeals ?? true,
+				ownerOnly: false,
+				clear: () => (this.autoShareMealsDraft = null),
+				run: (enabled) =>
+					this.setAutoShareMeals({
+						householdId: current.householdId as Id<"households">,
+						memberId: current.memberId as Id<"householdMembers">,
+						callerMemberId: current.memberId as Id<"householdMembers">,
+						enabled,
+					}),
+			},
+		];
+		const pending = jobs.filter(
+			(job) =>
+				job.draft !== null &&
+				(!job.ownerOnly || this.isOwner) &&
+				job.draft !== job.baseline,
+		);
+		for (const job of jobs) {
+			if (job.draft === null) continue;
+			// Owner-only drafts without ownership, and drafts matching the
+			// baseline, have nothing to persist.
+			if ((job.ownerOnly && !this.isOwner) || job.draft === job.baseline) {
+				job.clear();
+			}
+		}
+		if (pending.length === 0) return;
+		this.saving = true;
 		try {
-			if (memberChanged) {
+			for (const job of pending) {
 				try {
-					await this.renameMember({
-						householdId: current.householdId as Id<"households">,
-						memberId: current.memberId as Id<"householdMembers">,
-						name: memberName,
-						callerMemberId: current.memberId as Id<"householdMembers">,
-					});
-					toast.success("Name updated");
+					await job.run(job.draft as boolean);
+					job.clear();
 				} catch (error) {
-					failed = true;
-					toast.error(errorMessage(error, "Couldn't update your name."));
-				}
-			}
-			if (ownerPlansChanged) {
-				try {
-					await this.setOwnerManagesPlans({
-						householdId,
-						callerMemberId: memberId,
-						enabled: pendingOwnerPlans,
-					});
-					toast.success(
-						pendingOwnerPlans
-							? "Owner planning turned on"
-							: "Owner planning turned off",
-					);
-				} catch (error) {
-					failed = true;
+					job.clear();
 					toast.error(errorMessage(error, "Couldn't update the setting."));
 				}
-			}
-			if (ownerReviewsChanged) {
-				try {
-					await this.setOwnerReviewsMeals({
-						householdId,
-						callerMemberId: memberId,
-						enabled: pendingOwnerReviews,
-					});
-					toast.success(
-						pendingOwnerReviews
-							? "Owner reviews everyone's leftovers"
-							: "Leftover reviews are per-member again",
-					);
-				} catch (error) {
-					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the setting."));
-				}
-			}
-			if (allowInvitesChanged) {
-				try {
-					await this.setAllowMemberInvites({
-						householdId,
-						callerMemberId: memberId,
-						enabled: pendingAllowInvites,
-					});
-					toast.success(
-						pendingAllowInvites
-							? "Members can now invite others"
-							: "Only the owner can invite now",
-					);
-				} catch (error) {
-					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the setting."));
-				}
-			}
-			if (autoShareChanged) {
-				try {
-					await this.setAutoShareMeals({
-						householdId: current.householdId as Id<"households">,
-						memberId: current.memberId as Id<"householdMembers">,
-						callerMemberId: current.memberId as Id<"householdMembers">,
-						enabled: pendingAutoShare,
-					});
-					toast.success(
-						pendingAutoShare
-							? "Meals you add will be shared publicly"
-							: "Meals you add will stay private",
-					);
-				} catch (error) {
-					failed = true;
-					toast.error(errorMessage(error, "Couldn't update the setting."));
-				}
-			}
-			if (!failed) {
-				this.ownerManagesPlansDraft = null;
-				this.ownerReviewsMealsDraft = null;
-				this.allowMemberInvitesDraft = null;
-				this.autoShareMealsDraft = null;
 			}
 		} finally {
 			this.saving = false;
+			// A flip that landed mid-flight left a fresh draft behind;
+			// pick it up so it is never stranded.
+			if (
+				this.ownerManagesPlansDraft !== null ||
+				this.ownerReviewsMealsDraft !== null ||
+				this.allowMemberInvitesDraft !== null ||
+				this.autoShareMealsDraft !== null
+			) {
+				this.scheduleTogglePersist();
+			}
 		}
+	}
+
+	private scheduleTogglePersist(): void {
+		clearTimeout(this.toggleTimer);
+		this.toggleTimer = setTimeout(() => {
+			this.toggleTimer = undefined;
+			void this.persistToggles();
+		}, 500);
+	}
+
+	private clearTogglePersist(): void {
+		clearTimeout(this.toggleTimer);
+		this.toggleTimer = undefined;
+	}
+
+	/**
+	 * Persist the name buffer (blur or Enter). Reverts on failure -- with
+	 * no Save button there is no other path back. An empty buffer reverts
+	 * silently: a name is required, so there is nothing to save.
+	 */
+	async persistName(): Promise<void> {
+		const current = session.session;
+		const identity = this.identityEntry;
+		if (!current || !identity) return;
+		const memberName = this.myNameEdit.trim();
+		if (!memberName) {
+			this.myNameEdit = identity.member.name;
+			return;
+		}
+		if (memberName === identity.member.name) return;
+		this.saving = true;
+		try {
+			await this.renameMember({
+				householdId: current.householdId as Id<"households">,
+				memberId: current.memberId as Id<"householdMembers">,
+				name: memberName,
+				callerMemberId: current.memberId as Id<"householdMembers">,
+			});
+		} catch (error) {
+			this.myNameEdit = identity.member.name;
+			toast.error(errorMessage(error, "Couldn't update your name."));
+		} finally {
+			this.saving = false;
+		}
+	}
+
+	/**
+	 * Persist anything autosave hasn't yet: an un-blurred name edit, a
+	 * pending toggles timer, a pending skips draft. Used before navigating
+	 * away; in-flight mutations resolve server-side regardless.
+	 */
+	/**
+	 * Persist anything autosave hasn't yet: an un-blurred name edit,
+	 * toggle drafts whose timer hasn't fired, a pending skips draft. Used
+	 * before navigating away. In-flight mutations resolve server-side
+	 * regardless.
+	 */
+	async flushPending(): Promise<void> {
+		this.clearTogglePersist();
+		this.clearSkipAutosave();
+		if (this.nameDirty) await this.persistName();
+		await this.persistToggles();
+		if (this.skipsDirty) await this.saveSkips();
 	}
 }

@@ -13,8 +13,8 @@
 		saving,
 		nameEdit,
 		onNameEdit,
-		onSave,
-		onCancel,
+		onCommitName,
+		onRevertName,
 		autoShare,
 		showAutoShare,
 		onAutoShare,
@@ -27,8 +27,8 @@
 		saving: boolean;
 		nameEdit: string;
 		onNameEdit: (v: string) => void;
-		onSave: (e?: SubmitEvent) => void;
-		onCancel: () => void;
+		onCommitName: () => void;
+		onRevertName: () => void;
 		autoShare: boolean | null;
 		showAutoShare: boolean;
 		onAutoShare: (v: boolean) => void;
@@ -49,8 +49,9 @@
 			inputClass="h-8"
 			textClass="truncate font-semibold"
 			onInput={(v) => onNameEdit(v)}
-			onCommit={() => onSave()}
-			onRevert={onCancel}
+			onCommit={onCommitName}
+			onRevert={onRevertName}
+			onBlur={onCommitName}
 		/>
 	</div>
 	{#if showAutoShare}
