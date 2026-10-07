@@ -7,6 +7,7 @@
 	import { isDone } from "$lib/shopping/shopping-list.js";
 	import { session } from "$lib/stores/session.svelte.js";
 	import { MEAL_TYPES, type MealType } from "$lib/utils/meal-types.js";
+	import { weekdayIndex } from "$lib/utils/skipped.js";
 	import { cn } from "$lib/utils.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
@@ -65,12 +66,21 @@
 		const out: MemberMeals[] = [];
 		for (const member of members) {
 			const rows = rowsByMember.get(member._id) ?? [];
+			const hidden = new Set(
+				(member.skippedCells ?? []).map(
+					(cell) => `${cell.day}:${cell.slot}`,
+				),
+			);
 			const slots: MemberMeals["slots"] = [];
 			for (const type of MEAL_TYPES) {
 				const counts = new Map<string, number>();
 				for (const row of rows) {
 					const value = row[type.id] ?? null;
 					if (!value || value === "skip") continue;
+					if (
+						hidden.has(`${weekdayIndex(row.date)}:${type.id}`)
+					)
+						continue;
 					const name = mealsById.get(value);
 					if (!name) continue;
 					counts.set(name, (counts.get(name) ?? 0) + 1);

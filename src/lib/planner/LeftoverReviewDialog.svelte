@@ -30,7 +30,7 @@
 		// member; member names then show under each meal.
 		memberId: string | null;
 		memberName: string;
-		members: Array<{ id: string; name: string }>;
+		members: Array<{ id: string; name: string; skippedCells?: Array<{ day: number; slot: string }> }>;
 		dates: string[];
 		open: boolean;
 		onClose: () => void;
@@ -67,14 +67,27 @@
 	let planned = $derived.by(() => {
 		const memberNames = new Map(members.map((m) => [m.id, m.name]));
 		const seen = new Map<Id<"meals">, Set<string>>();
+		const skipByMember = new Map(
+			members.map((member) => [
+				member.id,
+				new Set(
+					(member.skippedCells ?? []).map(
+						(cell) => `${cell.day}:${cell.slot}`,
+					),
+				),
+			]),
+		);
 		for (const row of daysQuery.data ?? []) {
-			for (const value of [
-				row.breakfast,
-				row.lunch,
-				row.dinner,
-				row.snack ?? null,
-			]) {
+			const hidden = skipByMember.get(row.memberId);
+			const weekday = new Date(`${row.date}T12:00:00Z`).getUTCDay();
+			for (const [slot, value] of [
+				["breakfast", row.breakfast],
+				["lunch", row.lunch],
+				["dinner", row.dinner],
+				["snack", row.snack ?? null],
+			] as const) {
 				if (!value || value === "skip") continue;
+				if (hidden?.has(`${weekday}:${slot}`)) continue;
 				const meal = mealsById.get(value);
 				if (!meal || readyIds.has(meal._id)) continue;
 				let owners = seen.get(meal._id);

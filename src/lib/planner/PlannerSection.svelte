@@ -43,7 +43,7 @@
 		MEAL_TYPES,
 		type MealType,
 	} from "$lib/utils/meal-types.js";
-	import { skippedCellSet } from "$lib/utils/skipped.js";
+	import { skippedCellSet, weekdayIndex } from "$lib/utils/skipped.js";
 	import { api } from "../../convex/_generated/api.js";
 	import type { Id } from "../../convex/_generated/dataModel";
 	import ListPlanSection from "./ListPlanSection.svelte";
@@ -155,14 +155,28 @@
 			? (lastWeekDaysAllQuery.data ?? [])
 			: (lastWeekDaysQuery.data ?? []);
 		const planned = new Set<Id<"meals">>();
+		const skipByMember = new Map(
+			(members ?? []).map((member) => [
+				member._id,
+				new Set(
+					(member.skippedCells ?? []).map(
+						(cell) => `${cell.day}:${cell.slot}`,
+					),
+				),
+			]),
+		);
 		for (const row of rows) {
-			for (const slot of [
-				row.breakfast,
-				row.lunch,
-				row.dinner,
-				row.snack ?? null,
-			]) {
-				if (slot && slot !== "skip") planned.add(slot);
+			const hidden = skipByMember.get(row.memberId);
+			const weekday = weekdayIndex(row.date);
+			for (const [slot, value] of [
+				["breakfast", row.breakfast],
+				["lunch", row.lunch],
+				["dinner", row.dinner],
+				["snack", row.snack ?? null],
+			] as const) {
+				if (value && value !== "skip" && !hidden?.has(`${weekday}:${slot}`)) {
+					planned.add(value);
+				}
 			}
 		}
 		let count = 0;
@@ -314,14 +328,12 @@
 	}
 
 	function dayMealCount(date: string): number {
-		return Object.values(
-			planMap.get(date) ?? {
-				breakfast: null,
-				lunch: null,
-				dinner: null,
-				snack: null,
-			},
-		).filter(Boolean).length;
+		const row = planMap.get(date);
+		if (!row) return 0;
+		return MEAL_TYPES.filter((type) => {
+			if (isCellSkippedSet(skippedSet, date, type.id)) return false;
+			return Boolean(row[type.id]);
+		}).length;
 	}
 
 	function dayLabel(date: string): string {
@@ -577,6 +589,7 @@
 	members={members.map((member) => ({
 		id: member._id,
 		name: member.name,
+		skippedCells: member.skippedCells ?? [],
 	}))}
 	dates={lastWeekDates}
 	open={reviewOpen}

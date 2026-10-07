@@ -39,11 +39,11 @@ export class ProfileEditor {
 	ownerReviewsMealsDraft = $state<boolean | null>(null);
 	allowMemberInvitesDraft = $state<boolean | null>(null);
 	autoShareMealsDraft = $state<boolean | null>(null);
-	confirmSkipsOpen = $state(false);
 
 	private myNameEditKey = $state<string | null>(null);
 	private viewedHouseholdKey = $state<string | null>(null);
 	private skippedDraft = $state<SkippedCell[] | null>(null);
+	private skipSaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 	private setOwnerManagesPlans = useMutation(
 		api.householdOwner.setOwnerManagesPlans,
@@ -64,9 +64,6 @@ export class ProfileEditor {
 	// useQuery evaluates its args eagerly, and constructor parameter
 	// properties aren't assigned until the constructor body runs.
 	private householdQuery!: UseQueryReturn<typeof api.householdLifecycle.get>;
-	private skipImpactQuery!: UseQueryReturn<
-		typeof api.householdSkips.skipImpact
-	>;
 
 	/** The session household + member, or null when signed out. */
 	get viewedEntry(): SessionEntry | null {
@@ -135,7 +132,7 @@ export class ProfileEditor {
 	// cells, edited through the page-level profile edit mode. A null
 	// draft means no local edits yet — it initializes from the server
 	// state on first toggle, so a slow member load can't clobber it.
-	// Saving removes affected meals after confirmation.
+	// Drafts persist via the debounced autosave, or a manual Save.
 	private get savedSkips(): SkippedCell[] {
 		return this.identityMember?.skippedCells ?? [];
 	}
@@ -150,20 +147,6 @@ export class ProfileEditor {
 			this.skippedDraft !== null &&
 			!sameSkippedCells(this.skippedDraft, this.savedSkips)
 		);
-	}
-
-	get impactMeals(): number {
-		return this.skipImpactQuery.data?.meals ?? 0;
-	}
-	get impactPending(): boolean {
-		return (
-			this.skipsDirty &&
-			this.skipImpactQuery.data === undefined &&
-			!this.skipImpactQuery.error
-		);
-	}
-	get impactError(): boolean {
-		return Boolean(this.skipImpactQuery.error);
 	}
 
 	get pendingOwnerManagesPlans(): boolean {
@@ -217,12 +200,7 @@ export class ProfileEditor {
 		);
 	}
 	get saveDisabled(): boolean {
-		return (
-			!this.myNameEdit.trim() ||
-			!this.hasUnsavedChanges ||
-			this.impactPending ||
-			this.saving
-		);
+		return !this.myNameEdit.trim() || !this.hasUnsavedChanges || this.saving;
 	}
 
 	constructor() {
@@ -235,17 +213,6 @@ export class ProfileEditor {
 					}
 				: "skip";
 		});
-		this.skipImpactQuery = useQuery(api.householdSkips.skipImpact, () =>
-			session.session && this.skipsDirty
-				? {
-						householdId: session.session.householdId as Id<"households">,
-						memberId: session.session.memberId as Id<"householdMembers">,
-						callerMemberId: session.session.memberId as Id<"householdMembers">,
-						fromDate: todayISO(),
-						cells: sortSkippedCells(this.skippedDraft ?? []),
-					}
-				: "skip",
-		);
 		// Prefill the identity inputs (your name, auto-share) from the
 		// session member, resetting only when a different member is shown
 		// so typing is never clobbered.
@@ -275,6 +242,29 @@ export class ProfileEditor {
 				this.saving = false;
 			}
 		});
+
+		// Skips apply themselves shortly after the user stops tapping.
+		// With hide-instead-of-remove semantics nothing destructive can
+		// happen, so there is no confirm step: interaction settling is the
+		// commit signal, which is loss-of-focus behavior without tracking
+		// focus. Each tap replaces the draft (new array identity), so the
+		// timer restarts until the user pauses.
+		$effect(() => {
+			const draft = this.skippedDraft;
+			if (!draft || this.saving) return;
+			this.skipSaveTimer = setTimeout(() => {
+				this.skipSaveTimer = undefined;
+				// Read fresh: a manual Save may have flushed it meanwhile.
+				if (this.skippedDraft) void this.saveSkips();
+			}, 700);
+			return () => clearTimeout(this.skipSaveTimer);
+		});
+	}
+
+	/** Cancel a pending skips autosave (a manual Save flushes instead). */
+	private clearSkipAutosave(): void {
+		clearTimeout(this.skipSaveTimer);
+		this.skipSaveTimer = undefined;
 	}
 
 	private draftCells(): SkippedCell[] {
@@ -317,33 +307,19 @@ export class ProfileEditor {
 		).length;
 	}
 
-	private async requestSaveSkips(): Promise<void> {
-		if (!this.skipsDirty) return;
-		if (this.impactMeals > 0 && !this.confirmSkipsOpen) {
-			this.confirmSkipsOpen = true;
-			return;
-		}
-		await this.saveSkips();
-	}
-
 	private async saveSkips(): Promise<boolean> {
 		const current = session.session;
 		if (!current) return false;
 		try {
-			const result = await this.applySkippedCells({
+			await this.applySkippedCells({
 				householdId: current.householdId as Id<"households">,
 				memberId: current.memberId as Id<"householdMembers">,
 				callerMemberId: current.memberId as Id<"householdMembers">,
 				fromDate: todayISO(),
 				cells: sortSkippedCells(this.skippedDraft ?? []),
 			});
-			this.confirmSkipsOpen = false;
 			this.skippedDraft = null;
-			toast.success(
-				result.meals > 0
-					? `Skipped meals saved — removed ${result.meals} ${result.meals === 1 ? "meal" : "meals"}`
-					: "Skipped meals saved",
-			);
+			toast.success("Skipped meals saved");
 			return true;
 		} catch (error) {
 			toast.error(errorMessage(error, "Couldn't save skipped meals."));
@@ -364,7 +340,7 @@ export class ProfileEditor {
 		this.allowMemberInvitesDraft = null;
 		this.autoShareMealsDraft = null;
 		this.skippedDraft = null;
-		this.confirmSkipsOpen = false;
+		this.clearSkipAutosave();
 	}
 
 	async save(event?: SubmitEvent): Promise<void> {
@@ -377,12 +353,12 @@ export class ProfileEditor {
 		if (!entry || !identity || this.saving || !memberName) {
 			return;
 		}
-		// Skipped-meals confirm first: nothing else saves until the user
-		// confirms the remove (or there is nothing to confirm). The
-		// confirm dialog re-enters here with the dialog already open.
+		// Skips flush first so a manual Save never races the autosave
+		// timer: clearing it makes the pending fire a no-op.
 		if (this.skipsDirty) {
-			await this.requestSaveSkips();
-			if (this.confirmSkipsOpen || this.skipsDirty) return;
+			this.clearSkipAutosave();
+			await this.saveSkips();
+			if (this.skipsDirty) return;
 		}
 		const baselineOwnerPlans = this.household?.ownerManagesPlans ?? false;
 		const pendingOwnerPlans = this.ownerManagesPlansDraft;

@@ -48,7 +48,7 @@ export const list = query({
 	handler: async (ctx, args) => {
 		if (!ISO_DATE.test(args.today)) throw new Error("Invalid date.");
 		const unique = [...new Set(args.dates)].slice(0, 45);
-		const [dayGroups, householdMeals, checks, pantry, ready] =
+		const [dayGroups, householdMeals, checks, pantry, ready, members] =
 			await Promise.all([
 				Promise.all(
 					unique.map((date) =>
@@ -75,6 +75,12 @@ export const list = query({
 					.collect(),
 				ctx.db
 					.query("readyMeals")
+					.withIndex("by_household", (q) =>
+						q.eq("householdId", args.householdId),
+					)
+					.collect(),
+				ctx.db
+					.query("householdMembers")
 					.withIndex("by_household", (q) =>
 						q.eq("householdId", args.householdId),
 					)
@@ -116,6 +122,18 @@ export const list = query({
 			});
 		}
 
+		// Meals stored in preference-skipped cells are hidden, never
+		// served: they contribute no groceries, exactly as if unplanned.
+		const skipSets = new Map(
+			members.map((member) => [
+				member._id,
+				new Set(
+					(member.skippedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+				),
+			]),
+		);
+		const weekdayOf = (date: string): number =>
+			new Date(`${date}T12:00:00Z`).getUTCDay();
 		const plannedMealIds = new Set<Id<"meals">>();
 		const needed = new Map<
 			string,
@@ -123,14 +141,17 @@ export const list = query({
 		>();
 		for (const days of dayGroups) {
 			for (const day of days) {
-				for (const mealId of [
-					day.breakfast,
-					day.lunch,
-					day.dinner,
-					day.snack ?? null,
-				]) {
+				const hidden = skipSets.get(day.memberId);
+				const weekday = weekdayOf(day.date);
+				for (const [slot, mealId] of [
+					["breakfast", day.breakfast],
+					["lunch", day.lunch],
+					["dinner", day.dinner],
+					["snack", day.snack ?? null],
+				] as const) {
 					// Skipped slots contribute no groceries.
 					if (!mealId || mealId === "skip") continue;
+					if (hidden?.has(`${weekday}:${slot}`)) continue;
 					const meal = mealsById.get(mealId);
 					if (!meal) continue;
 					// Heat-and-eat products are bought whole below.

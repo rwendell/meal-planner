@@ -98,6 +98,9 @@
 			const counts = new Map<Id<"meals">, number>();
 			let skipped = 0;
 			for (const date of week) {
+				// Preference-skipped cells are hidden: a retained meal
+				// there counts as neither planned nor unplanned.
+				if (skippedSet.has(`${weekdayIndex(date)}:${slot.id}`)) continue;
 				const value = rows.get(date)?.[slot.id] ?? null;
 				if (value === null) continue;
 				if (value === "skip") {

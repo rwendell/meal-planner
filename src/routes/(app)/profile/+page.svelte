@@ -9,7 +9,6 @@
 	import ProfileEmptyState from "$lib/profile/ProfileEmptyState.svelte";
 	import ProfileLoadingState from "$lib/profile/ProfileLoadingState.svelte";
 	import { ProfileEditor } from "$lib/profile/profile-editor.svelte.js";
-	import SkippedConfirmDialog from "$lib/profile/SkippedConfirmDialog.svelte";
 	import ExclusionsCard from "$lib/profile/SkippedMealsCard.svelte";
 	import { session } from "$lib/stores/session.svelte.js";
 
@@ -37,18 +36,10 @@
 		);
 	}
 
-	beforeNavigate(async (navigation) => {
+	// Commits name/toggle drafts and flushes any pending skips autosave
+	// before leaving. Skips need no confirmation: hiding is not removal.
+	beforeNavigate(async () => {
 		if (!editor.hasUnsavedChanges) return;
-		if (
-			editor.skipsDirty &&
-			(editor.impactMeals > 0 || editor.impactPending)
-		) {
-			// Removing planned meals needs an explicit yes: stay put and
-			// let the normal save flow open the confirm dialog.
-			navigation.cancel();
-			await editor.save();
-			return;
-		}
 		await editor.save();
 	});
 
@@ -109,10 +100,6 @@
 					loading={editor.identityLoading}
 					saving={editor.saving}
 					shownSet={editor.shownSkipsSet}
-					dirty={editor.skipsDirty}
-					impactMeals={editor.impactMeals}
-					impactPending={editor.impactPending}
-					impactError={editor.impactError}
 					onToggleCell={(day, slot, value) =>
 						editor.setCells([{ day, slot }], value)}
 					onToggleSlot={(slot, value) =>
@@ -154,13 +141,6 @@
 				/>
 			{/if}
 
-			<SkippedConfirmDialog
-				open={editor.confirmSkipsOpen}
-				impactMeals={editor.impactMeals}
-				saving={editor.saving}
-				onOpen={(v) => (editor.confirmSkipsOpen = v)}
-				onConfirm={() => void editor.save()}
-			/>
 
 			{#if editor.viewedEntry}
 				<div

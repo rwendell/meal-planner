@@ -225,12 +225,27 @@ export const clearDay = mutation({
 			.collect();
 		const [first, ...dupes] = existing;
 		if (!first) return null;
-		await ctx.db.patch("weekDays", first._id, {
-			breakfast: null,
-			lunch: null,
-			dinner: null,
-			snack: null,
-		});
+		// Hidden meals are inert: clearing a day clears what the user can
+		// see, and leaves stored meals in preference-skipped cells alone.
+		// They reappear if the cell is unskipped.
+		const owner = await ctx.db.get("householdMembers", args.memberId);
+		const hidden = new Set(
+			(owner?.skippedCells ?? []).map((cell) => `${cell.day}:${cell.slot}`),
+		);
+		const weekday = new Date(`${args.date}T12:00:00Z`).getUTCDay();
+		const patch: {
+			breakfast?: typeof first.breakfast;
+			lunch?: typeof first.lunch;
+			dinner?: typeof first.dinner;
+			snack?: typeof first.snack;
+		} = {};
+		for (const slot of ["breakfast", "lunch", "dinner", "snack"] as const) {
+			if (hidden.has(`${weekday}:${slot}`)) continue;
+			patch[slot] = null;
+		}
+		if (Object.keys(patch).length > 0) {
+			await ctx.db.patch("weekDays", first._id, patch);
+		}
 		for (const dupe of dupes) {
 			await ctx.db.delete("weekDays", dupe._id);
 		}

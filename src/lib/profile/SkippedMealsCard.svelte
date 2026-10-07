@@ -14,10 +14,6 @@
 		loading,
 		saving,
 		shownSet,
-		dirty,
-		impactMeals,
-		impactPending,
-		impactError,
 		onToggleCell,
 		onToggleSlot,
 		onToggleDay,
@@ -27,10 +23,6 @@
 		loading: boolean;
 		saving: boolean;
 		shownSet: Set<string>;
-		dirty: boolean;
-		impactMeals: number;
-		impactPending: boolean;
-		impactError: boolean;
 		onToggleCell: (
 			day: SkippedDay,
 			slot: MealType,
@@ -150,26 +142,6 @@
 					</div>
 				</div>
 			</fieldset>
-		{/if}
-		{#if dirty}
-			{#if impactPending && !impactError}
-				<span class="text-xs text-muted-foreground" role="status">
-					Checking affected meals…
-				</span>
-			{:else if impactMeals > 0}
-				<span
-					class="text-xs font-semibold text-amber-600 dark:text-amber-500"
-					role="status"
-				>
-					Saving will remove {impactMeals}
-					{impactMeals === 1 ? "meal" : "meals"} from today
-					onward.
-				</span>
-			{:else}
-				<span class="text-xs text-muted-foreground" role="status">
-					No planned meals are affected.
-				</span>
-			{/if}
 		{/if}
 	</Card.Content>
 </Card.Root>
